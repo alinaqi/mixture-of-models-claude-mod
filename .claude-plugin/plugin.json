@@ -1,0 +1,11 @@
+{
+  "name": "mixture-of-models",
+  "displayName": "Mixture of Models",
+  "version": "0.1.0",
+  "description": "Routes each prompt to the cheapest capable model. Simple and coding work runs in a headless child Claude Code on an Anthropic-compatible gateway (GLM 5.3, Kimi K3, ...); critical work stays in your main session on your subscription. Ported from Maggy.",
+  "author": { "name": "Ali Naqi Shaheen", "url": "https://github.com/alinaqi" },
+  "homepage": "https://github.com/alinaqi/mixture-of-models-claude-mod",
+  "repository": "https://github.com/alinaqi/mixture-of-models-claude-mod",
+  "license": "MIT",
+  "keywords": ["routing", "mixture-of-models", "glm", "kimi", "srooter", "maggy", "cost"]
+}

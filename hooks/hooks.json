@@ -1,0 +1,4 @@
+{
+  "description": "The mixture-of-models hooks module",
+  "modules": ["./register.js"]
+}

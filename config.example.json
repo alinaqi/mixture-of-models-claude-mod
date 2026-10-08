@@ -1,0 +1,19 @@
+{
+  "primary": "glm",
+  "router": {
+    "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "analysis": "kimi-k3", "critical": "claude" },
+    "ollama":     { "base": "http://localhost:11434", "model": "qwen2.5-coder:3b" },
+    "classifier": "claude-haiku-4-5",
+    "child": {
+      "command":  ["claude"],
+      "baseUrl":  "https://www.srooter.ai/anthropic",
+      "keyFile":  "~/.maggy/.env",
+      "keyVar":   "SROOTER_API_KEY",
+      "args":     ["--permission-mode", "acceptEdits"],
+      "maxTurns": 25,
+      "timeoutMs": 600000,
+      "contextMessages": 6
+    },
+    "summary": true
+  }
+}

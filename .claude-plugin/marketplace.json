@@ -1,0 +1,15 @@
+{
+  "name": "mixture-of-models-claude-mod",
+  "description": "Mixture of Models: a Claude Code mod that routes cheap work to GLM/Kimi through a child Claude Code and keeps critical work on your subscription.",
+  "owner": {
+    "name": "Ali Naqi Shaheen",
+    "url": "https://github.com/alinaqi"
+  },
+  "plugins": [
+    {
+      "name": "mixture-of-models",
+      "source": "./",
+      "description": "Route cheap work to GLM/Kimi through a child Claude Code; keep critical work on your subscription."
+    }
+  ]
+}

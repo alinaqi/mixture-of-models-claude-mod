@@ -1,0 +1,15 @@
+{
+  "name": "mixture-of-models-claude-mod",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Code mod: route cheap work to GLM/Kimi through a child Claude Code, keep critical work on your subscription",
+  "license": "MIT",
+  "repository": "github:alinaqi/mixture-of-models-claude-mod",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node scripts/test-pure.mjs",
+    "test:mod": "claude plugin test",
+    "validate": "claude plugin validate --strict ."
+  }
+}
