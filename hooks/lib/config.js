@@ -31,7 +31,8 @@ export const DEFAULTS = {
     baseUrl: '',
     keyFile: '~/.maggy/.env',
     keyVar: 'SROOTER_API_KEY',
-    args: ['--permission-mode', 'acceptEdits'],
+    // --bare: no inherited hooks or plugins, strictly API-key auth, so the child never touches the subscription.
+    args: ['--bare', '--permission-mode', 'acceptEdits'],
     maxTurns: 25,
     timeoutMs: 600000,
     contextMessages: 6,

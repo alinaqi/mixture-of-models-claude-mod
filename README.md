@@ -71,10 +71,10 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
     "classifier": "claude-haiku-4-5",
     "child": {
       "command":  ["claude"],
-      "baseUrl":  "https://www.srooter.ai/anthropic",
+      "baseUrl":  "https://api.srooter.ai/anthropic",
       "keyFile":  "~/.maggy/.env",
       "keyVar":   "SROOTER_API_KEY",
-      "args":     ["--permission-mode", "acceptEdits"],
+      "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
       "contextMessages": 6
@@ -90,7 +90,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `child.command`: the executable. Use a launcher that sets its own auth (such as the `~/bin/claude-<provider>` launchers Maggy writes) and the mod skips the key lookup.
 - `child.baseUrl`, `keyFile`, `keyVar`: where the child's `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` come from. Set only in the child's environment.
-- `child.args`: extra flags. The default lets the child edit files without prompting; add `--dangerously-skip-permissions` only if you want it to run commands unattended, or `--bare` to skip your hooks, plugins and `CLAUDE.md` in the child.
+- `child.args`: extra flags. The default is `--bare` (no inherited hooks or plugins, API-key auth only, so the child can never fall back to your subscription) plus `acceptEdits` so it can edit files without prompting. The mod always adds `--add-dir <cwd>`, which keeps the project's `CLAUDE.md` in reach under `--bare`. Add `--dangerously-skip-permissions` only if you want the child to run commands unattended; drop `--bare` if you want your hooks and plugins inside the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
@@ -111,7 +111,8 @@ Pins persist across sessions in the plugin's store.
 
 - It has Claude Code's tools and runs in the session's working directory, so it can read, edit and run things. Its tool calls are not shown in the main transcript, only its final text.
 - It does not share the main session's memory. The brief carries the last `contextMessages` exchanges (truncated) and the task.
-- It inherits your hooks and plugins unless `--bare` is in `child.args`. The mod itself detects the `MAGGY_ROUTER_CHILD` marker and does nothing inside a child.
+- It runs `--bare` by default, so your hooks and plugins stay out of it. The mod also detects the `MAGGY_ROUTER_CHILD` marker and does nothing inside a child.
+- The tag and the route line name the model the mod **asked for**. A gateway that routes by intent, as srooter does, may answer with another model; Claude Code's `-p` output does not expose which, so the mod cannot show it.
 - Output arrives when the child finishes; this version uses `$.process.run`, so a routed answer is not streamed token by token.
 
 ## Tests

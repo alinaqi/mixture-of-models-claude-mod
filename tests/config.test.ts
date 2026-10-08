@@ -38,8 +38,8 @@ test('no default names a dated model snapshot', async () => {
 })
 
 test('the child block merges over its defaults', async () => {
-  const cfg = parseConfig('{"router":{"child":{"baseUrl":"https://www.srooter.ai/anthropic","maxTurns":5}}}')
-  expect(cfg.child.baseUrl).toBe('https://www.srooter.ai/anthropic')
+  const cfg = parseConfig('{"router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic","maxTurns":5}}}')
+  expect(cfg.child.baseUrl).toBe('https://api.srooter.ai/anthropic')
   expect(cfg.child.maxTurns).toBe(5)
   expect(cfg.child.command).toEqual(['claude'])
   expect(cfg.child.keyFile).toBe('~/.maggy/.env')

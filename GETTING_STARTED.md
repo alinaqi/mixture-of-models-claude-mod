@@ -33,7 +33,7 @@ echo 'SROOTER_API_KEY=srt_...' >> ~/.maggy/.env
 and in `~/.claude/model-config.json` (see `config.example.json`):
 
 ```json
-{ "router": { "child": { "baseUrl": "https://www.srooter.ai/anthropic" } } }
+{ "router": { "child": { "baseUrl": "https://api.srooter.ai/anthropic" } } }
 ```
 
 Your main session needs **no** `ANTHROPIC_BASE_URL`. It stays on your subscription.

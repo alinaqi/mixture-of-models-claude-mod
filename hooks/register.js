@@ -98,7 +98,8 @@ async function runChild($) {
   const brief = buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages)
   const started = Date.now()
   try {
-    const r = await $.process.run(childArgv(cfg.child, decision.model), { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs })
+    const argv = childArgv(cfg.child, decision.model, await $.session.cwd())
+    const r = await $.process.run(argv, { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs })
     const ok = r.exitCode === 0 && r.stdout.trim() !== ''
     decision = { ...decision, child: { ms: Date.now() - started, exitCode: ok ? 0 : r.exitCode || 1 } }
     return ok ? r.stdout.trim() : ''

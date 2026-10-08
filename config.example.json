@@ -6,10 +6,10 @@
     "classifier": "claude-haiku-4-5",
     "child": {
       "command":  ["claude"],
-      "baseUrl":  "https://www.srooter.ai/anthropic",
+      "baseUrl":  "https://api.srooter.ai/anthropic",
       "keyFile":  "~/.maggy/.env",
       "keyVar":   "SROOTER_API_KEY",
-      "args":     ["--permission-mode", "acceptEdits"],
+      "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
       "contextMessages": 6

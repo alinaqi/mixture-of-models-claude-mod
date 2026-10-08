@@ -23,7 +23,7 @@ Routing happens only in a **separate child process**. On `turn.step` for a route
 - The subscription is untouched; only child processes talk to the gateway.
 - Child tool calls are invisible to the main transcript; only the final text lands there. The child does not share the main session's memory beyond the brief.
 - No token streaming for routed answers in this version (`$.process.run` returns whole output). `$.process.spawn` may enable streaming on newer builds.
-- A child inherits hooks and plugins unless `--bare` is configured. The mod disables itself inside a child via the marker.
+- The child runs `--bare` by default (hooks, plugins and keychain auth off; `--add-dir <cwd>` keeps `CLAUDE.md`), after a test showed an inherited hook polluting its answer. The mod also disables itself inside a child via the marker.
 - Two Claude Code processes run during a routed turn.
 
 ## Alternatives Considered

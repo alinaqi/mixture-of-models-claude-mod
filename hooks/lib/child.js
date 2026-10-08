@@ -28,8 +28,9 @@ export function childEnv(child, key) {
   return env
 }
 
-export function childArgv(child, model) {
-  return [...child.command, '-p', '--model', model, '--output-format', 'text', '--max-turns', String(child.maxTurns), ...child.args]
+// --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery.
+export function childArgv(child, model, cwd) {
+  return [...child.command, '-p', '--model', model, '--output-format', 'text', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args]
 }
 
 function describe(m) {

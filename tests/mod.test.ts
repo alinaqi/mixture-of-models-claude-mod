@@ -1,12 +1,13 @@
 import { expect, test } from 'claude-code/testing'
 
-const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://www.srooter.ai/anthropic"}}}'
+const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic"}}}'
 
 // Everything a session.start needs answered in Claude Code's place.
 function stubSession(on, opts: { childEnv?: string; keyFile?: string } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
+  on('session.cwd', () => ({ value: '/work' }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : e.name === 'MAGGY_ROUTER_CHILD' ? opts.childEnv : undefined }))
   on('fs.read', ($, e) => ({ value: e.path.endsWith('model-config.json') ? CONFIG : (opts.keyFile ?? 'SROOTER_API_KEY=srt_test\n') }))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
@@ -60,7 +61,9 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
   expect(runs.length).toBe(1)
   expect(runs[0].argv).toContain('glm-5.3')
   expect(runs[0].argv).toContain('-p')
-  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://www.srooter.ai/anthropic')
+  expect(runs[0].argv).toContain('--bare')
+  expect(runs[0].argv.join(' ')).toContain('--add-dir /work')
+  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://api.srooter.ai/anthropic')
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
   expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
   expect(runs[0].init.stdin).toContain('grep the repo for TODO comments')

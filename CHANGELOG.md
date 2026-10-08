@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-08
+
+### Changed
+- The child runs `--bare` by default: no inherited hooks or plugins, API-key auth only. A live test showed an inherited UserPromptSubmit hook polluting the child's answer. `--add-dir <cwd>` is always passed so the project's `CLAUDE.md` still loads.
+- srooter's Anthropic endpoint is `https://api.srooter.ai/anthropic` (the www host is the website); docs, example config and tests corrected.
+
+### Noted
+- A gateway that routes by intent (srooter) may answer with a different model than the one requested; the tag and route line name the requested route.
+
 ## [0.2.0] - 2026-10-08
 
 ### Added
