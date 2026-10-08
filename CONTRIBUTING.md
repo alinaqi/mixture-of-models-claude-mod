@@ -19,7 +19,7 @@ cd mixture-of-models-claude-mod
 npm test                                  # pure tests
 claude plugin validate --strict .         # manifest + hooks module analysis
 claude --plugin-dir .                     # load it; edits hot-reload at the end of each turn
-claude plugin test                        # hook tests
+env -u ANTHROPIC_API_KEY claude plugin test   # hook tests (needs 2.1.287+; a stale key in the shell 401s)
 ```
 
 Open a pull request against `main`. CI runs the same three checks.

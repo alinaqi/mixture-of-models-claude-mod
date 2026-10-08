@@ -140,12 +140,13 @@ export function register(on) {
     return next(e)
   })
 
+  // Fail open: a classifier that throws or times out must never swallow the prompt.
   on('prompt.submit', async ($, e, next) => {
     if (disabled) return next(e)
     lastPrompt = e.text
     await decide($, e.text)
     return next(e)
-  })
+  }).catch(async ($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
     decision = { label: decision.label, model: decision.model, source: decision.source }

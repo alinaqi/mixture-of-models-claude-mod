@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic"}}}'
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; keyFile?: string } = {}) {
+function stubSession(on, opts: { childEnv?: string; keyFile?: string; label?: string } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -20,7 +20,8 @@ function stubSession(on, opts: { childEnv?: string; keyFile?: string } = {}) {
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
   on('store.delete', () => ({ value: undefined }))
-  on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"simple"}}' } }))
+  // The local classifier's reply: the label the test wants the prompt to get.
+  on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + (opts.label ?? 'simple') + '"}}' } }))
   return store
 }
 
@@ -70,8 +71,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
 })
 
 test('a critical prompt never starts a child', async ($, on) => {
-  stubSession(on)
-  on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"critical"}}' } }))
+  stubSession(on, { label: 'critical' })
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
   const seen: string[] = []
@@ -205,8 +205,7 @@ test('a routed reply gets a provenance tag and a main-session reply does not', a
 })
 
 test('every turn gets a route line, main-session turns included', async ($, on) => {
-  stubSession(on)
-  on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"critical"}}' } }))
+  stubSession(on, { label: 'critical' })
   recordSteps(on, [])
 
   await routedTurn($, 'redesign the auth service boundaries and write the ADR')

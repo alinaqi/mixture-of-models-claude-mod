@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-10-08
+
+### Fixed
+- `prompt.submit` has a fail-open `.catch` handler, as `claude plugin validate --strict` on 2.1.294 asks for gating hooks.
+- Hook tests registered the classifier stub twice in two cases; `stubSession` now takes the label.
+- Contributor instructions moved from `CLAUDE.md` to `AGENTS.md`: a `CLAUDE.md` at a plugin root is flagged by strict validation.
+
+### Verified
+- On Claude Code 2.1.294: all 55 tests pass under `claude plugin test`; a headless session on a claude.ai subscription with the mod loaded answered a simple prompt from the child through srooter with no parent model call.
+
 ## [0.3.0] - 2026-10-08
 
 ### Changed
