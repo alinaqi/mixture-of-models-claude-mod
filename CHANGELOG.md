@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- CI skips the hook tests when the installed Claude Code has no `plugin test` subcommand instead of failing the run.
+
 ## [0.1.0] - 2026-10-08
 
 ### Added
