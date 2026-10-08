@@ -46,3 +46,9 @@ test('the child block merges over its defaults', async () => {
   expect(cfg.child.keyVar).toBe('SROOTER_API_KEY')
   expect(cfg.child.timeoutMs).toBe(600000)
 })
+
+test('the ui block defaults to the band on and tags on routed replies', async () => {
+  expect(parseConfig('').ui).toEqual({ band: true, tags: 'routed' })
+  expect(parseConfig('{"router":{"ui":{"tags":"all"}}}').ui).toEqual({ band: true, tags: 'all' })
+  expect(parseConfig('{"router":{"ui":{"band":false}}}').ui.band).toBe(false)
+})

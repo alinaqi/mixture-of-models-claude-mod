@@ -36,6 +36,8 @@ export const DEFAULTS = {
     timeoutMs: 600000,
     contextMessages: 6,
   },
+  // The band above the prompt, and which replies get a provenance tag: 'routed', 'all' or 'off'.
+  ui: { band: true, tags: 'routed' },
   summary: true,
 }
 
@@ -64,6 +66,7 @@ export function parseConfig(text) {
     ollama: { ...DEFAULTS.ollama, ...(router.ollama || {}) },
     classifier: router.classifier || DEFAULTS.classifier,
     child: { ...DEFAULTS.child, ...(router.child || {}) },
+    ui: { ...DEFAULTS.ui, ...(router.ui || {}) },
     summary: router.summary === undefined ? DEFAULTS.summary : router.summary,
   }
 }

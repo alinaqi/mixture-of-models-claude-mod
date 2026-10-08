@@ -6,6 +6,7 @@ import { classifierPrompt, ollamaBody, ollamaReply, parseLabel, preClassify } fr
 import { parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
 import { buildBrief, childArgv, childEnv, childReady, expandHome, parseEnvFile } from './lib/child.js'
 import { bumpStats, statsLine } from './lib/stats.js'
+import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
 let cfg = parseConfig('')
 let disabled = false
@@ -15,6 +16,7 @@ let sessionModel = ''
 let pin = { mode: 'auto' }
 let decision = { label: 'critical', model: '', source: 'default' }
 let lastPrompt = ''
+const answered = new Map()
 
 async function readFile($, path) {
   try {
@@ -106,10 +108,21 @@ async function runChild($) {
   }
 }
 
-function routeReport() {
-  const live = disabled ? 'disabled (child session)' : ready ? 'live' : 'observe-only (no gateway key for the child)'
-  const state = pin.mode === 'auto' ? 'auto' : pin.mode + (pin.model ? ' ' + pin.model : pin.label ? ' ' + pin.label : '')
-  return 'mixture-of-models ' + live + ' · mode ' + state + ' · current ' + summaryLine(decision, null)
+async function pinFrom($, arg) {
+  pin = parseRouteArg(arg, cfg.routes)
+  await $.store.set('pin', pin)
+  applyPin()
+  $.ui.invalidate('ui.render')
+  return 'routing set to ' + pin.mode + (pin.model ? ' ' + pin.model : pin.label ? ' ' + pin.label : '')
+}
+
+function bandView(e, theirs) {
+  return { disabled, ready, sessionModel, pin, decision, routes: cfg.routes, isWorking: e.props.isWorking, theirs }
+}
+
+function taggedModel(props) {
+  if (cfg.ui.tags === 'off' || !props.isFirstOfReply) return undefined
+  return answered.get(props.text.trim()) || (cfg.ui.tags === 'all' ? sessionModel : undefined)
 }
 
 export function register(on) {
@@ -145,17 +158,31 @@ export function register(on) {
       $.ui.log('child on ' + decision.model + ' failed, main model takes this turn')
       return yield* next(e)
     }
+    answered.set(answer, decision.model)
+    if (answered.size > 50) answered.delete(answered.keys().next().value)
     yield { kind: 'text', index: 0, text: answer }
     return { turnId: e.turnId, index: e.index, answer, toolUses: [], stopReason: 'end_turn', usage: null }
   })
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (disabled || e.agentId || !cfg.summary || !decision.child) return result
+    if (disabled || e.agentId || !cfg.summary || !decision.model) return result
     const day = new Date().toISOString().slice(0, 10)
     const stats = bumpStats((await $.store.get('stats')) || {}, day, decision.model)
     await $.store.set('stats', stats)
     return { ...result, text: summaryLine(decision, e.usage) + ' · ' + statsLine(stats, day) }
+  })
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!cfg.ui.band || e.props.hasSurvey) return next(e)
+    const theirs = await next(e)
+    return bandTree($.ui.resolve(e), bandView(e, theirs), (arg) => pinFrom($, arg))
+  })
+
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    const model = taggedModel(e.props)
+    if (!model) return next(e)
+    return tagTree($.ui.resolve(e), tagText(model, sessionModel), await next(e))
   })
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
@@ -165,10 +192,7 @@ export function register(on) {
 
   on('command.run', { command: 'route' }, async ($, e) => {
     const parsed = parseRouteArg(e.args, cfg.routes)
-    if (parsed.mode === 'show') return { text: routeReport() + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) }
-    pin = parsed
-    await $.store.set('pin', pin)
-    applyPin()
-    return { text: 'routing set to ' + parsed.mode + (parsed.model ? ' ' + parsed.model : parsed.label ? ' ' + parsed.label : '') }
+    if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) }
+    return { text: await pinFrom($, e.args) }
   })
 }

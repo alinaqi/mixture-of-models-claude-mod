@@ -4,9 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-08
+
+### Added
+- A band above the prompt: the current mode and last decision, with digit-hotkey buttons `auto · glm · kimi · claude · off` that pin a route without a command. Config `router.ui.band`.
+- A provenance tag above replies that came from a child (`⇢ glm-5.3 · child on gateway`). `router.ui.tags` is `routed` (default), `all` (main-session replies get `⇢ claude-opus-5 · main session` too) or `off`.
+- `summaryLine` now ends every turn's line with where it ran: `child 42s` or `main session`.
 
 ### Changed
+- The route line under an answer appears on every turn, main-session turns included, so Claude and gateway work are both visible. Today's counts list every model used.
+- `/route` reports through the same text as the band.
 - CI skips the hook tests when the installed Claude Code has no `plugin test` subcommand instead of failing the run.
 
 ## [0.1.0] - 2026-10-08

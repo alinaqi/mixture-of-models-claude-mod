@@ -17,6 +17,8 @@ function stubSession(on, opts: { childEnv?: string; keyFile?: string } = {}) {
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
+  on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
+  on('store.delete', () => ({ value: undefined }))
   on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"simple"}}' } }))
   return store
 }
@@ -152,4 +154,61 @@ test('/route kimi pins the next routed turn to Kimi', async ($, on) => {
 
   expect(runs[0].argv).toContain('kimi-k3')
   expect(result.answer).toBe('kimi says hi')
+})
+
+const BAND = {
+  plugin: 'mixture-of-models',
+  component: 'AbovePrompt',
+  requestId: 'above-prompt',
+  viewport: { columns: 120, rows: 40 },
+  props: { hasSurvey: false, isWorking: false, maxRows: 3, bodyColumns: 110, scroll: { offset: 0, bodyRows: 3 }, view: {} },
+} as const
+
+function message(text: string) {
+  return { plugin: 'mixture-of-models', component: 'AssistantMessage', requestId: 'm-' + text.length, surface: 'terminal', props: { text, isFirstOfReply: true } } as const
+}
+
+test('the band shows the mode and its buttons pin a model', async ($, on) => {
+  const store = stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'x', stderr: '' } }))
+  recordSteps(on, [])
+
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /auto · no prompt yet/ })).toBeDefined()
+  await ui.press({ key: 'pin-kimi' })
+  expect(store.get('pin')).toEqual({ mode: 'model', model: 'kimi-k3' })
+  expect(await ui.find({ type: 'Text', text: /pinned kimi-k3/ })).toBeDefined()
+  await ui.press({ key: 'pin-auto' })
+  expect(store.get('pin')).toEqual({ mode: 'auto' })
+  await ui.unmount()
+})
+
+test('a routed reply gets a provenance tag and a main-session reply does not', async ($, on) => {
+  stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'child answer\n', stderr: '' } }))
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const tagged = await $.ui.mount(message('child answer'))
+  expect(await tagged.find({ type: 'Text', text: /glm-5\.3 · child on gateway/ })).toBeDefined()
+  expect(await tagged.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+  await tagged.unmount()
+
+  const plain = await $.ui.mount(message('something Claude wrote'))
+  expect(await plain.find({ type: 'Text', text: /child on gateway/ })).toBeUndefined()
+  expect(await plain.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+  await plain.unmount()
+})
+
+test('every turn gets a route line, main-session turns included', async ($, on) => {
+  stubSession(on)
+  on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"critical"}}' } }))
+  recordSteps(on, [])
+
+  await routedTurn($, 'redesign the auth service boundaries and write the ADR')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('claude-opus-5')
+  expect(done.text).toContain('main session')
+  expect(done.text).toContain('today: claude-opus-5 ×1')
 })

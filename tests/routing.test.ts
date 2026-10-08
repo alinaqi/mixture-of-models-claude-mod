@@ -28,20 +28,20 @@ test('parseRouteArg expands a provider prefix to the configured model', async ()
   expect(parseRouteArg('claude', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'claude' })
 })
 
-test('summaryLine reports the route, the whole context size and the cache share', async () => {
+test('summaryLine reports a main-session turn with context size and cache share', async () => {
   // input_tokens excludes cached tokens: context = 1.3k + 11k + 0 = 12.3k, of which 11k (89%) came from cache
-  const usage = { input_tokens: 1_300, output_tokens: 800, cache_read_input_tokens: 11_000, cache_creation_input_tokens: 0, model: 'glm-5.3' }
-  const line = summaryLine({ label: 'simple', model: 'glm-5.3', source: 'ollama' }, usage)
-  expect(line).toBe('route: glm-5.3 · simple via ollama · 12.3k in / 0.8k out · cache 89%')
+  const usage = { input_tokens: 1_300, output_tokens: 800, cache_read_input_tokens: 11_000, cache_creation_input_tokens: 0, model: 'claude-opus-5' }
+  const line = summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'rule' }, usage)
+  expect(line).toBe('route: claude-opus-5 · critical via rule · 12.3k in / 0.8k out · cache 89% · main session')
 })
 
 test('summaryLine survives a usage with no tokens', async () => {
   const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, model: 'x' }
-  expect(summaryLine({ label: 'simple', model: 'x', source: 'pin' }, usage)).toBe('route: x · simple via pin · 0.0k in / 0.0k out · cache 0%')
+  expect(summaryLine({ label: 'simple', model: 'x', source: 'pin' }, usage)).toBe('route: x · simple via pin · 0.0k in / 0.0k out · cache 0% · main session')
 })
 
 test('summaryLine works without usage', async () => {
-  expect(summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'pin' }, null)).toBe('route: claude-opus-5 · critical via pin')
+  expect(summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'pin' }, null)).toBe('route: claude-opus-5 · critical via pin · main session')
 })
 
 test('summaryLine reports a child run instead of API usage', async () => {

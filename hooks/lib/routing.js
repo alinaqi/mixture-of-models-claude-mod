@@ -38,9 +38,14 @@ function childNote(child) {
   return ' · child ' + Math.round(child.ms / 1000) + 's'
 }
 
+function usageNote(usage) {
+  if (!usage) return ''
+  return ' · ' + fmtTokens(contextTokens(usage)) + ' in / ' + fmtTokens(usage.output_tokens) + ' out · cache ' + cachePercent(usage) + '%'
+}
+
+// Every turn gets a line: where it ran (child or main session) and what it cost.
 export function summaryLine(decision, usage) {
   const head = 'route: ' + decision.model + ' · ' + decision.label + ' via ' + decision.source
   if (decision.child) return head + childNote(decision.child)
-  if (!usage) return head
-  return head + ' · ' + fmtTokens(contextTokens(usage)) + ' in / ' + fmtTokens(usage.output_tokens) + ' out · cache ' + cachePercent(usage) + '%'
+  return head + usageNote(usage) + ' · main session'
 }

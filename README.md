@@ -18,9 +18,23 @@ Per prompt the mod:
 2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; `go ahead`, `yes`, or a prompt of six words or fewer while tools were just used keeps the current route instead of re-classifying.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
 4. **Falls back** to the main model for that turn if the child fails or prints nothing, and says so in the transcript.
-5. **Reports**: a line under each routed answer (`route: glm-5.3 · coding via ollama · child 42s · today: glm-5.3 ×4`), `via glm-5.3 (child)…` in the spinner, and a `/route` command.
+5. **Shows you what ran where**, on every turn. See [What you see](#what-you-see).
 
 `critical` turns never start a child. They run in the main session, on the subscription, exactly as if the mod were not there.
+
+## What you see
+
+Claude and the gateway are both visible, all the time:
+
+| Surface | Main-session turn | Routed turn |
+| :- | :- | :- |
+| Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  1: auto  2: glm  3: kimi  4: claude  5: off` | `… · running glm-5.3 in a child…` while it runs |
+| Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
+| Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback |
+| Line under the answer | `route: claude-opus-5 · critical via rule · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding via ollama · child 42s · today: …` |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: …` | same |
+
+The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto. Turn the band off with `"ui": { "band": false }`.
 
 ## Requirements
 
@@ -65,6 +79,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "timeoutMs": 600000,
       "contextMessages": 6
     },
+    "ui":      { "band": true, "tags": "routed" },
     "summary": true
   }
 }
@@ -78,6 +93,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 - `child.args`: extra flags. The default lets the child edit files without prompting; add `--dangerously-skip-permissions` only if you want it to run commands unattended, or `--bare` to skip your hooks, plugins and `CLAUDE.md` in the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.
+- `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
 ## Commands
 
@@ -106,7 +122,7 @@ claude plugin validate --strict .  # manifest + static analysis of the hooks mod
 claude plugin test                 # needs v2.1.287+; fires events through the hooks with no session or network
 ```
 
-`tests/classify`, `config`, `routing`, `stats` and `child` cover the pure logic in `hooks/lib/`. `tests/mod.test.ts` drives the hooks end to end: a simple prompt is answered by a child with the gateway in its environment and the brief on stdin, a critical prompt never starts one, a failed child falls back to the main model, a missing key means observe-only, a child session disables the mod, and `/route off` and `/route kimi` behave.
+`tests/classify`, `config`, `routing`, `stats`, `child` and `ui` cover the pure logic in `hooks/lib/`. `tests/mod.test.ts` drives the hooks end to end: a simple prompt is answered by a child with the gateway in its environment and the brief on stdin, a critical prompt never starts one, a failed child falls back to the main model, a missing key means observe-only, a child session disables the mod, and `/route off` and `/route kimi` behave.
 
 ## Layout
 
@@ -119,7 +135,7 @@ mixture-of-models-claude-mod/
 ├── scripts/test-pure.mjs   # runs the pure tests under Node
 ├── hooks/
 │   ├── hooks.json          # points at register.js
-│   ├── register.js         # the 7 hooks; the only file that touches the mods API ($)
+│   ├── register.js         # the 9 hooks; the only file that touches the mods API ($)
 │   └── lib/                # pure, unit-tested
 │       ├── config.js       # defaults and the model-config.json overlay
 │       ├── classify.js     # Maggy's pre-routing rules, classifier prompt, Ollama wire format
