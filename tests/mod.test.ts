@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic"}}}'
+// Maggy-style config: gateway URL in model-config and the key read from an explicitly named env file.
+const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic","keyFile":"~/.maggy/.env"}}}'
 
 // Everything a session.start needs answered in Claude Code's place.
 function stubSession(on, opts: { childEnv?: string; keyFile?: string; score?: string; offline?: boolean } = {}) {

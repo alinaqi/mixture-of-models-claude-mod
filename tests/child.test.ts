@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { buildBrief, childArgv, childEnv, childReady, expandHome, parseEnvFile } from '../hooks/lib/child.js'
+import { buildBrief, childArgv, childEnv, childReady, expandHome, gatewayFrom, parseEnvFile } from '../hooks/lib/child.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.srooter.ai/anthropic' }
 
@@ -73,4 +73,14 @@ test('buildBrief keeps only the last N messages and truncates long ones', async 
   expect(brief).toContain('m7 ')
   expect(brief.length).toBe(brief.length)
   expect(brief.indexOf('x'.repeat(700))).toBe(-1)
+})
+
+test('gatewayFrom prefers the plugin options and falls back to the config and an opt-in env file', async () => {
+  const child = { ...DEFAULTS.child, baseUrl: 'https://cfg.example/anthropic', keyFile: '~/.maggy/.env', keyVar: 'SROOTER_API_KEY' }
+  const fileEnv = { SROOTER_API_KEY: 'srt_from_file' }
+  expect(gatewayFrom({ gateway_url: 'https://opt.example/anthropic', gateway_key: 'srt_from_options' }, child, fileEnv))
+    .toEqual({ baseUrl: 'https://opt.example/anthropic', key: 'srt_from_options' })
+  expect(gatewayFrom({}, child, fileEnv)).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: 'srt_from_file' })
+  expect(gatewayFrom({ gateway_key: 'srt_from_options' }, child, {})).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: 'srt_from_options' })
+  expect(gatewayFrom(undefined, { ...child, baseUrl: '' }, {})).toEqual({ baseUrl: '', key: '' })
 })

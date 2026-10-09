@@ -1,11 +1,35 @@
 {
   "name": "mixture-of-models",
   "displayName": "Mixture of Models",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Routes each prompt to the cheapest capable model. Simple and coding work runs in a headless child Claude Code on an Anthropic-compatible gateway (GLM 5.3, Kimi K3, ...); critical work stays in your main session on your subscription. Ported from Maggy.",
-  "author": { "name": "Ali Naqi Shaheen", "url": "https://github.com/alinaqi" },
+  "author": {
+    "name": "Ali Naqi Shaheen",
+    "url": "https://github.com/alinaqi"
+  },
   "homepage": "https://github.com/alinaqi/mixture-of-models-claude-mod",
   "repository": "https://github.com/alinaqi/mixture-of-models-claude-mod",
   "license": "MIT",
-  "keywords": ["routing", "mixture-of-models", "glm", "kimi", "srooter", "maggy", "cost"]
+  "keywords": [
+    "routing",
+    "mixture-of-models",
+    "glm",
+    "kimi",
+    "srooter",
+    "maggy",
+    "cost"
+  ],
+  "userConfig": {
+    "gateway_url": {
+      "type": "string",
+      "title": "Gateway URL",
+      "description": "Anthropic-compatible endpoint the child Claude Code sends routed turns to, e.g. https://api.srooter.ai/anthropic. Leave empty to stay observe-only."
+    },
+    "gateway_key": {
+      "type": "string",
+      "title": "Gateway API key",
+      "description": "API key for that gateway. Used only in the child process environment.",
+      "sensitive": true
+    }
+  }
 }

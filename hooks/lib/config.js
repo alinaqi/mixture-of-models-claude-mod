@@ -31,7 +31,8 @@ export const DEFAULTS = {
   child: {
     command: ['claude'],
     baseUrl: '',
-    keyFile: '~/.maggy/.env',
+    // Opt-in: name an env file (e.g. ~/.maggy/.env) to read keyVar from it. Off by default; use userConfig.
+    keyFile: '',
     keyVar: 'SROOTER_API_KEY',
     // --bare: no inherited hooks or plugins, strictly API-key auth, so the child never touches the subscription.
     args: ['--bare', '--permission-mode', 'acceptEdits'],

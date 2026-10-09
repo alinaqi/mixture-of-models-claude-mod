@@ -43,7 +43,7 @@ test('the child block merges over its defaults', async () => {
   expect(cfg.child.baseUrl).toBe('https://api.srooter.ai/anthropic')
   expect(cfg.child.maxTurns).toBe(5)
   expect(cfg.child.command).toEqual(['claude'])
-  expect(cfg.child.keyFile).toBe('~/.maggy/.env')
+  expect(cfg.child.keyFile).toBe('')
   expect(cfg.child.keyVar).toBe('SROOTER_API_KEY')
   expect(cfg.child.timeoutMs).toBe(600000)
 })
@@ -57,4 +57,9 @@ test('the ui block defaults to the band on and tags on routed replies', async ()
 test('thresholds default to 3/7 and can be moved', async () => {
   expect(parseConfig('').thresholds).toEqual({ simple: 3, coding: 7 })
   expect(parseConfig('{"router":{"thresholds":{"coding":8}}}').thresholds).toEqual({ simple: 3, coding: 8 })
+})
+
+test('the env-file key lookup is opt-in', async () => {
+  expect(DEFAULTS.child.keyFile).toBe('')
+  expect(parseConfig('{"router":{"child":{"keyFile":"~/.maggy/.env"}}}').child.keyFile).toBe('~/.maggy/.env')
 })

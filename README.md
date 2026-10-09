@@ -80,17 +80,33 @@ The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause 
 
 See [GETTING_STARTED.md](GETTING_STARTED.md) for the full walkthrough, or `./install.sh`.
 
-1. Put the gateway key in Maggy's env file, which the mod reads (never your shell or `ps`):
+1. Give the child its gateway. The plugin asks for two values, and the key is masked and kept in Claude Code's secure storage, never in a settings file:
 
-   ```bash
-   echo 'SROOTER_API_KEY=srt_…' >> ~/.maggy/.env
+   ```
+   /plugin configure mixture-of-models@mixture-of-models-claude-mod
    ```
 
-2. Add the child's base URL to Maggy's `~/.claude/model-config.json` under `router.child.baseUrl` (full example below).
+   or from the shell at install time: `claude plugin install mixture-of-models@mixture-of-models-claude-mod --config gateway_url=https://api.srooter.ai/anthropic --config gateway_key=srt_…`
 
-3. Install (above) or load a checkout for one session with `claude --plugin-dir .`, then run `/route` in the session.
+   Maggy users can instead keep the key in `~/.maggy/.env` and opt in with `"router": { "child": { "keyFile": "~/.maggy/.env" } }` in `~/.claude/model-config.json`. Without that line the mod never reads a file for a credential.
 
-Until both the base URL and the key are present the mod is **observe-only**: it classifies and `/route` shows what it would do, but no child starts.
+2. Optionally tune routes, thresholds and the child in `~/.claude/model-config.json` (example below).
+
+3. Start `claude` and run `/route`.
+
+Until a gateway URL and key are present the mod is **observe-only**: it classifies and `/route` shows what it would do, but no child starts.
+
+## What this plugin runs, reads, sends and stores
+
+Everything the plugin does outside its own code, so you can decide whether to trust it:
+
+- **Runs** a child process: `claude -p --bare --model <routed id> --output-format text --max-turns N --add-dir <cwd> <your args>`, with `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_KEY` (your gateway values) and `MAGGY_ROUTER_CHILD=1` set in that child's environment only. The child has Claude Code's tools in your working directory under the permission mode in `child.args` (`acceptEdits` by default).
+- **Sends** to your gateway, through that child: your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated). Nothing is sent anywhere the gateway URL doesn't name.
+- **Sends** the prompt text to the classifier: a local Ollama at `ollama.base` if one answers, otherwise to Claude on your own plan through `$.model.classify` with the `classifier` alias. The classifier sees the prompt and the scoring rubric, nothing else.
+- **Reads** `~/.claude/model-config.json` (routes, thresholds, child settings) and, only when `child.keyFile` is set, that env file for `child.keyVar`. It reads the environment variables `HOME` and `MAGGY_ROUTER_CHILD`.
+- **Stores** in the plugin's own store (`~/.claude/plugins/store/`): the `/route` pin, per-day counts per model, and the last score. No prompt text is stored.
+- **Draws** the band above the prompt, a tag above routed replies, a suffix on the spinner and a line under answers. It never changes permission prompts or tool permissions.
+- **Never** writes to your settings files or to `model-config.json`, and never touches the main session's model, endpoint or credentials.
 
 ## Configuration
 
@@ -125,7 +141,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `child.command`: the executable. Use a launcher that sets its own auth (such as the `~/bin/claude-<provider>` launchers Maggy writes) and the mod skips the key lookup.
-- `child.baseUrl`, `keyFile`, `keyVar`: where the child's `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` come from. Set only in the child's environment.
+- `child.baseUrl`, `keyFile`, `keyVar`: fallbacks for the child's `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` when the plugin's `gateway_url` / `gateway_key` options are unset. `keyFile` is empty by default; set it to opt in to reading an env file.
 - `child.args`: extra flags. The default is `--bare` (no inherited hooks or plugins, API-key auth only, so the child can never fall back to your subscription) plus `acceptEdits` so it can edit files without prompting. The mod always adds `--add-dir <cwd>`, which keeps the project's `CLAUDE.md` in reach under `--bare`. Add `--dangerously-skip-permissions` only if you want the child to run commands unattended; drop `--bare` if you want your hooks and plugins inside the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-09
+
+### Changed
+- The gateway URL and key are asked for through the plugin's `userConfig` (`gateway_url`, `gateway_key` masked and kept in secure storage) and reach the mod as `register(on, options)`. Reading a key from an env file is now opt-in: set `router.child.keyFile` in model-config to name one. Nothing on the machine is read for credentials by default.
+- README gains a disclosure section listing everything the plugin runs, reads, sends and stores.
+
 ## [0.4.0] - 2026-10-09
 
 ### Added

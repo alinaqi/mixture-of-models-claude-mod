@@ -48,3 +48,10 @@ export function buildBrief(messages, prompt, limit) {
   if (!history.length) return prompt
   return 'Context from the main session:\n' + history.map(describe).join('\n') + '\n\nTask:\n' + prompt
 }
+
+// Where the child's gateway comes from, in order: the plugin's userConfig (masked, secure
+// storage), then model-config's child.baseUrl, then an env file only when keyFile names one.
+export function gatewayFrom(options, child, fileEnv) {
+  const o = options || {}
+  return { baseUrl: o.gateway_url || child.baseUrl || '', key: o.gateway_key || fileEnv[child.keyVar] || '' }
+}

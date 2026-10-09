@@ -19,4 +19,4 @@ if [ ! -f "$CONFIG" ]; then
 else
   echo "$CONFIG exists. Add a \"router\" block from config.example.json if it has none."
 fi
-echo "Put the gateway key in ~/.maggy/.env as SROOTER_API_KEY=... then start claude and run /route."
+echo "Now set the gateway: in a session run /plugin configure mixture-of-models@mixture-of-models-claude-mod, then /route."

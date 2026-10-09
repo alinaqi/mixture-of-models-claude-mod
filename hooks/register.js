@@ -3,11 +3,12 @@
 import { parseConfig } from './lib/config.js'
 import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from './lib/classify.js'
 import { parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
-import { buildBrief, childArgv, childEnv, childReady, expandHome, parseEnvFile } from './lib/child.js'
+import { buildBrief, childArgv, childEnv, childReady, expandHome, gatewayFrom, parseEnvFile } from './lib/child.js'
 import { bumpStats, statsLine } from './lib/stats.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
 let cfg = parseConfig('')
+let options = {}
 let disabled = false
 let ready = false
 let key = ''
@@ -28,7 +29,8 @@ async function readFile($, path) {
 async function loadConfig($) {
   const home = (await $.env.get('HOME')) || ''
   cfg = parseConfig(await readFile($, home + '/.claude/model-config.json'))
-  key = parseEnvFile(await readFile($, expandHome(cfg.child.keyFile, home)))[cfg.child.keyVar] || ''
+  const fileEnv = cfg.child.keyFile ? parseEnvFile(await readFile($, expandHome(cfg.child.keyFile, home))) : {}
+  ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child, fileEnv))
   ready = childReady(cfg.child, key)
   sessionModel = await $.session.model()
   pin = (await $.store.get('pin')) || { mode: 'auto' }
@@ -44,12 +46,8 @@ async function askOllama($, text) {
   }
 }
 
-async function askClaude($, text) {
-  try {
-    return parseScore(await $.model.classify(classifierPrompt(text), SCORES, { model: cfg.classifier }))
-  } catch {
-    return undefined
-  }
+function askClaude($, text) {
+  return $.model.classify(classifierPrompt(text), SCORES, { model: cfg.classifier }).then(parseScore).catch(() => undefined)
 }
 
 async function classify($, text) {
@@ -125,7 +123,8 @@ function taggedModel(props) {
   return answered.get(props.text.trim()) || (cfg.ui.tags === 'all' ? sessionModel : undefined)
 }
 
-export function register(on) {
+export function register(on, opts) {
+  options = opts || {}
   on('session.start', async ($, e, next) => {
     disabled = Boolean(await $.env.get('MAGGY_ROUTER_CHILD'))
     if (disabled) return next(e)
