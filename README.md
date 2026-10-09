@@ -3,12 +3,32 @@
 [![ci](https://github.com/alinaqi/mixture-of-models-claude-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/alinaqi/mixture-of-models-claude-mod/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A mixture of models for Claude Code. [Maggy](https://github.com/alinaqi/maggy)'s model routing, rebuilt as a Claude Code **mod**: it runs inside Claude Code, so the hand-off to a cheaper model is automatic instead of an instruction Claude has to follow.
+Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
+
+To be precise about what it is: **turn-level delegation**, not per-request model mixing. A routed turn runs in a child process with a short brief of your recent context; the child's answer lands in your transcript, tagged. Critical turns stay on Claude exactly as before.
+
+> **Status: early.** Released on day two of Claude Code mods, verified on one machine. Read [What the child can and cannot do](#what-the-child-can-and-cannot-do) before trusting it with a deploy.
+
+## Install
+
+Mods need **Claude Code 2.1.287 or later**. The stable Homebrew cask is still 2.1.286, so check first:
+
+```bash
+claude --version
+# too old? one of:
+brew uninstall --cask claude-code && brew install --cask claude-code@latest   # Homebrew
+npm install -g @anthropic-ai/claude-code@latest                               # npm
+claude update                                                                 # native installer
+```
+
+Then:
 
 ```bash
 claude plugin marketplace add alinaqi/mixture-of-models-claude-mod
 claude plugin install mixture-of-models@mixture-of-models-claude-mod
 ```
+
+Give the child a gateway (any Anthropic-compatible endpoint that serves your model ids; tested with [srooter](https://www.srooter.ai), and z.ai or Moonshot's Anthropic endpoints work the same way), see [Setup](#setup). Start `claude`, run `/route`. Until a gateway is configured the mod is observe-only and changes nothing.
 
 **Design rule: the main session is never touched.** It stays on your claude.ai subscription with no `ANTHROPIC_BASE_URL`. When a prompt is routed to GLM or Kimi, the mod answers that turn itself by running a **separate, headless `claude -p` child** whose environment alone points at the gateway (srooter). The child's output becomes the turn's answer in your transcript. Nothing about the main process, its model, its auth or its requests changes.
 
