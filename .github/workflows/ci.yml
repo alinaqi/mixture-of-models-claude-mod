@@ -16,7 +16,9 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
       - name: Validate plugin and hooks module
-        run: claude plugin validate --strict .
+        # Not --strict: the npm build on the runner may trail the manifest fields the
+        # directory requires (privacyPolicyUrl) and would fail on the unknown-field warning.
+        run: claude plugin validate .
       - name: Hook tests (skipped until the published Claude Code has `plugin test`)
         run: |
           if claude plugin --help 2>/dev/null | grep -qE '^\s+test\b'; then

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- CI validates without `--strict`, since the runner's Claude Code build may not know `privacyPolicyUrl` yet.
+
 ## [0.5.2] - 2026-10-09
 
 ### Changed

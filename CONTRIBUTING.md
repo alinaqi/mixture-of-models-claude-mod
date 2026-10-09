@@ -22,7 +22,7 @@ claude --plugin-dir .                     # load it; edits hot-reload at the end
 env -u ANTHROPIC_API_KEY claude plugin test   # hook tests (needs 2.1.287+; a stale key in the shell 401s)
 ```
 
-Open a pull request against `main`. CI runs the same three checks.
+Open a pull request against `main`. CI runs the same checks, except that it validates without `--strict`: the runner's Claude Code build may not yet know manifest fields the directory requires, such as `privacyPolicyUrl`. Run `--strict` locally on 2.1.294 or later.
 
 ## Releasing
 
