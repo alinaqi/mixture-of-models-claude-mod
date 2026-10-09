@@ -24,16 +24,13 @@ export const DEFAULTS = {
   subagents: { Explore: 'simple' },
   // Blast score 1-10 → tier: ≤ simple is simple, ≤ coding is coding, above is critical.
   thresholds: { simple: 3, coding: 7 },
-  ollama: { base: 'http://localhost:11434', model: 'qwen2.5-coder:3b' },
+  ollama: { model: 'qwen2.5-coder:3b' },
   // Fallback classifier when Ollama is down. Undated alias: Claude Code resolves it to the current snapshot.
   classifier: 'claude-haiku-4-5',
   // The delegate: a headless claude on the gateway, in its own process and environment.
   child: {
     command: ['claude'],
     baseUrl: '',
-    // Opt-in: name an env file (e.g. ~/.maggy/.env) to read keyVar from it. Off by default; use userConfig.
-    keyFile: '',
-    keyVar: 'SROOTER_API_KEY',
     // --bare: no inherited hooks or plugins, strictly API-key auth, so the child never touches the subscription.
     args: ['--bare', '--permission-mode', 'acceptEdits'],
     maxTurns: 25,

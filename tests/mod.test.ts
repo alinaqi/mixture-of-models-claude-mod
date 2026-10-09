@@ -1,16 +1,17 @@
 import { expect, test } from 'claude-code/testing'
 
-// Maggy-style config: gateway URL in model-config and the key read from an explicitly named env file.
-const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic","keyFile":"~/.maggy/.env"}}}'
+const CONFIG = '{"primary":"claude"}'
+// The plugin's userConfig values, as a configured install stores them.
+const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; keyFile?: string; score?: string; offline?: boolean } = {}) {
+function stubSession(on, opts: { childEnv?: string; score?: string; offline?: boolean } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
   on('session.cwd', () => ({ value: '/work' }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : e.name === 'MAGGY_ROUTER_CHILD' ? opts.childEnv : undefined }))
-  on('fs.read', ($, e) => ({ value: e.path.endsWith('model-config.json') ? CONFIG : (opts.keyFile ?? 'SROOTER_API_KEY=srt_test\n') }))
+  on('fs.read', () => ({ value: CONFIG }))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => { store.set(e.key, e.value); return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
@@ -49,7 +50,7 @@ async function routedTurn($, text: string) {
   return drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
 }
 
-test('a simple prompt is answered by a child claude on the gateway, not the main session', async ($, on) => {
+test('a simple prompt is answered by a child claude on the gateway, not the main session', GW, async ($, on) => {
   stubSession(on)
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'child answer\n', stderr: '' } } })
@@ -66,13 +67,13 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
   expect(runs[0].argv).toContain('-p')
   expect(runs[0].argv).toContain('--bare')
   expect(runs[0].argv.join(' ')).toContain('--add-dir /work')
-  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://api.srooter.ai/anthropic')
+  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://api.palgu.ai/anthropic')
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
   expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
   expect(runs[0].init.stdin).toContain('grep the repo for TODO comments')
 })
 
-test('a critical prompt never starts a child', async ($, on) => {
+test('a critical prompt never starts a child', GW, async ($, on) => {
   stubSession(on, { score: '9' })
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
@@ -86,7 +87,7 @@ test('a critical prompt never starts a child', async ($, on) => {
   expect(result.answer).toBe('main answer')
 })
 
-test('a failed child hands the step to the main model', async ($, on) => {
+test('a failed child hands the step to the main model', GW, async ($, on) => {
   stubSession(on)
   on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'auth error' } }))
   const seen: string[] = []
@@ -99,7 +100,7 @@ test('a failed child hands the step to the main model', async ($, on) => {
 })
 
 test('without a gateway key the mod observes only', async ($, on) => {
-  stubSession(on, { keyFile: '# no key here\n' })
+  stubSession(on)
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
   const seen: string[] = []
@@ -111,7 +112,7 @@ test('without a gateway key the mod observes only', async ($, on) => {
   expect(seen).toEqual(['claude-opus-5'])
 })
 
-test('inside a child session the mod does nothing', async ($, on) => {
+test('inside a child session the mod does nothing', GW, async ($, on) => {
   stubSession(on, { childEnv: '1' })
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
@@ -124,7 +125,7 @@ test('inside a child session the mod does nothing', async ($, on) => {
   expect(seen).toEqual(['claude-opus-5'])
 })
 
-test('/route off keeps everything on the main session and /route shows the state', async ($, on) => {
+test('/route off keeps everything on the main session and /route shows the state', GW, async ($, on) => {
   stubSession(on)
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
@@ -144,7 +145,7 @@ test('/route off keeps everything on the main session and /route shows the state
   expect(shown.text).toContain('off')
 })
 
-test('/route kimi pins the next routed turn to Kimi', async ($, on) => {
+test('/route kimi pins the next routed turn to Kimi', GW, async ($, on) => {
   stubSession(on)
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'kimi says hi', stderr: '' } } })
@@ -173,7 +174,7 @@ function message(text: string) {
   return { plugin: 'mixture-of-models', component: 'AssistantMessage', requestId: 'm-' + text.length, surface: 'terminal', props: { text, isFirstOfReply: true } } as const
 }
 
-test('the band shows the mode and its buttons pin a model', async ($, on) => {
+test('the band shows the mode and its buttons pin a model', GW, async ($, on) => {
   const store = stubSession(on)
   on('process.run', () => ({ value: { exitCode: 0, stdout: 'x', stderr: '' } }))
   recordSteps(on, [])
@@ -189,7 +190,7 @@ test('the band shows the mode and its buttons pin a model', async ($, on) => {
   await ui.unmount()
 })
 
-test('a routed reply gets a provenance tag and a main-session reply does not', async ($, on) => {
+test('a routed reply gets a provenance tag and a main-session reply does not', GW, async ($, on) => {
   stubSession(on)
   on('process.run', () => ({ value: { exitCode: 0, stdout: 'child answer\n', stderr: '' } }))
   recordSteps(on, [])
@@ -206,7 +207,7 @@ test('a routed reply gets a provenance tag and a main-session reply does not', a
   await plain.unmount()
 })
 
-test('every turn gets a route line, main-session turns included', async ($, on) => {
+test('every turn gets a route line, main-session turns included', GW, async ($, on) => {
   stubSession(on, { score: '9' })
   recordSteps(on, [])
 
@@ -217,7 +218,7 @@ test('every turn gets a route line, main-session turns included', async ($, on) 
   expect(done.text).toContain('today: claude-opus-5 ×1')
 })
 
-test('a long multi-service integration task scores mid-range and goes to the coding tier', async ($, on) => {
+test('a long multi-service integration task scores mid-range and goes to the coding tier', GW, async ($, on) => {
   stubSession(on, { score: '6' })
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'wired up\n', stderr: '' } } })
@@ -231,7 +232,7 @@ test('a long multi-service integration task scores mid-range and goes to the cod
   expect(done.text).toContain('coding 6/10')
 })
 
-test('when the classifier is unreachable the last score is reused', async ($, on) => {
+test('when the classifier is unreachable the last score is reused', GW, async ($, on) => {
   const store = stubSession(on, { offline: true })
   store.set('last-score', 2)
   on('model.classify', () => ({ deny: 'no network' }))

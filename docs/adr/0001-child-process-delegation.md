@@ -12,7 +12,7 @@ Maggy routes work across models by injecting "delegate this to `~/bin/<model>`" 
 Two constraints shaped the design:
 
 1. A mod can rewrite the **model name** on a request but not the **endpoint or credentials**. Those are per process: `ANTHROPIC_BASE_URL` and the auth Claude Code resolved at start-up. The transcript, system prompt and tool schemas are not exposed to a hook, so a mod cannot rebuild the request for another endpoint either.
-2. The user wants cheap tiers on an Anthropic-compatible gateway (srooter) **and** critical work on the claude.ai subscription. A probe showed Claude Code sends its subscription OAuth token to whatever `ANTHROPIC_BASE_URL` names, so a pass-through proxy could in principle split traffic, but that routes the subscription token through a proxy and was rejected: the main session must not be interfered with.
+2. The user wants cheap tiers on an Anthropic-compatible gateway (palgu, formerly srooter) **and** critical work on the claude.ai subscription. A probe showed Claude Code sends its subscription OAuth token to whatever `ANTHROPIC_BASE_URL` names, so a pass-through proxy could in principle split traffic, but that routes the subscription token through a proxy and was rejected: the main session must not be interfered with.
 
 ## Decision
 

@@ -24,19 +24,15 @@ To hack on it instead, load the checkout for one session: `claude --plugin-dir .
 
 ## 3. Give the child a gateway
 
-The child Claude Code needs an Anthropic-compatible endpoint that serves the model ids in your routes. With [srooter](https://www.srooter.ai), in a session:
+The child Claude Code needs an Anthropic-compatible endpoint that serves the model ids in your routes. With [palgu](https://www.palgu.ai), in a session:
 
 ```
 /plugin configure mixture-of-models@mixture-of-models-claude-mod
 ```
 
-and enter `https://api.srooter.ai/anthropic` and your key. The key is masked and kept in secure storage.
+and enter `https://api.palgu.ai/anthropic` and your key. The key is masked and kept in secure storage.
 
-Maggy users can keep the key in `~/.maggy/.env` instead and opt in from `~/.claude/model-config.json`:
-
-```json
-{ "router": { "child": { "baseUrl": "https://api.srooter.ai/anthropic", "keyFile": "~/.maggy/.env" } } }
-```
+From the shell instead: `echo '{"gateway_url":"https://api.palgu.ai/anthropic","gateway_key":"srt_…"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
 
 Your main session needs **no** `ANTHROPIC_BASE_URL`. It stays on your subscription.
 

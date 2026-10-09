@@ -3,7 +3,7 @@
 import { parseConfig } from './lib/config.js'
 import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from './lib/classify.js'
 import { parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
-import { buildBrief, childArgv, childEnv, childReady, expandHome, gatewayFrom, parseEnvFile } from './lib/child.js'
+import { buildBrief, childArgv, childEnv, childReady, gatewayFrom } from './lib/child.js'
 import { bumpStats, statsLine } from './lib/stats.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
@@ -29,17 +29,16 @@ async function readFile($, path) {
 async function loadConfig($) {
   const home = (await $.env.get('HOME')) || ''
   cfg = parseConfig(await readFile($, home + '/.claude/model-config.json'))
-  const fileEnv = cfg.child.keyFile ? parseEnvFile(await readFile($, expandHome(cfg.child.keyFile, home))) : {}
-  ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child, fileEnv))
+  ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
   ready = childReady(cfg.child, key)
   sessionModel = await $.session.model()
   pin = (await $.store.get('pin')) || { mode: 'auto' }
 }
 
+// The only network call the mod makes itself: a local Ollama, fixed address, no credentials.
 async function askOllama($, text) {
   try {
-    const url = cfg.ollama.base + '/api/chat'
-    const r = await $.http.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
+    const r = await $.http.fetch('http://localhost:11434/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
     return r.ok ? parseScore(ollamaReply(r.text)) : undefined
   } catch {
     return undefined

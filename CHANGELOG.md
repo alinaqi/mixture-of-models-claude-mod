@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-10-09
+
+### Changed
+- The gateway key comes only from the plugin's `gateway_key` option. The opt-in env-file read (`child.keyFile`) is gone, as the directory's validation asked.
+- The Ollama address is fixed in the code (`http://localhost:11434/api/chat`); `ollama.base` is no longer a setting.
+- README: the disclosure section now lists every hook and what it does, every host contacted, the exact child command, the files and variables read, and what is stored.
+
+### Added
+- Listing icon at `.claude-plugin/icon.png`.
+- The gateway in docs, examples and tests is [palgu](https://www.palgu.ai) (`https://api.palgu.ai/anthropic`), srooter's successor; the same key works.
+
 ## [0.5.0] - 2026-10-09
 
 ### Changed

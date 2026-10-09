@@ -3,19 +3,6 @@
 
 const MESSAGE_CHARS = 600
 
-export function expandHome(path, home) {
-  return path.startsWith('~/') ? home + path.slice(1) : path
-}
-
-export function parseEnvFile(text) {
-  const out = {}
-  for (const line of (text || '').split('\n')) {
-    const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)=["']?([^"'\n]*?)["']?\s*$/)
-    if (m && !line.trim().startsWith('#')) out[m[1]] = m[2]
-  }
-  return out
-}
-
 // A custom launcher is trusted to bring its own auth; plain `claude` needs the gateway and a key.
 export function childReady(child, key) {
   if (child.command[0] !== 'claude') return true
@@ -49,9 +36,9 @@ export function buildBrief(messages, prompt, limit) {
   return 'Context from the main session:\n' + history.map(describe).join('\n') + '\n\nTask:\n' + prompt
 }
 
-// Where the child's gateway comes from, in order: the plugin's userConfig (masked, secure
-// storage), then model-config's child.baseUrl, then an env file only when keyFile names one.
-export function gatewayFrom(options, child, fileEnv) {
+// Where the child's gateway comes from: the URL from the plugin's options or model-config,
+// the key from the plugin's options only (masked, secure storage). Nothing is read from disk for it.
+export function gatewayFrom(options, child) {
   const o = options || {}
-  return { baseUrl: o.gateway_url || child.baseUrl || '', key: o.gateway_key || fileEnv[child.keyVar] || '' }
+  return { baseUrl: o.gateway_url || child.baseUrl || '', key: o.gateway_key || '' }
 }

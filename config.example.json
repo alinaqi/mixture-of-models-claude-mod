@@ -3,13 +3,11 @@
   "router": {
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "analysis": "kimi-k3", "critical": "claude" },
     "thresholds": { "simple": 3, "coding": 7 },
-    "ollama":     { "base": "http://localhost:11434", "model": "qwen2.5-coder:3b" },
+    "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",
     "child": {
       "command":  ["claude"],
-      "baseUrl":  "https://api.srooter.ai/anthropic",
-      "keyFile":  "~/.maggy/.env",
-      "keyVar":   "SROOTER_API_KEY",
+      "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
