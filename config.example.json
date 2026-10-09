@@ -1,7 +1,8 @@
 {
   "primary": "glm",
   "router": {
-    "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "analysis": "kimi-k3", "critical": "claude" },
+    "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
+                    "kinds": { "research": "kimi-k3", "review": "kimi-k3", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",

@@ -1,29 +1,18 @@
 // mixture-of-models: Maggy's routing as a Claude Code mod. Score each prompt; answer a routed
 // turn with a headless `claude -p` child on the gateway; the main session never leaves its model.
 import { parseConfig } from './lib/config.js'
-import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from './lib/classify.js'
-import { parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
+import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from './lib/classify.js'
+import { adjustThresholds, bumpFailures, isBorderline, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
 import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from './lib/child.js'
 import { bumpStats, statsLine } from './lib/stats.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
-let cfg = parseConfig('')
-let options = {}
-let disabled = false
-let ready = false
-let key = ''
-let sessionModel = ''
-let pin = { mode: 'auto' }
-let decision = { label: 'critical', model: '', source: 'default' }
-let lastPrompt = ''
+let cfg = parseConfig(''), options = {}, disabled = false, ready = false, key = '', sessionModel = ''
+let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = ''
 const answered = new Map()
 
-async function readFile($, path) {
-  try {
-    return await $.fs.read(path)
-  } catch {
-    return ''
-  }
+function readFile($, path) {
+  return $.fs.read(path).catch(() => '')
 }
 
 async function loadConfig($) {
@@ -39,23 +28,33 @@ async function loadConfig($) {
 async function askOllama($, text) {
   try {
     const r = await $.http.fetch('http://localhost:11434/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
-    return r.ok ? parseScore(ollamaReply(r.text)) : undefined
+    return r.ok ? parseVerdict(ollamaReply(r.text)) : undefined
   } catch {
     return undefined
   }
 }
 
 function askClaude($, text) {
-  return $.model.classify(classifierPrompt(text), SCORES, { model: cfg.classifier }).then(parseScore).catch(() => undefined)
+  return $.model.classify(classifierPrompt(text), VERDICTS, { model: cfg.classifier }).then(parseVerdict).catch(() => undefined)
 }
 
-async function classify($, text) {
+async function sample($, text) {
   const local = await askOllama($, text)
-  if (local) return { score: local, source: 'ollama' }
+  if (local) return { ...local, source: 'ollama' }
   const remote = await askClaude($, text)
-  if (remote) return { score: remote, source: cfg.classifier }
-  const cached = await $.store.get('last-score')
-  return { score: cached || 10, source: cached ? 'cache' : 'default' }
+  return remote ? { ...remote, source: cfg.classifier } : undefined
+}
+
+// One sample, a second on the coding/critical edge (the higher wins), else the last verdict seen.
+async function classify($, text) {
+  const first = await sample($, text)
+  if (!first) {
+    const cached = await $.store.get('last-verdict')
+    return cached ? { ...cached, source: 'cache' } : { score: 10, kind: 'code', source: 'default' }
+  }
+  if (!isBorderline(first.score, cfg.thresholds)) return first
+  const second = await sample($, text)
+  return second && second.score > first.score ? second : first
 }
 
 async function lastTurnUsedTools($) {
@@ -64,8 +63,9 @@ async function lastTurnUsedTools($) {
   return Boolean(last && last.toolUses.length)
 }
 
-function setDecision(label, source, score) {
-  decision = { label, source, score, model: resolveModel(label, cfg.routes, sessionModel) }
+function setDecision(label, source, verdict) {
+  decision = { label, source, ...(verdict || {}) }
+  decision.model = resolveModel(decision, cfg.routes, sessionModel)
 }
 
 // A /route pin wins over classification: a label pins a tier, a model id pins the model itself.
@@ -79,9 +79,10 @@ async function decide($, text) {
   const pre = preClassify(text, await lastTurnUsedTools($))
   if (pre.kind === 'label') return setDecision(pre.label, 'rule')
   if (pre.kind !== 'classify') return
-  const { score, source } = await classify($, text)
-  await $.store.set('last-score', score)
-  setDecision(labelFor(score, cfg.thresholds), source, score)
+  const verdict = await classify($, text)
+  await $.store.set('last-verdict', { score: verdict.score, kind: verdict.kind })
+  const thresholds = adjustThresholds(cfg.thresholds, await $.store.get('failures'), verdict.kind)
+  setDecision(labelFor(verdict.score, thresholds), verdict.source, { score: verdict.score, kind: verdict.kind })
 }
 
 // The main session's own request goes out whenever the child is not the answer.
@@ -93,16 +94,12 @@ function shouldDelegate(e) {
 async function runChild($) {
   const brief = buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages)
   const started = Date.now()
-  try {
-    // The only program this mod runs: Claude Code itself, headless, on the routed model.
-    const r = await $.process.run(['claude', ...childArgs(cfg.child, decision.model, await $.session.cwd())], { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs })
-    const ok = r.exitCode === 0 && r.stdout.trim() !== ''
-    decision = { ...decision, child: { ms: Date.now() - started, exitCode: ok ? 0 : r.exitCode || 1 } }
-    return ok ? r.stdout.trim() : ''
-  } catch {
-    decision = { ...decision, child: { ms: Date.now() - started, exitCode: 1 } }
-    return ''
-  }
+  // The only program this mod runs: Claude Code itself, headless, on the routed model.
+  const r = await $.process.run(['claude', ...childArgs(cfg.child, decision.model, await $.session.cwd())], { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
+  const ok = r.exitCode === 0 && r.stdout.trim() !== ''
+  decision = { ...decision, child: { ms: Date.now() - started, exitCode: ok ? 0 : r.exitCode || 1 } }
+  if (!ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
+  return ok ? r.stdout.trim() : ''
 }
 
 async function pinFrom($, arg) {
@@ -130,7 +127,7 @@ export function register(on, opts) {
     await loadConfig($)
     applyPin()
     try {
-      await $.command.register({ name: 'route', description: 'Show or pin the model route: /route [auto|off|simple|coding|analysis|critical|<model>]', argumentHint: '[auto|off|label|model]', immediate: true })
+      await $.command.register({ name: 'route', description: 'Show or pin the model route: /route [auto|off|reset|simple|coding|critical|<model>]', argumentHint: '[auto|off|reset|label|model]', immediate: true })
     } catch {
       $.ui.log('/route is taken by another plugin')
     }
@@ -193,6 +190,7 @@ export function register(on, opts) {
   on('command.run', { command: 'route' }, async ($, e) => {
     const parsed = parseRouteArg(e.args, cfg.routes)
     if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) }
+    if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     return { text: await pinFrom($, e.args) }
   })
 }

@@ -13,9 +13,15 @@ test('a non-Claude primary becomes the coding route; primary claude keeps the ch
   expect(parseConfig('{"primary":"claude","router":{"routes":{"coding":"claude"}}}').routes.coding).toBe('claude')
 })
 
-test('router.routes overrides one route and keeps the rest', async () => {
-  const cfg = parseConfig('{"router":{"routes":{"analysis":"kimi-k3-long"}}}')
-  expect(cfg.routes.analysis).toBe('kimi-k3-long')
+test('routes have a tier default and a per-kind matrix, each overridable on its own', async () => {
+  expect(DEFAULTS.routes).toEqual({
+    simple: 'glm-5.3', coding: 'glm-5.3', critical: 'claude',
+    kinds: { research: 'kimi-k3', review: 'kimi-k3', multimodal: 'claude' },
+  })
+  const cfg = parseConfig('{"router":{"routes":{"kinds":{"research":"kimi-k3-long"},"coding":"deepseek-v4-pro"}}}')
+  expect(cfg.routes.kinds.research).toBe('kimi-k3-long')
+  expect(cfg.routes.kinds.review).toBe('kimi-k3')
+  expect(cfg.routes.coding).toBe('deepseek-v4-pro')
   expect(cfg.routes.simple).toBe('glm-5.3')
 })
 

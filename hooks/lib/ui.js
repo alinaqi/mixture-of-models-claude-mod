@@ -1,7 +1,7 @@
 // What the mod draws: the band above the prompt and the provenance tag on a
 // reply. Pure: elements come in as a parameter, trees go out as data.
 
-import { summaryLine, tierText } from './routing.js'
+import { routeModels, summaryLine, tierText } from './routing.js'
 
 const NAME = 'mixture-of-models'
 
@@ -11,7 +11,7 @@ function provider(model) {
 
 // One button per provider in the routes, framed by auto, claude and off.
 export function bandButtons(routes) {
-  const providers = [...new Set(Object.values(routes).filter((m) => m !== 'claude').map(provider))]
+  const providers = [...new Set(routeModels(routes).filter((m) => m !== 'claude').map(provider))]
   const args = ['auto', ...providers, 'claude', 'off']
   return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: String(i + 1), arg }))
 }

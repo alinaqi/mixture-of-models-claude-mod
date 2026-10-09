@@ -5,7 +5,7 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; score?: string; offline?: boolean } = {}) {
+function stubSession(on, opts: { childEnv?: string; score?: string; offline?: boolean; scores?: string[] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -22,9 +22,11 @@ function stubSession(on, opts: { childEnv?: string; score?: string; offline?: bo
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
   on('store.delete', () => ({ value: undefined }))
-  // The local classifier's reply: the blast score the test wants the prompt to get, or no Ollama at all.
+  // The local classifier's replies, in order: "<score> <kind>" verdicts the test wants, or no Ollama at all.
+  const replies = opts.scores ?? [opts.score ?? '2 code']
+  let n = 0
   if (opts.offline) on('http.fetch', () => ({ deny: 'ollama down' }))
-  else on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + (opts.score ?? '2') + '"}}' } }))
+  else on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + replies[Math.min(n++, replies.length - 1)] + '"}}' } }))
   return store
 }
 
@@ -75,7 +77,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
 })
 
 test('a critical prompt never starts a child', GW, async ($, on) => {
-  stubSession(on, { score: '9' })
+  stubSession(on, { score: '9 code' })
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
   const seen: string[] = []
@@ -209,7 +211,7 @@ test('a routed reply gets a provenance tag and a main-session reply does not', G
 })
 
 test('every turn gets a route line, main-session turns included', GW, async ($, on) => {
-  stubSession(on, { score: '9' })
+  stubSession(on, { score: '9 code' })
   recordSteps(on, [])
 
   await routedTurn($, 'redesign the auth service boundaries and write the ADR')
@@ -220,7 +222,7 @@ test('every turn gets a route line, main-session turns included', GW, async ($, 
 })
 
 test('a long multi-service integration task scores mid-range and goes to the coding tier', GW, async ($, on) => {
-  stubSession(on, { score: '6' })
+  stubSession(on, { score: '6 code' })
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'wired up\n', stderr: '' } } })
   recordSteps(on, [])
@@ -233,9 +235,9 @@ test('a long multi-service integration task scores mid-range and goes to the cod
   expect(done.text).toContain('coding 6/10')
 })
 
-test('when the classifier is unreachable the last score is reused', GW, async ($, on) => {
+test('when the classifier is unreachable the last verdict is reused', GW, async ($, on) => {
   const store = stubSession(on, { offline: true })
-  store.set('last-score', 2)
+  store.set('last-verdict', { score: 2, kind: 'code' })
   on('model.classify', () => ({ deny: 'no network' }))
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'ok\n', stderr: '' } } })
@@ -243,4 +245,48 @@ test('when the classifier is unreachable the last score is reused', GW, async ($
 
   await routedTurn($, 'grep the repo for TODO comments and list the files')
   expect(runs.length).toBe(1)
+})
+
+test('the kind picks the model: research at a coding score goes to Kimi', GW, async ($, on) => {
+  stubSession(on, { score: '5 research' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'findings\n', stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'research how other teams do blue-green deploys on render and compare three approaches')
+  expect(runs[0].argv).toContain('kimi-k3')
+})
+
+test('a borderline score is sampled twice and the higher one wins', GW, async ($, on) => {
+  stubSession(on, { scores: ['7 code', '8 code'] })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'debug why the checkout flow double-charges some users under load')
+  expect(runs).toBe(0)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('two child failures for a kind lower its threshold, so the next borderline task stays on Claude', GW, async ($, on) => {
+  const store = stubSession(on, { score: '7 code' })
+  store.set('failures', { code: 2 })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'write the migration that splits the users table into accounts and profiles')
+  expect(runs).toBe(0)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('a failed child is counted against its kind', GW, async ($, on) => {
+  const store = stubSession(on, { score: '5 docs' })
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'boom' } }))
+  recordSteps(on, [])
+
+  await routedTurn($, 'write the changelog entry for this release and the upgrade notes')
+  expect(store.get('failures')).toEqual({ docs: 1 })
 })

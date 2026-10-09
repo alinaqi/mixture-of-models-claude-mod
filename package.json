@@ -1,6 +1,6 @@
 {
   "name": "mixture-of-models-claude-mod",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Claude Code mod: route cheap work to GLM/Kimi through a child Claude Code, keep critical work on your subscription",

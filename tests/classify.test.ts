@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from '../hooks/lib/classify.js'
+import { KINDS, SCORES, VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from '../hooks/lib/classify.js'
 import { DEFAULTS } from '../hooks/lib/config.js'
 
 test('a slash command is skipped', async () => {
@@ -32,27 +32,31 @@ test('a long prompt is classified even mid-task', async () => {
   expect(preClassify(text, true)).toEqual({ kind: 'classify' })
 })
 
-test('an analysis-shaped prompt is routed to the analysis tier by rule', async () => {
-  expect(preClassify('review this diff for mistakes and summarise the risks', false)).toEqual({ kind: 'label', label: 'analysis' })
-  expect(preClassify('Summarize the last 3 PRs in one paragraph each', true)).toEqual({ kind: 'label', label: 'analysis' })
-  expect(preClassify('explain how token refresh works in this repo', false)).toEqual({ kind: 'label', label: 'analysis' })
+test('a review-shaped prompt is classified like any other; the kind comes from the classifier', async () => {
+  expect(preClassify('review this diff for mistakes and summarise the risks', false)).toEqual({ kind: 'classify' })
 })
 
-test('classifierPrompt asks for a 1-10 blast score with a rubric that ignores length and keys', async () => {
+test('classifierPrompt asks for a 1-10 blast score and a task kind, with the difficulty clause', async () => {
   const p = classifierPrompt('wire grokbot to apify, gemini and gpt via localhost tools and deploy to render')
   expect(p).toContain('1-10')
   expect(p).toMatch(/do not raise the score/i)
+  expect(p).toMatch(/at least 7/)
+  for (const k of KINDS) expect(p).toContain(k)
   expect(p).toContain('wire grokbot to apify')
   expect(SCORES).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+  expect(KINDS).toEqual(['code', 'research', 'review', 'docs', 'data', 'multimodal'])
+  expect(VERDICTS.length).toBe(60)
+  expect(VERDICTS).toContain('6 code')
 })
 
-test('parseScore reads a 1-10 integer out of a noisy reply', async () => {
-  expect(parseScore('5')).toBe(5)
-  expect(parseScore('Score: 7 — multi-file integration')).toBe(7)
-  expect(parseScore('10')).toBe(10)
-  expect(parseScore('I would say 11')).toBeUndefined()
-  expect(parseScore('no idea')).toBeUndefined()
-  expect(parseScore('')).toBeUndefined()
+test('parseVerdict reads the score and the kind out of a noisy reply', async () => {
+  expect(parseVerdict('6 code')).toEqual({ score: 6, kind: 'code' })
+  expect(parseVerdict('Score: 7, kind: review')).toEqual({ score: 7, kind: 'review' })
+  expect(parseVerdict('10 multimodal')).toEqual({ score: 10, kind: 'multimodal' })
+  expect(parseVerdict('5')).toEqual({ score: 5, kind: 'code' })
+  expect(parseVerdict('I would say 11')).toBeUndefined()
+  expect(parseVerdict('no idea')).toBeUndefined()
+  expect(parseVerdict('')).toBeUndefined()
 })
 
 test('labelFor maps a score to a tier through the thresholds', async () => {

@@ -4,9 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-09
+
+### Added
+- A second classification axis, **task kind** (`code | research | review | docs | data | multimodal`), from the same classifier call. `routes.kinds` maps kind to model below the critical tier; by default research and review go to Kimi.
+- A difficulty clause in the rubric: deep reasoning scores at least 7, so hard-but-safe work stays on Claude.
+- Borderline sampling: a score on the coding cut-off or one above gets a second sample and the higher wins.
+- Failure memory: every two child failures for a kind lower that kind's coding cut-off by one. `/route reset` clears it.
 
 ### Changed
+- The `analysis` tier and the prefix rule are gone; the kind axis covers it.
+- The band and the route line show the kind next to the score.
 - README: the Programs section states which program runs and why, and that no shell, bundled script or launcher is run.
 - CI validates without `--strict`, since the runner's Claude Code build may not know `privacyPolicyUrl` yet.
 

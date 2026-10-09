@@ -1,20 +1,42 @@
 // Route resolution, the /route argument grammar, and the summary line. Pure.
 import { LABELS } from './config.js'
 
-export function resolveModel(label, routes, sessionModel) {
-  const model = routes[label]
-  if (!model || model === 'claude') return sessionModel
-  return model
+// The tier says whether Claude is mandatory; below that, the kind picks the cheaper model.
+export function resolveModel(decision, routes, sessionModel) {
+  const byTier = routes[decision.label]
+  if (!byTier || byTier === 'claude') return sessionModel
+  const model = (routes.kinds || {})[decision.kind] || byTier
+  return model === 'claude' ? sessionModel : model
+}
+
+// On the coding/critical edge one sample is noisy: these scores earn a second one.
+export function isBorderline(score, thresholds) {
+  return score === thresholds.coding || score === thresholds.coding + 1
+}
+
+export function bumpFailures(failures, kind) {
+  const k = kind || 'code'
+  return { ...(failures || {}), [k]: ((failures || {})[k] || 0) + 1 }
+}
+
+// Outcome memory: every two child failures of a kind lower that kind's coding cut-off by one.
+export function adjustThresholds(thresholds, failures, kind) {
+  const drop = Math.floor(((failures || {})[kind] || 0) / 2)
+  return { ...thresholds, coding: Math.max(thresholds.simple + 1, thresholds.coding - drop) }
+}
+
+export function routeModels(routes) {
+  return [...Object.values(routes).filter((m) => typeof m === 'string'), ...Object.values(routes.kinds || {})]
 }
 
 function modelByPrefix(arg, routes) {
-  return Object.values(routes).find((m) => m.startsWith(arg))
+  return routeModels(routes).find((m) => m.startsWith(arg))
 }
 
 export function parseRouteArg(arg, routes) {
   const word = (arg || '').trim().toLowerCase()
   if (word === '') return { mode: 'show' }
-  if (word === 'auto' || word === 'off') return { mode: word }
+  if (word === 'auto' || word === 'off' || word === 'reset') return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
   return { mode: 'model', model: modelByPrefix(word, routes) || word }
 }
@@ -45,7 +67,8 @@ function usageNote(usage) {
 
 // Every turn gets a line: where it ran (child or main session) and what it cost.
 export function tierText(decision) {
-  return decision.label + (decision.score ? ' ' + decision.score + '/10' : '') + ' via ' + decision.source
+  const score = decision.score ? ' ' + decision.score + '/10' + (decision.kind ? ' ' + decision.kind : '') : ''
+  return decision.label + score + ' via ' + decision.source
 }
 
 export function summaryLine(decision, usage) {

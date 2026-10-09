@@ -34,8 +34,8 @@ Give the child a gateway (any Anthropic-compatible endpoint that serves your mod
 
 Per prompt the mod:
 
-1. **Scores** it 1-10 for blast radius with a local Ollama model (free), falling back to `$.model.classify` on `claude-haiku-4-5` (your plan), then the last score seen. Thresholds turn the score into `simple | coding | critical`. See [How it decides](#how-it-decides).
-2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; a prompt that starts with review, summarise, explain, compare or research goes to `analysis`; `go ahead`, `yes`, or a prompt of six words or fewer while tools were just used keeps the current route instead of re-classifying.
+1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-4-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
+2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; `go ahead`, `yes`, or a prompt of six words or fewer while tools were just used keeps the current route instead of re-classifying.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
 4. **Falls back** to the main model for that turn if the child fails or prints nothing, and says so in the transcript.
 5. **Shows you what ran where**, on every turn. See [What you see](#what-you-see).
@@ -54,7 +54,15 @@ The classifier is asked one question: how much damage does a wrong answer do? It
 | 7-8 | debugging across services, data migrations, performance work, changes that are awkward to undo | 7 `coding`, 8 `critical` |
 | 9-10 | security or auth design, architecture decisions, production incidents, anything irreversible | `critical` |
 
-The prompt tells the classifier that length, the number of services named, or pasted API keys do not raise the score by themselves, which is what used to push ordinary integration work onto the main session. Move the cut-offs with `router.thresholds`; for example `{ "simple": 3, "coding": 8 }` keeps everything but 9-10 off Claude. Every route line and the band show the score, so when a decision looks wrong you can see the number behind it.
+The prompt tells the classifier that length, the number of services named, or pasted API keys do not raise the score by themselves, which is what used to push ordinary integration work onto the main session. It also says that deep reasoning (algorithms with proofs, concurrency, performance tuning, cryptography) scores at least 7 whatever the blast radius, so hard-but-safe work stays on Claude. Move the cut-offs with `router.thresholds`; for example `{ "simple": 3, "coding": 8 }` keeps everything but 9-10 off Claude.
+
+**The kind picks the model.** Below `critical`, `routes.kinds` maps the task kind to a model: by default `research` and `review` go to Kimi for its long context, `multimodal` stays on Claude, and everything else takes the tier's model (GLM). Add `"docs": "deepseek-v4-pro"` or `"data": "..."` to the matrix as your gateway allows.
+
+**Borderline scores get a second opinion.** A score on the coding cut-off or one above it is sampled a second time and the higher wins, so a 7-or-8 debugging task doesn't flip tiers on classifier noise.
+
+**It remembers failures.** Every two child failures for a kind lower that kind's coding cut-off by one (never below `simple + 1`), so work the cheap model keeps failing at drifts back to Claude. `/route reset` clears the memory.
+
+Every route line and the band show the score and the kind, so when a decision looks wrong you can see the numbers behind it.
 
 ## What you see
 
@@ -171,7 +179,8 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 {
   "primary": "glm",
   "router": {
-    "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "analysis": "kimi-k3", "critical": "claude" },
+    "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
+                    "kinds": { "research": "kimi-k3", "review": "kimi-k3", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",
@@ -188,7 +197,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 }
 ```
 
-- `routes`: tier → model id the gateway serves. `"claude"` means the tier stays in the main session.
+- `routes`: tier → model id the gateway serves, plus `routes.kinds`: kind → model for the non-critical tiers. `"claude"` means the main session.
 - `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
@@ -205,7 +214,8 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 | `/route` | Live or observe-only, mode, current decision, today's counts |
 | `/route auto` | Classify every prompt (default) |
 | `/route off` | Never start a child |
-| `/route simple\|coding\|analysis\|critical` | Pin a tier |
+| `/route simple\|coding\|critical` | Pin a tier |
+| `/route reset` | Clear the per-kind failure memory |
 | `/route glm`, `/route kimi`, `/route kimi-k3`, `/route claude` | Pin a model (a prefix expands to the configured model) |
 
 Pins persist across sessions in the plugin's store.

@@ -1,14 +1,14 @@
 // Routing configuration: defaults and the ~/.claude/model-config.json overlay.
 // Pure: no mods API here, so every function is unit-testable.
 
-export const LABELS = ['simple', 'coding', 'analysis', 'critical']
+export const LABELS = ['simple', 'coding', 'critical']
 
-// 'claude' means "keep the session's own model".
+// Tier → model, and kind → model for the non-critical tiers. 'claude' means "keep the session's own model".
 export const DEFAULT_ROUTES = {
   simple: 'glm-5.3',
   coding: 'glm-5.3',
-  analysis: 'kimi-k3',
   critical: 'claude',
+  kinds: { research: 'kimi-k3', review: 'kimi-k3', multimodal: 'claude' },
 }
 
 // Maggy's "followed" primary, as model-config.json names it, to the model id a gateway resolves.
@@ -58,7 +58,7 @@ function codingRoute(primary, routes) {
 export function parseConfig(text) {
   const raw = parseJson(text)
   const router = raw.router || {}
-  const routes = { ...DEFAULT_ROUTES, ...(router.routes || {}) }
+  const routes = { ...DEFAULT_ROUTES, ...(router.routes || {}), kinds: { ...DEFAULT_ROUTES.kinds, ...((router.routes || {}).kinds || {}) } }
   if (raw.primary && !(router.routes || {}).coding) routes.coding = codingRoute(raw.primary, routes)
   return {
     routes,
