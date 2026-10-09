@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 const CONFIG = '{"primary":"claude","router":{"child":{"baseUrl":"https://api.srooter.ai/anthropic"}}}'
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; keyFile?: string; label?: string } = {}) {
+function stubSession(on, opts: { childEnv?: string; keyFile?: string; score?: string; offline?: boolean } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -20,8 +20,9 @@ function stubSession(on, opts: { childEnv?: string; keyFile?: string; label?: st
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
   on('store.delete', () => ({ value: undefined }))
-  // The local classifier's reply: the label the test wants the prompt to get.
-  on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + (opts.label ?? 'simple') + '"}}' } }))
+  // The local classifier's reply: the blast score the test wants the prompt to get, or no Ollama at all.
+  if (opts.offline) on('http.fetch', () => ({ deny: 'ollama down' }))
+  else on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + (opts.score ?? '2') + '"}}' } }))
   return store
 }
 
@@ -71,7 +72,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
 })
 
 test('a critical prompt never starts a child', async ($, on) => {
-  stubSession(on, { label: 'critical' })
+  stubSession(on, { score: '9' })
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
   const seen: string[] = []
@@ -205,7 +206,7 @@ test('a routed reply gets a provenance tag and a main-session reply does not', a
 })
 
 test('every turn gets a route line, main-session turns included', async ($, on) => {
-  stubSession(on, { label: 'critical' })
+  stubSession(on, { score: '9' })
   recordSteps(on, [])
 
   await routedTurn($, 'redesign the auth service boundaries and write the ADR')
@@ -213,4 +214,30 @@ test('every turn gets a route line, main-session turns included', async ($, on) 
   expect(done.text).toContain('claude-opus-5')
   expect(done.text).toContain('main session')
   expect(done.text).toContain('today: claude-opus-5 ×1')
+})
+
+test('a long multi-service integration task scores mid-range and goes to the coding tier', async ($, on) => {
+  stubSession(on, { score: '6' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'wired up\n', stderr: '' } } })
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'i want to give grokbot local access to apify, gemini, claude and gpt as localhost tools, take educlaude from github, make it reachable from grokbot for research and document creation, all env keys are in render, fix it')
+
+  expect(runs[0].argv).toContain('glm-5.3')
+  expect(result.answer).toBe('wired up')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'wired up', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('coding 6/10')
+})
+
+test('when the classifier is unreachable the last score is reused', async ($, on) => {
+  const store = stubSession(on, { offline: true })
+  store.set('last-score', 2)
+  on('model.classify', () => ({ deny: 'no network' }))
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'ok\n', stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs.length).toBe(1)
 })

@@ -28,6 +28,7 @@ test('bandText describes each state', async () => {
   expect(bandText({ ...base, pin: { mode: 'model', model: 'kimi-k3' }, decision: { label: 'pinned', model: 'kimi-k3', source: 'pin' } })).toBe('mixture-of-models · pinned kimi-k3')
   expect(bandText({ ...base, pin: { mode: 'label', label: 'analysis' }, decision: { label: 'analysis', model: 'kimi-k3', source: 'pin' } })).toBe('mixture-of-models · pinned analysis → kimi-k3')
   expect(bandText(base)).toBe('mixture-of-models · auto · last: glm-5.3 (coding via ollama)')
+  expect(bandText({ ...base, decision: { ...base.decision, score: 5 } })).toBe('mixture-of-models · auto · last: glm-5.3 (coding 5/10 via ollama)')
   expect(bandText({ ...base, decision: { label: 'critical', model: '', source: 'default' } })).toBe('mixture-of-models · auto · no prompt yet')
   expect(bandText({ ...base, isWorking: true })).toBe('mixture-of-models · running glm-5.3 in a child…')
   expect(bandText({ ...base, isWorking: true, decision: { label: 'critical', model: SESSION, source: 'rule' } })).toBe('mixture-of-models · running claude-opus-5 in the main session…')

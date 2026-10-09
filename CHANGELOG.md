@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-10-09
+
+### Changed
+- Classification is now Maggy's **blast score**: the classifier rates 1-10 against a rubric where length, the number of services named or pasted API keys do not raise the score, and `router.thresholds` (default `simple ≤ 3`, `coding ≤ 7`, above is `critical`) maps the score to a tier. The previous four-label classifier sent long integration tasks to the main session.
+- `primary: claude` in model-config no longer pulls the `coding` tier onto Claude; it only keeps `critical` there. Set `routes.coding` to `"claude"` explicitly if you want the old behaviour.
+- The route line and the band show the score, e.g. `coding 6/10 via claude-haiku-4-5`.
+- Prompts that start with review, summarise, explain, compare, research, describe, "what does" or "how does" go to the `analysis` tier by rule.
+- The cached fallback is the last score (`last-score`) instead of the last label.
+
 ## [0.3.1] - 2026-10-08
 
 ### Fixed

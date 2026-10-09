@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
-import { classifierPrompt, ollamaBody, ollamaReply, parseLabel, preClassify } from '../hooks/lib/classify.js'
+import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from '../hooks/lib/classify.js'
+import { DEFAULTS } from '../hooks/lib/config.js'
 
 test('a slash command is skipped', async () => {
   expect(preClassify('/route glm', false)).toEqual({ kind: 'skip' })
@@ -31,18 +32,39 @@ test('a long prompt is classified even mid-task', async () => {
   expect(preClassify(text, true)).toEqual({ kind: 'classify' })
 })
 
-test('parseLabel reads the label out of a noisy reply', async () => {
-  expect(parseLabel('CODING: small single-file fix')).toBe('coding')
-  expect(parseLabel('Analysis — long document summary')).toBe('analysis')
-  expect(parseLabel('I think simple')).toBe('simple')
-  expect(parseLabel('no idea')).toBeUndefined()
-  expect(parseLabel('')).toBeUndefined()
+test('an analysis-shaped prompt is routed to the analysis tier by rule', async () => {
+  expect(preClassify('review this diff for mistakes and summarise the risks', false)).toEqual({ kind: 'label', label: 'analysis' })
+  expect(preClassify('Summarize the last 3 PRs in one paragraph each', true)).toEqual({ kind: 'label', label: 'analysis' })
+  expect(preClassify('explain how token refresh works in this repo', false)).toEqual({ kind: 'label', label: 'analysis' })
 })
 
-test('classifierPrompt names every label and carries the task', async () => {
-  const p = classifierPrompt('grep for TODOs')
-  for (const label of ['simple', 'coding', 'analysis', 'critical']) expect(p).toContain(label)
-  expect(p).toContain('grep for TODOs')
+test('classifierPrompt asks for a 1-10 blast score with a rubric that ignores length and keys', async () => {
+  const p = classifierPrompt('wire grokbot to apify, gemini and gpt via localhost tools and deploy to render')
+  expect(p).toContain('1-10')
+  expect(p).toMatch(/do not raise the score/i)
+  expect(p).toContain('wire grokbot to apify')
+  expect(SCORES).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+})
+
+test('parseScore reads a 1-10 integer out of a noisy reply', async () => {
+  expect(parseScore('5')).toBe(5)
+  expect(parseScore('Score: 7 — multi-file integration')).toBe(7)
+  expect(parseScore('10')).toBe(10)
+  expect(parseScore('I would say 11')).toBeUndefined()
+  expect(parseScore('no idea')).toBeUndefined()
+  expect(parseScore('')).toBeUndefined()
+})
+
+test('labelFor maps a score to a tier through the thresholds', async () => {
+  const th = DEFAULTS.thresholds
+  expect(th).toEqual({ simple: 3, coding: 7 })
+  expect(labelFor(1, th)).toBe('simple')
+  expect(labelFor(3, th)).toBe('simple')
+  expect(labelFor(4, th)).toBe('coding')
+  expect(labelFor(7, th)).toBe('coding')
+  expect(labelFor(8, th)).toBe('critical')
+  expect(labelFor(10, th)).toBe('critical')
+  expect(labelFor(6, { simple: 2, coding: 5 })).toBe('critical')
 })
 
 test('ollamaBody is a non-streaming chat request', async () => {

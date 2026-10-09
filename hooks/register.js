@@ -1,8 +1,7 @@
-// mixture-of-models: Maggy's model routing as a Claude Code mod, child-process edition.
-// Classify each prompt → for a routed tier, answer the turn with a headless
-// `claude -p` child on the gateway → the main session never leaves its own model.
+// mixture-of-models: Maggy's routing as a Claude Code mod. Score each prompt; answer a routed
+// turn with a headless `claude -p` child on the gateway; the main session never leaves its model.
 import { parseConfig } from './lib/config.js'
-import { classifierPrompt, ollamaBody, ollamaReply, parseLabel, preClassify } from './lib/classify.js'
+import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from './lib/classify.js'
 import { parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
 import { buildBrief, childArgv, childEnv, childReady, expandHome, parseEnvFile } from './lib/child.js'
 import { bumpStats, statsLine } from './lib/stats.js'
@@ -39,7 +38,7 @@ async function askOllama($, text) {
   try {
     const url = cfg.ollama.base + '/api/chat'
     const r = await $.http.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
-    return r.ok ? parseLabel(ollamaReply(r.text)) : undefined
+    return r.ok ? parseScore(ollamaReply(r.text)) : undefined
   } catch {
     return undefined
   }
@@ -47,7 +46,7 @@ async function askOllama($, text) {
 
 async function askClaude($, text) {
   try {
-    return await $.model.classify(classifierPrompt(text), ['simple', 'coding', 'analysis', 'critical'], { model: cfg.classifier })
+    return parseScore(await $.model.classify(classifierPrompt(text), SCORES, { model: cfg.classifier }))
   } catch {
     return undefined
   }
@@ -55,11 +54,11 @@ async function askClaude($, text) {
 
 async function classify($, text) {
   const local = await askOllama($, text)
-  if (local) return { label: local, source: 'ollama' }
+  if (local) return { score: local, source: 'ollama' }
   const remote = await askClaude($, text)
-  if (remote) return { label: remote, source: 'claude-classify' }
-  const cached = await $.store.get('last-label')
-  return { label: cached || 'critical', source: cached ? 'cache' : 'default' }
+  if (remote) return { score: remote, source: cfg.classifier }
+  const cached = await $.store.get('last-score')
+  return { score: cached || 10, source: cached ? 'cache' : 'default' }
 }
 
 async function lastTurnUsedTools($) {
@@ -68,8 +67,8 @@ async function lastTurnUsedTools($) {
   return Boolean(last && last.toolUses.length)
 }
 
-function setDecision(label, source) {
-  decision = { label, source, model: resolveModel(label, cfg.routes, sessionModel) }
+function setDecision(label, source, score) {
+  decision = { label, source, score, model: resolveModel(label, cfg.routes, sessionModel) }
 }
 
 // A /route pin wins over classification: a label pins a tier, a model id pins the model itself.
@@ -83,9 +82,9 @@ async function decide($, text) {
   const pre = preClassify(text, await lastTurnUsedTools($))
   if (pre.kind === 'label') return setDecision(pre.label, 'rule')
   if (pre.kind !== 'classify') return
-  const { label, source } = await classify($, text)
-  await $.store.set('last-label', label)
-  setDecision(label, source)
+  const { score, source } = await classify($, text)
+  await $.store.set('last-score', score)
+  setDecision(labelFor(score, cfg.thresholds), source, score)
 }
 
 // The main session's own request goes out whenever the child is not the answer.
@@ -149,7 +148,8 @@ export function register(on) {
   }).catch(async ($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
-    decision = { label: decision.label, model: decision.model, source: decision.source }
+    const { child, ...fresh } = decision
+    decision = fresh
     return next(e)
   })
 

@@ -44,8 +44,12 @@ function usageNote(usage) {
 }
 
 // Every turn gets a line: where it ran (child or main session) and what it cost.
+export function tierText(decision) {
+  return decision.label + (decision.score ? ' ' + decision.score + '/10' : '') + ' via ' + decision.source
+}
+
 export function summaryLine(decision, usage) {
-  const head = 'route: ' + decision.model + ' · ' + decision.label + ' via ' + decision.source
+  const head = 'route: ' + decision.model + ' · ' + tierText(decision)
   if (decision.child) return head + childNote(decision.child)
   return head + usageNote(usage) + ' · main session'
 }

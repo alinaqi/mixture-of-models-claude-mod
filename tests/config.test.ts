@@ -6,10 +6,11 @@ test('an empty or invalid file yields the defaults', async () => {
   expect(parseConfig('{not json')).toEqual(DEFAULTS)
 })
 
-test('the followed primary model becomes the coding route', async () => {
+test('a non-Claude primary becomes the coding route; primary claude keeps the cheap default', async () => {
   expect(parseConfig('{"primary":"glm"}').routes.coding).toBe('glm-5.3')
   expect(parseConfig('{"primary":"kimi"}').routes.coding).toBe('kimi-k3')
-  expect(parseConfig('{"primary":"claude"}').routes.coding).toBe('claude')
+  expect(parseConfig('{"primary":"claude"}').routes.coding).toBe('glm-5.3')
+  expect(parseConfig('{"primary":"claude","router":{"routes":{"coding":"claude"}}}').routes.coding).toBe('claude')
 })
 
 test('router.routes overrides one route and keeps the rest', async () => {
@@ -51,4 +52,9 @@ test('the ui block defaults to the band on and tags on routed replies', async ()
   expect(parseConfig('').ui).toEqual({ band: true, tags: 'routed' })
   expect(parseConfig('{"router":{"ui":{"tags":"all"}}}').ui).toEqual({ band: true, tags: 'all' })
   expect(parseConfig('{"router":{"ui":{"band":false}}}').ui.band).toBe(false)
+})
+
+test('thresholds default to 3/7 and can be moved', async () => {
+  expect(parseConfig('').thresholds).toEqual({ simple: 3, coding: 7 })
+  expect(parseConfig('{"router":{"thresholds":{"coding":8}}}').thresholds).toEqual({ simple: 3, coding: 8 })
 })

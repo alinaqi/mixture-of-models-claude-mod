@@ -14,13 +14,27 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 Per prompt the mod:
 
-1. **Classifies** it into `simple | coding | analysis | critical` with a local Ollama model (free), falling back to `$.model.classify` on `claude-haiku-4-5` (your plan), then the last cached label.
-2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; `go ahead`, `yes`, or a prompt of six words or fewer while tools were just used keeps the current route instead of re-classifying.
+1. **Scores** it 1-10 for blast radius with a local Ollama model (free), falling back to `$.model.classify` on `claude-haiku-4-5` (your plan), then the last score seen. Thresholds turn the score into `simple | coding | critical`. See [How it decides](#how-it-decides).
+2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; a prompt that starts with review, summarise, explain, compare or research goes to `analysis`; `go ahead`, `yes`, or a prompt of six words or fewer while tools were just used keeps the current route instead of re-classifying.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
 4. **Falls back** to the main model for that turn if the child fails or prints nothing, and says so in the transcript.
 5. **Shows you what ran where**, on every turn. See [What you see](#what-you-see).
 
 `critical` turns never start a child. They run in the main session, on the subscription, exactly as if the mod were not there.
+
+## How it decides
+
+The classifier is asked one question: how much damage does a wrong answer do? It answers with a number, and the rubric is explicit:
+
+| Score | Means | Tier (default thresholds) |
+| :- | :- | :- |
+| 1-2 | lookups, grep, shell one-liners, syntax questions, reading logs, git status or diff | `simple` |
+| 3-4 | single-file edits, tests, docs, config changes, small bug fixes, scaffolding | 3 `simple`, 4 `coding` |
+| 5-6 | multi-file features, wiring services or tools together, integrations, deployments that follow a known pattern | `coding` |
+| 7-8 | debugging across services, data migrations, performance work, changes that are awkward to undo | 7 `coding`, 8 `critical` |
+| 9-10 | security or auth design, architecture decisions, production incidents, anything irreversible | `critical` |
+
+The prompt tells the classifier that length, the number of services named, or pasted API keys do not raise the score by themselves, which is what used to push ordinary integration work onto the main session. Move the cut-offs with `router.thresholds`; for example `{ "simple": 3, "coding": 8 }` keeps everything but 9-10 off Claude. Every route line and the band show the score, so when a decision looks wrong you can see the number behind it.
 
 ## What you see
 
@@ -31,7 +45,7 @@ Claude and the gateway are both visible, all the time:
 | Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  1: auto  2: glm  3: kimi  4: claude  5: off` | `… · running glm-5.3 in a child…` while it runs |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback |
-| Line under the answer | `route: claude-opus-5 · critical via rule · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding via ollama · child 42s · today: …` |
+| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: …` | same |
 
 The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto. Turn the band off with `"ui": { "band": false }`.
@@ -67,6 +81,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
   "primary": "glm",
   "router": {
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "analysis": "kimi-k3", "critical": "claude" },
+    "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "base": "http://localhost:11434", "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",
     "child": {
@@ -86,7 +101,8 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 ```
 
 - `routes`: tier → model id the gateway serves. `"claude"` means the tier stays in the main session.
-- `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. With `primary: claude` only `simple` and `analysis` leave the main session.
+- `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
+- `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `child.command`: the executable. Use a launcher that sets its own auth (such as the `~/bin/claude-<provider>` launchers Maggy writes) and the mod skips the key lookup.
 - `child.baseUrl`, `keyFile`, `keyVar`: where the child's `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` come from. Set only in the child's environment.

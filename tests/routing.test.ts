@@ -44,6 +44,11 @@ test('summaryLine works without usage', async () => {
   expect(summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'pin' }, null)).toBe('route: claude-opus-5 · critical via pin · main session')
 })
 
+test('summaryLine shows the blast score when the classifier gave one', async () => {
+  const d = { label: 'coding', score: 5, model: 'glm-5.3', source: 'claude-haiku-4-5', child: { ms: 8_000, exitCode: 0 } }
+  expect(summaryLine(d, null)).toBe('route: glm-5.3 · coding 5/10 via claude-haiku-4-5 · child 8s')
+})
+
 test('summaryLine reports a child run instead of API usage', async () => {
   const d = { label: 'coding', model: 'glm-5.3', source: 'ollama', child: { ms: 42_300, exitCode: 0 } }
   expect(summaryLine(d, null)).toBe('route: glm-5.3 · coding via ollama · child 42s')

@@ -1,7 +1,7 @@
 // What the mod draws: the band above the prompt and the provenance tag on a
 // reply. Pure: elements come in as a parameter, trees go out as data.
 
-import { summaryLine } from './routing.js'
+import { summaryLine, tierText } from './routing.js'
 
 const NAME = 'mixture-of-models'
 
@@ -23,7 +23,7 @@ function activeArg(pin) {
 
 function lastDecision(d) {
   if (!d.model) return 'no prompt yet'
-  return 'last: ' + d.model + ' (' + d.label + ' via ' + d.source + ')'
+  return 'last: ' + d.model + ' (' + tierText(d) + ')'
 }
 
 export function bandText(v) {
