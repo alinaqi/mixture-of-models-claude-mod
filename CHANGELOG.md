@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- README: the Programs section states which program runs and why, and that no shell, bundled script or launcher is run.
 - CI validates without `--strict`, since the runner's Claude Code build may not know `privacyPolicyUrl` yet.
 
 ## [0.5.2] - 2026-10-09

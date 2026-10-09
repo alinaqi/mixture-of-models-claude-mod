@@ -137,13 +137,17 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 
 ### Programs this plugin runs
 
-One `$.process.run` call, in `turn.step`, for routed turns only. The program name is the fixed text `claude` at the call: Claude Code itself in headless mode. Its arguments:
+**Which programs:** exactly one, `claude`, which is Claude Code itself in headless mode. The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
+
+**Why:** a mod can rename the model on a request but cannot change the endpoint or credentials of the session it runs in. The only way to run a turn on a different endpoint with Claude Code's own tools, while leaving the main session's endpoint and credentials untouched, is a second Claude Code process whose environment points at the gateway. The child exists for that reason alone, and only for turns the score routes away from the main session.
+
+**How:** one `$.process.run` call, in `turn.step`. The program name is the fixed text `claude` at the call. Its arguments:
 
 ```
 claude -p --model <routed model id> --output-format text --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
-`--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows. It is killed at `child.timeoutMs`.
+`--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
 
 ### Files and environment it reads
 
