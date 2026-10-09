@@ -1,22 +1,21 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { buildBrief, childArgv, childEnv, childReady, gatewayFrom } from '../hooks/lib/child.js'
+import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from '../hooks/lib/child.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
 
-test('childArgv runs a bare headless claude on the routed model, with the cwd added for CLAUDE.md', async () => {
-  expect(childArgv(CHILD, 'glm-5.3', '/work')).toEqual([
-    'claude', '-p', '--model', 'glm-5.3', '--output-format', 'text', '--max-turns', '25', '--add-dir', '/work',
+test('childArgs are the headless flags for the routed model, with the cwd added for CLAUDE.md', async () => {
+  expect(childArgs(CHILD, 'glm-5.3', '/work')).toEqual([
+    '-p', '--model', 'glm-5.3', '--output-format', 'text', '--max-turns', '25', '--add-dir', '/work',
     '--bare', '--permission-mode', 'acceptEdits',
   ])
 })
 
-test('childArgv honours a custom launcher command and custom args', async () => {
-  const argv = childArgv({ ...CHILD, command: ['claude-palgu'], args: [] }, 'kimi-k3', '/work')
-  expect(argv[0]).toBe('claude-palgu')
-  expect(argv).toContain('kimi-k3')
-  expect(argv).not.toContain('--bare')
-  expect(argv).not.toContain('--permission-mode')
+test('childArgs honours custom args', async () => {
+  const args = childArgs({ ...CHILD, args: ['--dangerously-skip-permissions'] }, 'kimi-k3', '/work')
+  expect(args).toContain('kimi-k3')
+  expect(args).toContain('--dangerously-skip-permissions')
+  expect(args).not.toContain('--bare')
 })
 
 test('childEnv marks the child and scopes the gateway to it', async () => {
@@ -31,11 +30,10 @@ test('childEnv without a base URL only marks the child', async () => {
   expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
 })
 
-test('childReady needs a base URL plus key, or a custom launcher', async () => {
+test('childReady needs a base URL plus a key', async () => {
   expect(childReady(CHILD, 'srt_key')).toBe(true)
   expect(childReady(CHILD, '')).toBe(false)
   expect(childReady({ ...CHILD, baseUrl: '' }, 'srt_key')).toBe(false)
-  expect(childReady({ ...CHILD, baseUrl: '', command: ['claude-palgu'] }, '')).toBe(true)
 })
 
 test('buildBrief hands the child recent context and the task', async () => {

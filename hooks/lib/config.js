@@ -29,7 +29,6 @@ export const DEFAULTS = {
   classifier: 'claude-haiku-4-5',
   // The delegate: a headless claude on the gateway, in its own process and environment.
   child: {
-    command: ['claude'],
     baseUrl: '',
     // --bare: no inherited hooks or plugins, strictly API-key auth, so the child never touches the subscription.
     args: ['--bare', '--permission-mode', 'acceptEdits'],

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.2] - 2026-10-09
+
+### Changed
+- The program the mod runs is the fixed text `claude` at the `$.process.run` call; the `child.command` launcher setting is gone, so the directory's scan can see which program runs.
+- README opens the disclosure section with plain sentences naming each call, what it sends and where.
+
+### Added
+- `PRIVACY.md` and `privacyPolicyUrl` in the manifest.
+
 ## [0.5.1] - 2026-10-09
 
 ### Changed

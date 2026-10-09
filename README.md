@@ -96,7 +96,14 @@ Until a gateway URL and key are present the mod is **observe-only**: it classifi
 
 ## What this plugin runs, reads, sends and stores
 
-The directory's security scan compares this section with the code. Everything the mod does outside its own code is listed here.
+The directory's security scan compares this section with the code. Everything the mod does outside its own code is listed here. In one breath:
+
+- It **fetches** `http://localhost:11434/api/chat` with `$.http.fetch`, sending the prompt text and the scoring rubric to a local Ollama, to score the prompt. No credentials, nothing leaves the machine.
+- It **calls** `$.model.classify`, which sends the same prompt text and rubric to Anthropic through Claude Code's own API client on your own account, when Ollama does not answer.
+- It **runs** one program, `claude` (Claude Code itself, headless), with `$.process.run`, for routed turns only, with the environment variables `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured. That child **sends** your prompt and a short brief of recent session text to that gateway.
+- It **reads** `~/.claude/model-config.json`, `HOME` and `MAGGY_ROUTER_CHILD`, and **stores** the route pin, per-day counts and the last score in the plugin store.
+
+Full detail follows; a privacy policy is at [PRIVACY.md](PRIVACY.md).
 
 ### Hooks
 
@@ -130,7 +137,7 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 
 ### Programs this plugin runs
 
-One `$.process.run` call, in `turn.step`, for routed turns only. The program is `claude`, Claude Code itself in headless mode (or a launcher you name in `child.command`), with these arguments:
+One `$.process.run` call, in `turn.step`, for routed turns only. The program name is the fixed text `claude` at the call: Claude Code itself in headless mode. Its arguments:
 
 ```
 claude -p --model <routed model id> --output-format text --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
@@ -165,7 +172,6 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",
     "child": {
-      "command":  ["claude"],
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
@@ -182,7 +188,6 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 - `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
-- `child.command`: the executable. Use a launcher that sets its own auth (such as the `~/bin/claude-<provider>` launchers Maggy writes) and the mod skips the key lookup.
 - `child.baseUrl`: fallback for the gateway URL when the plugin's `gateway_url` option is unset. The key has no fallback; it comes only from the `gateway_key` option.
 - `child.args`: extra flags. The default is `--bare` (no inherited hooks or plugins, API-key auth only, so the child can never fall back to your subscription) plus `acceptEdits` so it can edit files without prompting. The mod always adds `--add-dir <cwd>`, which keeps the project's `CLAUDE.md` in reach under `--bare`. Add `--dangerously-skip-permissions` only if you want the child to run commands unattended; drop `--bare` if you want your hooks and plugins inside the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
@@ -252,7 +257,7 @@ See [ADR 0001](docs/adr/0001-child-process-delegation.md). In short: a mod can r
 | :- | :- |
 | `hooks/route-task-hook` (UserPromptSubmit, qwen3 classifier, continuation guard, cache) | `prompt.submit` + `lib/classify.js`, `$.http.fetch` to Ollama, `$.store` cache |
 | "You MUST delegate — run ~/bin/glm" injected into context | `turn.step` runs the child and returns its answer; Claude is never asked to delegate |
-| `~/bin/claude-<provider>` launchers from `model_routing.py write-launcher` | `child.command` can point at one; otherwise the mod scopes the env itself |
+| `~/bin/claude-<provider>` launchers from `model_routing.py write-launcher` | the mod scopes `ANTHROPIC_BASE_URL` and the key to the child's environment itself |
 | `hooks/usage-summary-hook` (Stop) | `turn.complete` returns the summary line |
 | `/model-config` followed model | `primary` in `model-config.json` drives the `coding` tier |
 | `palgu` gateway | the child's endpoint; the main session never sees it |

@@ -63,6 +63,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
   expect(result.answer).toBe('child answer')
   expect(result.stopReason).toBe('end_turn')
   expect(runs.length).toBe(1)
+  expect(runs[0].argv[0]).toBe('claude')
   expect(runs[0].argv).toContain('glm-5.3')
   expect(runs[0].argv).toContain('-p')
   expect(runs[0].argv).toContain('--bare')

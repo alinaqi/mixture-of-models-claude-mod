@@ -42,7 +42,7 @@ test('the child block merges over its defaults', async () => {
   const cfg = parseConfig('{"router":{"child":{"baseUrl":"https://api.palgu.ai/anthropic","maxTurns":5}}}')
   expect(cfg.child.baseUrl).toBe('https://api.palgu.ai/anthropic')
   expect(cfg.child.maxTurns).toBe(5)
-  expect(cfg.child.command).toEqual(['claude'])
+  expect(cfg.child.command).toBeUndefined()
   expect(cfg.child.keyFile).toBeUndefined()
   expect(cfg.child.timeoutMs).toBe(600000)
 })

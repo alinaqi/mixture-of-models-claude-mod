@@ -6,7 +6,6 @@
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",
     "child": {
-      "command":  ["claude"],
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,

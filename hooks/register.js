@@ -3,7 +3,7 @@
 import { parseConfig } from './lib/config.js'
 import { SCORES, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseScore, preClassify } from './lib/classify.js'
 import { parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
-import { buildBrief, childArgv, childEnv, childReady, gatewayFrom } from './lib/child.js'
+import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from './lib/child.js'
 import { bumpStats, statsLine } from './lib/stats.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
@@ -94,8 +94,8 @@ async function runChild($) {
   const brief = buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages)
   const started = Date.now()
   try {
-    const argv = childArgv(cfg.child, decision.model, await $.session.cwd())
-    const r = await $.process.run(argv, { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs })
+    // The only program this mod runs: Claude Code itself, headless, on the routed model.
+    const r = await $.process.run(['claude', ...childArgs(cfg.child, decision.model, await $.session.cwd())], { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs })
     const ok = r.exitCode === 0 && r.stdout.trim() !== ''
     decision = { ...decision, child: { ms: Date.now() - started, exitCode: ok ? 0 : r.exitCode || 1 } }
     return ok ? r.stdout.trim() : ''

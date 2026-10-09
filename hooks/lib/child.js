@@ -3,9 +3,7 @@
 
 const MESSAGE_CHARS = 600
 
-// A custom launcher is trusted to bring its own auth; plain `claude` needs the gateway and a key.
 export function childReady(child, key) {
-  if (child.command[0] !== 'claude') return true
   return Boolean(child.baseUrl && key)
 }
 
@@ -15,9 +13,10 @@ export function childEnv(child, key) {
   return env
 }
 
+// The flags after the program name (`claude`, written as fixed text at the $.process.run call).
 // --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery.
-export function childArgv(child, model, cwd) {
-  return [...child.command, '-p', '--model', model, '--output-format', 'text', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args]
+export function childArgs(child, model, cwd) {
+  return ['-p', '--model', model, '--output-format', 'text', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args]
 }
 
 function describe(m) {
