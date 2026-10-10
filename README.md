@@ -8,8 +8,6 @@ Keep your Claude subscription for the turns that need it. Hand the rest to a che
 
 To be precise about what it is: **turn-level delegation**, not per-request model mixing. A routed turn runs in a child process with a short brief of your recent context; the child's answer lands in your transcript, tagged. Critical turns stay on Claude exactly as before.
 
-> **Status: early.** Released on day two of Claude Code mods, verified on one machine. Read [What the child can and cannot do](#what-the-child-can-and-cannot-do) before trusting it with a deploy.
-
 ## Install
 
 Mods need **Claude Code 2.1.287 or later**. The stable Homebrew cask is still 2.1.286, so check first:
