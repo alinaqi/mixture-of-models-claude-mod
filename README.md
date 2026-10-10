@@ -28,6 +28,8 @@ claude plugin marketplace add alinaqi/mixture-of-models-claude-mod
 claude plugin install mixture-of-models@mixture-of-models-claude-mod
 ```
 
+or, inside a session, `/plugin install mixture-of-models --marketplace alinaqi/mixture-of-models-claude-mod`.
+
 Give the child a gateway (any Anthropic-compatible endpoint that serves your model ids; tested with [palgu](https://www.palgu.ai), and z.ai or Moonshot's Anthropic endpoints work the same way), see [Setup](#setup). Start `claude`, run `/route`. Until a gateway is configured the mod is observe-only and changes nothing.
 
 **Design rule: the main session is never touched.** It stays on your claude.ai subscription with no `ANTHROPIC_BASE_URL`. When a prompt is routed to GLM or Kimi, the mod answers that turn itself by running a **separate, headless `claude -p` child** whose environment alone points at the gateway (palgu). The child's output becomes the turn's answer in your transcript. Nothing about the main process, its model, its auth or its requests changes.
@@ -94,9 +96,9 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for the full walkthrough, or `./ins
    /plugin configure mixture-of-models@mixture-of-models-claude-mod
    ```
 
-   or from the shell at install time: `claude plugin install mixture-of-models@mixture-of-models-claude-mod --config gateway_url=https://api.palgu.ai/anthropic --config gateway_key=srt_…`
+   or from the shell at install time: `claude plugin install mixture-of-models@mixture-of-models-claude-mod --config gateway_url=https://api.palgu.ai/anthropic --config gateway_key=srt_…`, or afterwards: `echo '{"gateway_url":"https://api.palgu.ai/anthropic","gateway_key":"srt_…"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
 
-2. Optionally tune routes, thresholds and the child in `~/.claude/model-config.json` (example below).
+2. Optionally tune routes, thresholds and the child in `~/.claude/model-config.json`; `config.example.json` in the repo is a complete starting point (also shown below).
 
 3. Start `claude` and run `/route`.
 

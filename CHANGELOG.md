@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Docs: GETTING_STARTED has the Claude Code upgrade commands and the `ANTHROPIC_API_KEY` caution; README has the in-session install line, the `--values-stdin` form and a pointer to `config.example.json`.
+
 ## [0.6.0] - 2026-10-09
 
 ### Added

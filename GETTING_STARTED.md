@@ -3,7 +3,11 @@
 ## 1. Check Claude Code
 
 ```bash
-claude --version     # needs 2.1.287 or later; otherwise: claude update
+claude --version     # needs 2.1.287 or later
+# too old? one of:
+brew install --cask claude-code@latest            # Homebrew (the stable cask is behind)
+npm install -g @anthropic-ai/claude-code@latest   # npm
+claude update                                     # native installer
 ```
 
 ## 2. Install
@@ -19,6 +23,8 @@ Or by hand:
 claude plugin marketplace add alinaqi/mixture-of-models-claude-mod
 claude plugin install mixture-of-models@mixture-of-models-claude-mod
 ```
+
+Or from inside a session: `/plugin install mixture-of-models --marketplace alinaqi/mixture-of-models-claude-mod`
 
 To hack on it instead, load the checkout for one session: `claude --plugin-dir .`
 
@@ -36,7 +42,13 @@ From the shell instead: `echo '{"gateway_url":"https://api.palgu.ai/anthropic","
 
 Your main session needs **no** `ANTHROPIC_BASE_URL`. It stays on your subscription.
 
-## 4. Optional: free classification
+## 4. Optional: tune it
+
+Copy the `router` block from `config.example.json` into `~/.claude/model-config.json` to change routes, thresholds or the child's flags. Not needed to start.
+
+One caution: an exported `ANTHROPIC_API_KEY` in your shell overrides the claude.ai login for the main session. Leave it unset if the main session should run on your subscription.
+
+## 5. Optional: free classification
 
 ```bash
 ollama pull qwen2.5-coder:3b
@@ -44,7 +56,7 @@ ollama pull qwen2.5-coder:3b
 
 Without Ollama the classifier falls back to `claude-haiku-4-5` on your plan.
 
-## 5. Try it
+## 6. Try it
 
 ```
 claude
