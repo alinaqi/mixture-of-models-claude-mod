@@ -36,7 +36,7 @@ function modelByPrefix(arg, routes) {
 export function parseRouteArg(arg, routes) {
   const word = (arg || '').trim().toLowerCase()
   if (word === '') return { mode: 'show' }
-  if (word === 'auto' || word === 'off' || word === 'reset') return { mode: word }
+  if (['auto', 'off', 'reset', 'stats'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
   return { mode: 'model', model: modelByPrefix(word, routes) || word }
 }

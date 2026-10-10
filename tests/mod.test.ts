@@ -21,6 +21,7 @@ function stubSession(on, opts: { childEnv?: string; score?: string; offline?: bo
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
   on('store.delete', () => ({ value: undefined }))
   // The local classifier's replies, in order: "<score> <kind>" verdicts the test wants, or no Ollama at all.
   const replies = opts.scores ?? [opts.score ?? '2 code']
@@ -289,4 +290,36 @@ test('a failed child is counted against its kind', GW, async ($, on) => {
 
   await routedTurn($, 'write the changelog entry for this release and the upgrade notes')
   expect(store.get('failures')).toEqual({ docs: 1 })
+})
+
+const PANE = {
+  plugin: 'mixture-of-models',
+  component: 'Pane',
+  requestId: 'routing-stats',
+  viewport: { columns: 120, rows: 40 },
+  props: { title: 'Mixture of models', isFocused: true, bodyColumns: 70, placement: 'inline', scroll: { offset: 0, bodyRows: 14 }, view: {} },
+} as const
+
+test('/route stats opens the pane, which charts the turns the session routed', GW, async ($, on) => {
+  stubSession(on, { scores: ['5 code', '5 research'] })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'ok\n', stderr: '' } }))
+  recordSteps(on, [])
+
+  await routedTurn($, 'add a unit test for the parseVerdict helper and run it')
+  await $.turn.complete({ turnId: 't1', answer: 'ok', durationMs: 10, isAborted: false, usage: null })
+  await $.prompt.submit({ text: 'research how other routers pick a model and compare three of them' })
+  await $.turn.start({ turnId: 't2' })
+  await drain($.turn.step({ turnId: 't2', index: 0, model: 'claude-opus-5', messageCount: 3 }))
+  await $.turn.complete({ turnId: 't2', answer: 'ok', durationMs: 10, isAborted: false, usage: null })
+
+  const opened = await $.command.run({ command: 'route', args: 'stats' })
+  expect(opened).toEqual({})
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /2 of 2 turns off Claude/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /glm-5\.3/ })).toBeDefined()
+  await ui.press({ key: 'tab-kinds' })
+  expect(await ui.find({ type: 'Text', text: /research/ })).toBeDefined()
+  await ui.press({ key: 'tab-recent' })
+  expect(await ui.find({ type: 'Text', text: /5\/10 research/ })).toBeDefined()
+  await ui.unmount()
 })

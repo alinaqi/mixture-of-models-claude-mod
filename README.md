@@ -77,6 +77,7 @@ Claude and the gateway are both visible, all the time:
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback |
 | Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: …` | same |
+| `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude"), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
 
 The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto. Turn the band off with `"ui": { "band": false }`.
 
@@ -111,7 +112,7 @@ The directory's security scan compares this section with the code. Everything th
 - It **fetches** `http://localhost:11434/api/chat` with `$.http.fetch`, sending the prompt text and the scoring rubric to a local Ollama, to score the prompt. No credentials, nothing leaves the machine.
 - It **calls** `$.model.classify`, which sends the same prompt text and rubric to Anthropic through Claude Code's own API client on your own account, when Ollama does not answer.
 - It **runs** one program, `claude` (Claude Code itself, headless), with `$.process.run`, for routed turns only, with the environment variables `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured. That child **sends** your prompt and a short brief of recent session text to that gateway.
-- It **reads** `~/.claude/model-config.json`, `HOME` and `MAGGY_ROUTER_CHILD`, and **stores** the route pin, per-day counts and the last score in the plugin store.
+- It **reads** `~/.claude/model-config.json`, `HOME` and `MAGGY_ROUTER_CHILD`, and **stores** the route pin, per-day counts, the last verdict, per-kind failure counts and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child time and exit code; never prompt text) in the plugin store.
 
 Full detail follows; a privacy policy is at [PRIVACY.md](PRIVACY.md).
 
@@ -129,6 +130,7 @@ The hooks module `hooks/register.js` registers nine hooks. What each one does wi
 | `ui.render` for `AbovePrompt` | Draws the band: the current mode and last decision, plus buttons that change the `/route` pin. Keeps whatever other mods draw there. |
 | `ui.render` for `AssistantMessage` | Puts a dim provenance line above a reply the child produced. Other replies are passed through. |
 | `ui.render` for `Spinner` | Adds `via <model> (child)…` after the spinner's word during a routed turn. |
+| `ui.render` for `Pane` | Draws the "Mixture of models" stats pane (id `routing-stats`) from the decision log when `/route stats` opened it. Other panes are passed through. |
 | `command.run` for `/route` | Shows the route state or sets the pin (`auto`, `off`, a tier, or a model). |
 
 The mod never handles `tool.call` or `tool.check`, so it never approves, denies or changes a tool call, and it never changes permission prompts.
@@ -167,7 +169,7 @@ claude -p --model <routed model id> --output-format text --max-turns <child.maxT
 
 ### What it stores
 
-In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): the `/route` pin, per-day counts per model, and the last score. No prompt text, no answers, no credentials.
+In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): the `/route` pin, per-day counts per model, the last verdict, per-kind failure counts, and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child duration and exit code). No prompt text, no answers, no credentials.
 
 ### What it never does
 
@@ -218,6 +220,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 | `/route off` | Never start a child |
 | `/route simple\|coding\|critical` | Pin a tier |
 | `/route reset` | Clear the per-kind failure memory |
+| `/route stats` | Open the stats pane: models, kinds, scores, recent |
 | `/route glm`, `/route kimi`, `/route kimi-k3`, `/route claude` | Pin a model (a prefix expands to the configured model) |
 
 Pins persist across sessions in the plugin's store.
@@ -251,7 +254,7 @@ mixture-of-models-claude-mod/
 ├── scripts/test-pure.mjs   # runs the pure tests under Node
 ├── hooks/
 │   ├── hooks.json          # points at register.js
-│   ├── register.js         # the 9 hooks; the only file that touches the mods API ($)
+│   ├── register.js         # the 10 hooks; the only file that touches the mods API ($)
 │   └── lib/                # pure, unit-tested
 │       ├── config.js       # defaults and the model-config.json overlay
 │       ├── classify.js     # Maggy's pre-routing rules, classifier prompt, Ollama wire format

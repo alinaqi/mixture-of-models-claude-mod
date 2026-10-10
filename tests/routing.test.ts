@@ -43,6 +43,7 @@ test('parseRouteArg understands show, auto, off, labels and model ids', async ()
   expect(parseRouteArg('off', DEFAULT_ROUTES)).toEqual({ mode: 'off' })
   expect(parseRouteArg('coding', DEFAULT_ROUTES)).toEqual({ mode: 'label', label: 'coding' })
   expect(parseRouteArg('reset', DEFAULT_ROUTES)).toEqual({ mode: 'reset' })
+  expect(parseRouteArg('stats', DEFAULT_ROUTES)).toEqual({ mode: 'stats' })
   expect(parseRouteArg('kimi-k3', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3' })
 })
 

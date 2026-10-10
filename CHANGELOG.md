@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.0] - 2026-10-10
+
+### Added
+- `/route stats` opens a pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (a bar per model with its share of turns and the headline "N of M turns off Claude", plus child runs, failures and average time), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier with the cut-offs marked), **recent** (the last decisions with score, kind, model, where they ran and the classifier used). Esc closes it.
+- A bounded decision log (last 200 turns) in the plugin store feeds the pane. It holds day, model, kind, tier, score, classifier source, child duration and exit code, never prompt text.
 
 ### Changed
 - Docs: GETTING_STARTED has the Claude Code upgrade commands and the `ANTHROPIC_API_KEY` caution; README has the in-session install line, the `--values-stdin` form and a pointer to `config.example.json`.

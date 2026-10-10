@@ -64,4 +64,5 @@ claude
 grep the repo for TODOs     → spinner shows "via glm-5.3 (child)…", answer comes from the child
 /route kimi                 → pin the next turns to Kimi
 /route auto                 → back to classification
+/route stats                → a pane charting which models took your turns, kinds, scores, recent decisions
 ```

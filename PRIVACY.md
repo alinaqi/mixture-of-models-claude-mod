@@ -12,7 +12,7 @@ The plugin sends nothing to any other party, and nothing to the author.
 
 ## What the plugin stores
 
-In Claude Code's plugin store on your machine: your `/route` setting, per-day counts of which model answered, and the last score. No prompt text, answers or credentials are stored by the plugin. Your gateway key is stored by Claude Code in its secure storage as a sensitive plugin option.
+In Claude Code's plugin store on your machine: your `/route` setting, per-day counts of which model answered, the last verdict, per-kind failure counts, and a log of the last 200 routing decisions (day, model, kind, tier, score, which classifier answered, child duration and exit code). No prompt text, answers or credentials are stored by the plugin. Your gateway key is stored by Claude Code in its secure storage as a sensitive plugin option.
 
 ## What the plugin reads
 

@@ -4,20 +4,17 @@ import { parseConfig } from './lib/config.js'
 import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from './lib/classify.js'
 import { adjustThresholds, bumpFailures, isBorderline, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
 import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from './lib/child.js'
-import { bumpStats, statsLine } from './lib/stats.js'
+import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
+import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
 let cfg = parseConfig(''), options = {}, disabled = false, ready = false, key = '', sessionModel = ''
-let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = ''
+let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models'
 const answered = new Map()
-
-function readFile($, path) {
-  return $.fs.read(path).catch(() => '')
-}
 
 async function loadConfig($) {
   const home = (await $.env.get('HOME')) || ''
-  cfg = parseConfig(await readFile($, home + '/.claude/model-config.json'))
+  cfg = parseConfig(await $.fs.read(home + '/.claude/model-config.json').catch(() => ''))
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
   ready = childReady(cfg.child, key)
   sessionModel = await $.session.model()
@@ -57,12 +54,6 @@ async function classify($, text) {
   return second && second.score > first.score ? second : first
 }
 
-async function lastTurnUsedTools($) {
-  const messages = await $.session.messages()
-  const last = messages.filter((m) => m.role === 'assistant').pop()
-  return Boolean(last && last.toolUses.length)
-}
-
 function setDecision(label, source, verdict) {
   decision = { label, source, ...(verdict || {}) }
   decision.model = resolveModel(decision, cfg.routes, sessionModel)
@@ -76,7 +67,8 @@ function applyPin() {
 
 async function decide($, text) {
   if (pin.mode === 'model' || pin.mode === 'label') return applyPin()
-  const pre = preClassify(text, await lastTurnUsedTools($))
+  const last = (await $.session.messages()).filter((m) => m.role === 'assistant').pop()
+  const pre = preClassify(text, Boolean(last && last.toolUses.length))
   if (pre.kind === 'label') return setDecision(pre.label, 'rule')
   if (pre.kind !== 'classify') return
   const verdict = await classify($, text)
@@ -127,7 +119,7 @@ export function register(on, opts) {
     await loadConfig($)
     applyPin()
     try {
-      await $.command.register({ name: 'route', description: 'Show or pin the model route: /route [auto|off|reset|simple|coding|critical|<model>]', argumentHint: '[auto|off|reset|label|model]', immediate: true })
+      await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [stats|auto|off|reset|simple|coding|critical|<model>]', argumentHint: '[stats|auto|off|reset|label|model]', immediate: true })
     } catch {
       $.ui.log('/route is taken by another plugin')
     }
@@ -167,6 +159,7 @@ export function register(on, opts) {
     const day = new Date().toISOString().slice(0, 10)
     const stats = bumpStats((await $.store.get('stats')) || {}, day, decision.model)
     await $.store.set('stats', stats)
+    await $.store.set('log', appendLog(await $.store.get('log'), { day, model: decision.model, kind: decision.kind, label: decision.label, score: decision.score, source: decision.source, child: decision.child || null }, 200))
     return { ...result, text: summaryLine(decision, e.usage) + ' · ' + statsLine(stats, day) }
   })
 
@@ -182,6 +175,12 @@ export function register(on, opts) {
     return tagTree($.ui.resolve(e), tagText(model, sessionModel), await next(e))
   })
 
+  on('ui.render', { component: 'Pane' }, async ($, e, next) => {
+    if (e.requestId !== 'routing-stats') return next(e)
+    const view = { summary: summarize((await $.store.get('log')) || [], sessionModel), sessionModel, thresholds: cfg.thresholds, columns: e.props.bodyColumns, tab }
+    return paneTree($.ui.resolve(e), view, (t) => { tab = t; $.ui.invalidate('ui.render') })
+  })
+
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     if (!shouldDelegate({ index: 0 })) return next(e)
     return next({ ...e, props: { ...e.props, suffix: ' · via ' + decision.model + ' (child)…' } })
@@ -191,6 +190,7 @@ export function register(on, opts) {
     const parsed = parseRouteArg(e.args, cfg.routes)
     if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) }
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
+    if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
     return { text: await pinFrom($, e.args) }
   })
 }
