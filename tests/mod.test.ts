@@ -5,7 +5,7 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; score?: string; offline?: boolean; scores?: string[] } = {}) {
+function stubSession(on, opts: { childEnv?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -16,7 +16,7 @@ function stubSession(on, opts: { childEnv?: string; score?: string; offline?: bo
   on('store.set', ($, e) => { store.set(e.key, e.value); return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
   on('ui.log', () => ({ value: undefined }))
-  on('session.messages', () => ({ value: [] }))
+  on('session.messages', () => ({ value: opts.messages ?? [] }))
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
@@ -322,4 +322,46 @@ test('/route stats opens the pane, which charts the turns the session routed', G
   await ui.press({ key: 'tab-recent' })
   expect(await ui.find({ type: 'Text', text: /5\/10 research/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('after a child-answered turn, "continue" goes to the main session instead of a memoryless child', GW, async ($, on) => {
+  stubSession(on, { score: '3 code' })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'child did step one\n', stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'scaffold the invoices module with a model, a repository and a first test')
+  expect(runs).toBe(1)
+  await $.prompt.submit({ text: 'continue' })
+  await $.turn.start({ turnId: 't2' })
+  await drain($.turn.step({ turnId: 't2', index: 0, model: 'claude-opus-5', messageCount: 3 }))
+  expect(runs).toBe(1)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('while the main session is mid-task, a coding-score follow-up stays on it', GW, async ($, on) => {
+  const working = [{ role: 'user', text: 'refactor the auth module', toolUses: [] }, { role: 'assistant', text: 'Edited three files.', toolUses: [{ name: 'Edit' }, { name: 'Bash' }] }]
+  stubSession(on, { score: '5 code', messages: working })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'now also update the README and fix the failing test in the auth module please')
+  expect(runs).toBe(0)
+  expect(seen).toEqual(['claude-opus-5'])
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('mid-task guard')
+})
+
+test('while the main session is mid-task, a lookup can still go to the child', GW, async ($, on) => {
+  const working = [{ role: 'assistant', text: 'Edited three files.', toolUses: [{ name: 'Edit' }] }]
+  stubSession(on, { score: '1 research', messages: working })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'what does the --bare flag of claude do, in one line, do not touch any files')
+  expect(runs).toBe(1)
 })

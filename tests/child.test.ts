@@ -60,7 +60,8 @@ test('buildBrief keeps only the last N messages and truncates long ones', async 
   expect(brief).not.toContain('m6 ')
   expect(brief).toContain('m7 ')
   expect(brief.length).toBe(brief.length)
-  expect(brief.indexOf('x'.repeat(700))).toBe(-1)
+  expect(brief.indexOf('x'.repeat(1300))).toBe(-1)
+  expect(brief.indexOf('x'.repeat(1100))).not.toBe(-1)
 })
 
 test('gatewayFrom takes the URL from the options or the config, and the key from the options only', async () => {

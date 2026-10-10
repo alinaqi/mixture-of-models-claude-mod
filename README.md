@@ -2,6 +2,7 @@
 
 [![ci](https://github.com/alinaqi/mixture-of-models-claude-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/alinaqi/mixture-of-models-claude-mod/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Changelog](https://img.shields.io/badge/changelog-keep%20a%20changelog-blue)](CHANGELOG.md)
 
 Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
 
@@ -37,7 +38,7 @@ Give the child a gateway (any Anthropic-compatible endpoint that serves your mod
 Per prompt the mod:
 
 1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-4-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
-2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; `go ahead`, `yes`, or a prompt of six words or fewer while tools were just used keeps the current route instead of re-classifying.
+2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; follow-ups after a child-answered turn return to the main session; `go ahead`, `yes`, or a prompt of six words or fewer while the main session is mid-task keeps it there; coding-level work stays on a mid-task main session.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
 4. **Falls back** to the main model for that turn if the child fails or prints nothing, and says so in the transcript.
 5. **Shows you what ran where**, on every turn. See [What you see](#what-you-see).
@@ -63,6 +64,8 @@ The prompt tells the classifier that length, the number of services named, or pa
 **Borderline scores get a second opinion.** A score on the coding cut-off or one above it is sampled a second time and the higher wins, so a 7-or-8 debugging task doesn't flip tiers on classifier noise.
 
 **It remembers failures.** Every two child failures for a kind lower that kind's coding cut-off by one (never below `simple + 1`), so work the cheap model keeps failing at drifts back to Claude. `/route reset` clears the memory.
+
+**It protects the thread of work.** A child has no memory beyond its brief, so the mod never lets a follow-up land on one. After a child-answered turn, `continue`, `yes` or any prompt of six words or fewer goes back to the main session, which holds the whole transcript. And while the main session is mid-task (its last answer used tools), coding-level work stays with it (`via mid-task guard` on the route line); only lookups and new, self-contained tasks go out. Without these rules a session that had routed a task would restart it on every "continue".
 
 Every route line and the band show the score and the kind, so when a decision looks wrong you can see the numbers behind it.
 
@@ -193,7 +196,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
-      "contextMessages": 6
+      "contextMessages": 12
     },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true
@@ -228,10 +231,14 @@ Pins persist across sessions in the plugin's store.
 ## What the child can and cannot do
 
 - It has Claude Code's tools and runs in the session's working directory, so it can read, edit and run things. Its tool calls are not shown in the main transcript, only its final text.
-- It does not share the main session's memory. The brief carries the last `contextMessages` exchanges (truncated) and the task.
+- It does not share the main session's memory. The brief carries the last `contextMessages` exchanges (12 by default, each truncated to 1,200 characters) and the task. This is why follow-ups never go to a child: see [How it decides](#how-it-decides).
 - It runs `--bare` by default, so your hooks and plugins stay out of it. The mod also detects the `MAGGY_ROUTER_CHILD` marker and does nothing inside a child.
 - The tag and the route line name the model the mod **asked for**. A gateway that routes by intent, as palgu does, may answer with another model; Claude Code's `-p` output does not expose which, so the mod cannot show it.
 - Output arrives when the child finishes; this version uses `$.process.run`, so a routed answer is not streamed token by token.
+
+## Changelog
+
+Every release has a dated section in [CHANGELOG.md](CHANGELOG.md), written in the same commit as the change. CI fails if the version in `plugin.json` has no entry (`npm run changelog`).
 
 ## Tests
 

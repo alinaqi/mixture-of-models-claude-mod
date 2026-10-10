@@ -1,7 +1,7 @@
 // The delegate: a headless `claude -p` child on the gateway. Argument vector,
 // scoped environment, readiness, env-file parsing and the context brief. Pure.
 
-const MESSAGE_CHARS = 600
+const MESSAGE_CHARS = 1200
 
 export function childReady(child, key) {
   return Boolean(child.baseUrl && key)

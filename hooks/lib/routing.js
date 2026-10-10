@@ -9,6 +9,12 @@ export function resolveModel(decision, routes, sessionModel) {
   return model === 'claude' ? sessionModel : model
 }
 
+// While the main session is mid-task (its last answer used tools), coding-level work stays
+// with it: a child would start over without the transcript. Lookups may still go out.
+export function midTaskGuard(label, ctx) {
+  return label === 'coding' && Boolean(ctx.lastHadTools)
+}
+
 // On the coding/critical edge one sample is noisy: these scores earn a second one.
 export function isBorderline(score, thresholds) {
   return score === thresholds.coding || score === thresholds.coding + 1

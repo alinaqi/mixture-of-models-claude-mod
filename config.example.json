@@ -11,7 +11,7 @@
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
-      "contextMessages": 6
+      "contextMessages": 12
     },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true

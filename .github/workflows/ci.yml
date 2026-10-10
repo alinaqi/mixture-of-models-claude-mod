@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Changelog has an entry for this version
+        run: npm run changelog
       - name: Pure-function tests
         run: npm test
       - name: Install Claude Code

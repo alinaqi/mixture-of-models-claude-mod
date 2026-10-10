@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULT_ROUTES } from '../hooks/lib/config.js'
-import { adjustThresholds, bumpFailures, isBorderline, parseRouteArg, resolveModel, summaryLine } from '../hooks/lib/routing.js'
+import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, resolveModel, summaryLine } from '../hooks/lib/routing.js'
 
 const SESSION = 'claude-opus-5'
 
@@ -85,4 +85,11 @@ test('bumpFailures counts a failure against its kind, defaulting to code', async
   expect(bumpFailures(undefined, 'docs')).toEqual({ docs: 1 })
   expect(bumpFailures({ docs: 1 }, 'docs')).toEqual({ docs: 2 })
   expect(bumpFailures({ docs: 1 }, undefined)).toEqual({ docs: 1, code: 1 })
+})
+
+test('midTaskGuard keeps coding work on the main session while it is mid-task, lets lookups through', async () => {
+  expect(midTaskGuard('coding', { lastHadTools: true })).toBe(true)
+  expect(midTaskGuard('simple', { lastHadTools: true })).toBe(false)
+  expect(midTaskGuard('coding', { lastHadTools: false })).toBe(false)
+  expect(midTaskGuard('critical', { lastHadTools: true })).toBe(false)
 })

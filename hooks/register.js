@@ -2,14 +2,14 @@
 // turn with a headless `claude -p` child on the gateway; the main session never leaves its model.
 import { parseConfig } from './lib/config.js'
 import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from './lib/classify.js'
-import { adjustThresholds, bumpFailures, isBorderline, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
+import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
 import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from './lib/child.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
 let cfg = parseConfig(''), options = {}, disabled = false, ready = false, key = '', sessionModel = ''
-let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models'
+let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
 const answered = new Map()
 
 async function loadConfig($) {
@@ -59,7 +59,6 @@ function setDecision(label, source, verdict) {
   decision.model = resolveModel(decision, cfg.routes, sessionModel)
 }
 
-// A /route pin wins over classification: a label pins a tier, a model id pins the model itself.
 function applyPin() {
   if (pin.mode === 'label') setDecision(pin.label, 'pin')
   if (pin.mode === 'model') decision = { label: 'pinned', source: 'pin', model: pin.model === 'claude' ? sessionModel : pin.model }
@@ -68,16 +67,19 @@ function applyPin() {
 async function decide($, text) {
   if (pin.mode === 'model' || pin.mode === 'label') return applyPin()
   const last = (await $.session.messages()).filter((m) => m.role === 'assistant').pop()
-  const pre = preClassify(text, Boolean(last && last.toolUses.length))
+  const ctx = { lastHadTools: Boolean(last && last.toolUses.length), lastWasChild }
+  const pre = preClassify(text, ctx)
   if (pre.kind === 'label') return setDecision(pre.label, 'rule')
+  if (pre.kind === 'main') return setDecision('main', pre.reason)
   if (pre.kind !== 'classify') return
   const verdict = await classify($, text)
   await $.store.set('last-verdict', { score: verdict.score, kind: verdict.kind })
   const thresholds = adjustThresholds(cfg.thresholds, await $.store.get('failures'), verdict.kind)
-  setDecision(labelFor(verdict.score, thresholds), verdict.source, { score: verdict.score, kind: verdict.kind })
+  const label = labelFor(verdict.score, thresholds)
+  setDecision(label, midTaskGuard(label, ctx) ? 'mid-task guard' : verdict.source, { score: verdict.score, kind: verdict.kind })
+  if (midTaskGuard(label, ctx)) decision.model = sessionModel
 }
 
-// The main session's own request goes out whenever the child is not the answer.
 function shouldDelegate(e) {
   if (disabled || !ready || pin.mode === 'off' || e.agentId || e.index > 0) return false
   return Boolean(decision.model) && decision.model !== sessionModel
@@ -141,12 +143,14 @@ export function register(on, opts) {
   })
 
   on('turn.step', async function* ($, e, next) {
+    if (!e.agentId) lastWasChild = false
     if (!shouldDelegate(e)) return yield* next(e)
     const answer = await runChild($)
     if (!answer) {
       $.ui.log('child on ' + decision.model + ' failed, main model takes this turn')
       return yield* next(e)
     }
+    lastWasChild = true
     answered.set(answer, decision.model)
     if (answered.size > 50) answered.delete(answered.keys().next().value)
     yield { kind: 'text', index: 0, text: answer }

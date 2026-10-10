@@ -34,7 +34,7 @@ export const DEFAULTS = {
     args: ['--bare', '--permission-mode', 'acceptEdits'],
     maxTurns: 25,
     timeoutMs: 600000,
-    contextMessages: 6,
+    contextMessages: 12,
   },
   // The band above the prompt, and which replies get a provenance tag: 'routed', 'all' or 'off'.
   ui: { band: true, tags: 'routed' },

@@ -3,37 +3,47 @@ import { KINDS, SCORES, VERDICTS, classifierPrompt, labelFor, ollamaBody, ollama
 import { DEFAULTS } from '../hooks/lib/config.js'
 
 test('a slash command is skipped', async () => {
-  expect(preClassify('/route glm', false)).toEqual({ kind: 'skip' })
+  expect(preClassify('/route glm', {})).toEqual({ kind: 'skip' })
 })
 
 test('"use claude" forces the critical tier', async () => {
-  expect(preClassify('please use claude for this refactor', false)).toEqual({ kind: 'label', label: 'critical' })
+  expect(preClassify('please use claude for this refactor', {})).toEqual({ kind: 'label', label: 'critical' })
 })
 
 test('execution intent forces the critical tier', async () => {
-  expect(preClassify('ok now execute the plan', true)).toEqual({ kind: 'label', label: 'critical' })
+  expect(preClassify('ok now execute the plan', { lastHadTools: true })).toEqual({ kind: 'label', label: 'critical' })
 })
 
-test('a continuation phrase keeps the current route', async () => {
-  expect(preClassify('Go ahead!', true)).toEqual({ kind: 'sticky' })
-  expect(preClassify('yes', false)).toEqual({ kind: 'sticky' })
+test('a continuation phrase keeps the current route while the main session is working', async () => {
+  expect(preClassify('Go ahead!', { lastHadTools: true })).toEqual({ kind: 'sticky' })
+  expect(preClassify('yes', {})).toEqual({ kind: 'sticky' })
+})
+
+test('a continuation after a child-answered turn goes back to the main session, which holds the transcript', async () => {
+  expect(preClassify('continue', { lastWasChild: true })).toEqual({ kind: 'main', reason: 'continuation after a child turn' })
+  expect(preClassify('now add tests for it', { lastWasChild: true })).toEqual({ kind: 'main', reason: 'follow-up after a child turn' })
+})
+
+test('a long new task after a child turn is classified afresh', async () => {
+  const text = 'write a completely separate script that exports all invoices from the last quarter as csv with totals'
+  expect(preClassify(text, { lastWasChild: true })).toEqual({ kind: 'classify' })
 })
 
 test('a short prompt in an agentic session keeps the current route', async () => {
-  expect(preClassify('fix the failing test too', true)).toEqual({ kind: 'sticky' })
+  expect(preClassify('fix the failing test too', { lastHadTools: true })).toEqual({ kind: 'sticky' })
 })
 
 test('a short prompt in a fresh session is classified', async () => {
-  expect(preClassify('fix the failing test too', false)).toEqual({ kind: 'classify' })
+  expect(preClassify('fix the failing test too', {})).toEqual({ kind: 'classify' })
 })
 
 test('a long prompt is classified even mid-task', async () => {
   const text = 'rewrite the auth middleware so refresh tokens rotate and add tests for the expiry path'
-  expect(preClassify(text, true)).toEqual({ kind: 'classify' })
+  expect(preClassify(text, { lastHadTools: true })).toEqual({ kind: 'classify' })
 })
 
 test('a review-shaped prompt is classified like any other; the kind comes from the classifier', async () => {
-  expect(preClassify('review this diff for mistakes and summarise the risks', false)).toEqual({ kind: 'classify' })
+  expect(preClassify('review this diff for mistakes and summarise the risks', {})).toEqual({ kind: 'classify' })
 })
 
 test('classifierPrompt asks for a 1-10 blast score and a task kind, with the difficulty clause', async () => {

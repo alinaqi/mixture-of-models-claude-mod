@@ -17,14 +17,18 @@ function normalize(text) {
   return text.toLowerCase().trim().replace(/[.!?]+$/, '')
 }
 
-// What to do with a prompt before any model is asked.
-export function preClassify(text, lastHadTools) {
+// What to do with a prompt before any model is asked. `ctx.lastHadTools`: the main
+// session's last answer used tools (it is mid-task). `ctx.lastWasChild`: the last answer
+// came from a child, which keeps no memory, so follow-ups belong to the main session.
+export function preClassify(text, ctx) {
   const lower = normalize(text)
+  const words = lower.split(/\s+/).filter(Boolean).length
   if (lower.startsWith('/')) return { kind: 'skip' }
   if (/\buse claude\b/.test(lower) || EXECUTION_INTENT.test(lower)) return { kind: 'label', label: 'critical' }
+  if (ctx.lastWasChild && CONTINUATIONS.has(lower)) return { kind: 'main', reason: 'continuation after a child turn' }
+  if (ctx.lastWasChild && words <= SHORT_WORDS) return { kind: 'main', reason: 'follow-up after a child turn' }
   if (CONTINUATIONS.has(lower)) return { kind: 'sticky' }
-  const words = lower.split(/\s+/).filter(Boolean).length
-  if (words <= SHORT_WORDS && lastHadTools) return { kind: 'sticky' }
+  if (words <= SHORT_WORDS && ctx.lastHadTools) return { kind: 'sticky' }
   return { kind: 'classify' }
 }
 

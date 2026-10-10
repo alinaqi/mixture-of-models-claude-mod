@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-10-10
+
+### Fixed
+- A session could lose its thread of work: after a child-answered turn, "continue" and other short follow-ups were routed to a new child that had no memory of the work, so it started over, and coding-level follow-ups during a main-session task were routed away too. Now any follow-up after a child turn returns to the main session, and while the main session is mid-task (its last answer used tools) coding-level work stays with it (`via mid-task guard`). Lookups and new self-contained tasks still route.
+
+### Changed
+- The child's brief carries 12 exchanges of up to 1,200 characters each (was 6 of 600).
+- CI fails when `CHANGELOG.md` has no section for the version in `plugin.json` (`npm run changelog`); README links the changelog.
+
 ## [0.7.0] - 2026-10-10
 
 ### Added
