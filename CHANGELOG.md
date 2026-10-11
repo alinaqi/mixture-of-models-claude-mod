@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-10-11
+
+### Fixed
+- Turns that only the main session can serve were routed to a child: teammate messages (`<teammate-message>`, `idle_notification`), background task notifications (`<task-notification>`, `[SYSTEM NOTIFICATION`), and short operator commands such as "approve git pull --ff-only", "continue", "merge it", "check the sub agents" or "what's the status". The child could not see the conversation, teammates or tools, so it narrated or invented an answer, and re-posted the same long verdict on every idle notification. These turns, and security or verdict turns, now always stay on the main session, even with a `/route` pin (`via notification`, `via session command`, `via security or verdict`).
+- Child answers that fabricated results are no longer shown as done. An answer is discarded, and the main model takes the turn, when it replies `HANDBACK`, says it is blocked or tells you to approve or run commands yourself, claims a change or a session fact (a PR number, "N commits behind", "no runs exist") without having called a single tool, is mostly narration of intent, or repeats an earlier answer. The route line says `child answer discarded (<reason>)` and it counts as a child failure for that kind.
+
+### Changed
+- Every child brief opens with a preamble: no access to the main session, never invent statuses, IDs, PR numbers or results, never ask the user to approve or run anything, reply `HANDBACK` when the task needs session state.
+- After a denied permission relay, the child's "I need approval" explanation is no longer the answer; the main model takes the turn.
+
 ## [0.8.0] - 2026-10-11
 
 ### Added

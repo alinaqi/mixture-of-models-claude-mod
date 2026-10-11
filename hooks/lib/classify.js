@@ -8,6 +8,14 @@ const CONTINUATIONS = new Set([
 const EXECUTION_INTENT = /validate[- ]plan|execute the plan|run the plan|implement the plan|start executing|begin implementation/
 const SHORT_WORDS = 6
 
+// Turns only the main session can serve: a child sees none of the conversation, teammates,
+// background tasks, PRs or the session's tools, so it would narrate or invent an answer.
+const NOTIFICATION = /<teammate-message\b|<task-notification>|\[SYSTEM NOTIFICATION|"type"\s*:\s*"idle_notification"/i
+const SESSION_VERB = /^(approve[ds]?|merge|push|pull|continue|resume|proceed|retry|rerun|check|status|land|ship|revert|rebase|cancel|stop|kill)\b/
+const SESSION_REF = /\b(status|sub[- ]?agents?|teammates?|workflows?|background (tasks?|jobs?)|pr\s*#?\d+|prs?|pull requests?|branch(es)?|ci|merged?|run ids?)\b/
+const SECURITY = /\b(security|vulnerab\w*|cve|exploit\w*|threat model|pen ?test|leaked (keys?|secrets?|tokens?)|verdict)\b/
+const COMMAND_WORDS = 12
+
 // The classifier answers "<score> <kind>". Score: blast radius. Kind: what sort of work it is.
 export const SCORES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
 export const KINDS = ['code', 'research', 'review', 'docs', 'data', 'multimodal']
@@ -17,6 +25,15 @@ function normalize(text) {
   return text.toLowerCase().trim().replace(/[.!?]+$/, '')
 }
 
+// Why a prompt must stay on the main session, or '' when it may be classified.
+export function sessionTurn(text) {
+  if (NOTIFICATION.test(text)) return 'notification'
+  const lower = normalize(text)
+  const words = lower.split(/\s+/).filter(Boolean).length
+  if (words <= COMMAND_WORDS && (SESSION_VERB.test(lower) || SESSION_REF.test(lower))) return 'session command'
+  return SECURITY.test(lower) ? 'security or verdict' : ''
+}
+
 // What to do with a prompt before any model is asked. `ctx.lastHadTools`: the main
 // session's last answer used tools (it is mid-task). `ctx.lastWasChild`: the last answer
 // came from a child, which keeps no memory, so follow-ups belong to the main session.
@@ -24,6 +41,8 @@ export function preClassify(text, ctx) {
   const lower = normalize(text)
   const words = lower.split(/\s+/).filter(Boolean).length
   if (lower.startsWith('/')) return { kind: 'skip' }
+  const stay = sessionTurn(text)
+  if (stay) return { kind: 'main', reason: stay }
   if (/\buse claude\b/.test(lower) || EXECUTION_INTENT.test(lower)) return { kind: 'label', label: 'critical' }
   if (ctx.lastWasChild && CONTINUATIONS.has(lower)) return { kind: 'main', reason: 'continuation after a child turn' }
   if (ctx.lastWasChild && words <= SHORT_WORDS) return { kind: 'main', reason: 'follow-up after a child turn' }

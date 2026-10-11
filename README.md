@@ -38,7 +38,7 @@ Per prompt the mod:
 1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-4-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
 2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; follow-ups after a child-answered turn return to the main session; `go ahead`, `yes`, or a prompt of six words or fewer while the main session is mid-task keeps it there; coding-level work stays on a mid-task main session.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
-4. **Falls back** to the main model for that turn if the child fails or prints nothing, and says so in the transcript.
+4. **Falls back** to the main model for that turn if the child fails, prints nothing, or its answer fails vetting (see [What a child may not do](#what-a-child-may-not-do)), and says so in the transcript.
 5. **Shows you what ran where**, on every turn. See [What you see](#what-you-see).
 
 `critical` turns never start a child. They run in the main session, on the subscription, exactly as if the mod were not there.
@@ -64,6 +64,26 @@ The prompt tells the classifier that length, the number of services named, or pa
 **It remembers failures.** Every two child failures for a kind lower that kind's coding cut-off by one (never below `simple + 1`), so work the cheap model keeps failing at drifts back to Claude. `/route reset` clears the memory.
 
 **It protects the thread of work.** A child has no memory beyond its brief, so the mod never lets a follow-up land on one. After a child-answered turn, `continue`, `yes` or any prompt of six words or fewer goes back to the main session, which holds the whole transcript. And while the main session is mid-task (its last answer used tools), coding-level work stays with it (`via mid-task guard` on the route line); only lookups and new, self-contained tasks go out. Without these rules a session that had routed a task would restart it on every "continue".
+
+**Some turns never leave the main session**, whatever the score or `/route` pin, because a child cannot see the conversation, teammates, background tasks or the session's tools (`via notification`, `via session command`, `via security or verdict` on the route line):
+
+- notifications: `<teammate-message …>`, `idle_notification` JSON, `<task-notification>`, `[SYSTEM NOTIFICATION …]`;
+- short operator commands about session state or tools (12 words or fewer): `approve git pull --ff-only`, `continue`, `resume`, `merge it`, `check the sub agents`, `what's the status`, anything naming a PR, branch, CI, workflow or sub-agent;
+- security and verdict turns (`security`, `vulnerability`, `CVE`, `verdict`, …).
+
+### What a child may not do
+
+Every brief opens with a preamble: the child has no access to the main session, must never invent statuses, IDs, PR numbers, run results or file changes, must never ask you to approve or run anything, and replies `HANDBACK` when the task needs the session's state or tools. The mod then vets the answer and discards it, letting the main model do the turn itself, when it:
+
+| Answer | Example |
+| :- | :- |
+| starts with `HANDBACK` | `HANDBACK` / `needs the PR list` |
+| says it is blocked or asks you to act | "blocked by the permission system", "you must approve it in the UI", "run `gh pr create` yourself" |
+| claims an action or session fact with no tool call (`num_turns` 1) | "I added X", "PR #812 is open", "14 commits behind", "no build runs exist" |
+| is mostly narration of intent | "I'll read the config. Then I will update the router." |
+| repeats an answer already given | the same verdict re-posted on every idle notification |
+
+A discarded answer counts as a child failure for that kind and shows as `child answer discarded (<reason>), main model answered` on the route line. The main model is never asked to relay a child's text: the mod answers the turn with a vetted child answer, or leaves the turn to the main model.
 
 Every route line and the band show the score and the kind, so when a decision looks wrong you can see the numbers behind it.
 
@@ -268,7 +288,8 @@ mixture-of-models-claude-mod/
 │       ├── config.js       # defaults and the model-config.json overlay
 │       ├── classify.js     # Maggy's pre-routing rules, classifier prompt, Ollama wire format
 │       ├── routing.js      # tier → model, /route grammar, summary line
-│       ├── child.js        # child argv, scoped env, readiness, env-file parsing, the brief
+│       ├── child.js        # child argv, scoped env, readiness, env-file parsing, the brief and its preamble
+│       ├── vet.js          # discards handbacks, requests that you act, unverified claims, narration, repeats
 │       └── stats.js        # per-day counts
 └── tests/
 ```

@@ -395,7 +395,7 @@ test('a command the child cannot run is relayed to the user; on approval the sam
   expect(result.answer).toBe('pulled and finished')
 })
 
-test('a denied relay returns the child\'s own explanation and does not resume', GW, async ($, on) => {
+test('a denied relay does not resume, and the child\'s "needs approval" prose goes to the main model instead', GW, async ($, on) => {
   stubSession(on, { score: '4 code' })
   let runs = 0
   on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('I need approval', DENIED), stderr: '' } } })
@@ -404,7 +404,7 @@ test('a denied relay returns the child\'s own explanation and does not resume', 
 
   const result = await routedTurn($, 'update the working copy from origin and tell me what changed in the last commit')
   expect(runs).toBe(1)
-  expect(result.answer).toBe('I need approval to run git pull --ff-only')
+  expect(result.answer).toBe('main answer')
 })
 
 test('when nobody can answer the question, the relay counts as denied', GW, async ($, on) => {
@@ -416,5 +416,61 @@ test('when nobody can answer the question, the relay counts as denied', GW, asyn
 
   const result = await routedTurn($, 'update the working copy from origin and tell me what changed in the last commit')
   expect(runs).toBe(1)
-  expect(result.answer).toBe('I need approval to run git pull --ff-only')
+  expect(result.answer).toBe('main answer')
+})
+
+test('a teammate notification never starts a child, even at a low score', GW, async ($, on) => {
+  stubSession(on, { score: '1 code' })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('Verdict: ...'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, '<teammate-message teammate_id="worker-1">{"type":"idle_notification","from":"worker-1"}</teammate-message>')
+  expect(runs).toBe(0)
+  expect(seen).toEqual(['claude-opus-5'])
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('via notification')
+})
+
+test('an operator command stays on the main session even when a model is pinned', GW, async ($, on) => {
+  stubSession(on)
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'glm' })
+  await $.prompt.submit({ text: 'approve git pull --ff-only' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs).toBe(0)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('a child that replies HANDBACK hands the turn to the main model', GW, async ($, on) => {
+  stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('HANDBACK\nneeds the session PR list', { num_turns: 1 }), stderr: '' } }))
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(seen).toEqual(['claude-opus-5'])
+  expect(result.answer).toBe('main answer')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('discarded (handback)')
+})
+
+test('a child that claims a change it never made is discarded for the main model', GW, async ($, on) => {
+  stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('I added the retry wrapper and opened PR #812.', { num_turns: 1 }), stderr: '' } }))
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(seen).toEqual(['claude-opus-5'])
+  expect(result.answer).toBe('main answer')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('unverified claim')
 })
