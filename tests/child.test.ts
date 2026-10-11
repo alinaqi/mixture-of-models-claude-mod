@@ -1,12 +1,12 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from '../hooks/lib/child.js'
+import { allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from '../hooks/lib/child.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
 
 test('childArgs are the headless flags for the routed model, with the cwd added for CLAUDE.md', async () => {
   expect(childArgs(CHILD, 'glm-5.3', '/work')).toEqual([
-    '-p', '--model', 'glm-5.3', '--output-format', 'text', '--max-turns', '25', '--add-dir', '/work',
+    '-p', '--model', 'glm-5.3', '--output-format', 'json', '--max-turns', '25', '--add-dir', '/work',
     '--bare', '--permission-mode', 'acceptEdits',
   ])
 })
@@ -71,4 +71,38 @@ test('gatewayFrom takes the URL from the options or the config, and the key from
   expect(gatewayFrom({ gateway_key: 'srt_from_options' }, child)).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: 'srt_from_options' })
   expect(gatewayFrom({}, child)).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: '' })
   expect(gatewayFrom(undefined, { ...child, baseUrl: '' })).toEqual({ baseUrl: '', key: '' })
+})
+
+const RESULT = { type: 'result', subtype: 'success', is_error: false, session_id: 'sid-1', result: 'done\n', permission_denials: [] }
+
+test('parseChildOutput reads the answer, session id and denied commands from headless JSON, object or array', async () => {
+  const denied = { ...RESULT, result: 'I need approval', permission_denials: [
+    { tool_name: 'Bash', tool_input: { command: 'git pull --ff-only' } },
+    { tool_name: 'Bash', tool_input: { command: 'git pull --ff-only', dangerouslyDisableSandbox: true } },
+    { tool_name: 'WebFetch', tool_input: { url: 'https://x' } },
+  ] }
+  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [] })
+  expect(parseChildOutput(JSON.stringify([{ type: 'system' }, denied]), 0)).toEqual({
+    ok: true, answer: 'I need approval', sessionId: 'sid-1',
+    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }],
+  })
+})
+
+test('parseChildOutput treats a non-zero exit, an error result or unparsable output as a failed child', async () => {
+  expect(parseChildOutput(JSON.stringify(RESULT), 1).ok).toBe(false)
+  expect(parseChildOutput(JSON.stringify({ ...RESULT, is_error: true }), 0).ok).toBe(false)
+  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [] })
+  expect(parseChildOutput(JSON.stringify({ ...RESULT, result: '   ' }), 0).ok).toBe(false)
+})
+
+test('allowPatterns turns denials into Claude Code permission patterns, exact for Bash', async () => {
+  expect(allowPatterns([{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }, { tool: 'Bash', command: 'npm test' }]))
+    .toEqual(['Bash(git pull --ff-only)', 'WebFetch', 'Bash(npm test)'])
+})
+
+test('relayText tells the resumed child what is now allowed', async () => {
+  const text = relayText(['Bash(git pull --ff-only)'])
+  expect(text).toContain('git pull --ff-only')
+  expect(text).toMatch(/now allowed/)
+  expect(text).toMatch(/continue/i)
 })

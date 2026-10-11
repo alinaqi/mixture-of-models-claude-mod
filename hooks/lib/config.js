@@ -35,6 +35,8 @@ export const DEFAULTS = {
     maxTurns: 25,
     timeoutMs: 600000,
     contextMessages: 12,
+    // How many times a routed turn may pause to ask the user about commands the child was refused.
+    relayRounds: 2,
   },
   // The band above the prompt, and which replies get a provenance tag: 'routed', 'all' or 'off'.
   ui: { band: true, tags: 'routed' },

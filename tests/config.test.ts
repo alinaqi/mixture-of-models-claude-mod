@@ -52,6 +52,7 @@ test('the child block merges over its defaults', async () => {
   expect(cfg.child.keyFile).toBeUndefined()
   expect(cfg.child.timeoutMs).toBe(600000)
   expect(cfg.child.contextMessages).toBe(12)
+  expect(cfg.child.relayRounds).toBe(2)
 })
 
 test('the ui block defaults to the band on and tags on routed replies', async () => {

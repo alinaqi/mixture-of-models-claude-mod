@@ -40,6 +40,11 @@ function recordSteps(on, seen: string[]) {
   })
 }
 
+// What a headless child prints with --output-format json.
+function childJson(text: string, extra: Record<string, unknown> = {}) {
+  return JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: 'sid-1', result: text, permission_denials: [], ...extra }) + '\n'
+}
+
 async function drain(stream) {
   let step = await stream.next()
   while (step.done !== true) step = await stream.next()
@@ -56,7 +61,7 @@ async function routedTurn($, text: string) {
 test('a simple prompt is answered by a child claude on the gateway, not the main session', GW, async ($, on) => {
   stubSession(on)
   const runs: any[] = []
-  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'child answer\n', stderr: '' } } })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -80,7 +85,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
 test('a critical prompt never starts a child', GW, async ($, on) => {
   stubSession(on, { score: '9 code' })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -106,7 +111,7 @@ test('a failed child hands the step to the main model', GW, async ($, on) => {
 test('without a gateway key the mod observes only', async ($, on) => {
   stubSession(on)
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -119,7 +124,7 @@ test('without a gateway key the mod observes only', async ($, on) => {
 test('inside a child session the mod does nothing', GW, async ($, on) => {
   stubSession(on, { childEnv: '1' })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -132,7 +137,7 @@ test('inside a child session the mod does nothing', GW, async ($, on) => {
 test('/route off keeps everything on the main session and /route shows the state', GW, async ($, on) => {
   stubSession(on)
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -152,7 +157,7 @@ test('/route off keeps everything on the main session and /route shows the state
 test('/route kimi pins the next routed turn to Kimi', GW, async ($, on) => {
   stubSession(on)
   const runs: any[] = []
-  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'kimi says hi', stderr: '' } } })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('kimi says hi'), stderr: '' } } })
   recordSteps(on, [])
 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -180,7 +185,7 @@ function message(text: string) {
 
 test('the band shows the mode and its buttons pin a model', GW, async ($, on) => {
   const store = stubSession(on)
-  on('process.run', () => ({ value: { exitCode: 0, stdout: 'x', stderr: '' } }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('x'), stderr: '' } }))
   recordSteps(on, [])
 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -196,7 +201,7 @@ test('the band shows the mode and its buttons pin a model', GW, async ($, on) =>
 
 test('a routed reply gets a provenance tag and a main-session reply does not', GW, async ($, on) => {
   stubSession(on)
-  on('process.run', () => ({ value: { exitCode: 0, stdout: 'child answer\n', stderr: '' } }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } }))
   recordSteps(on, [])
 
   await routedTurn($, 'grep the repo for TODO comments and list the files')
@@ -225,7 +230,7 @@ test('every turn gets a route line, main-session turns included', GW, async ($, 
 test('a long multi-service integration task scores mid-range and goes to the coding tier', GW, async ($, on) => {
   stubSession(on, { score: '6 code' })
   const runs: any[] = []
-  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'wired up\n', stderr: '' } } })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('wired up'), stderr: '' } } })
   recordSteps(on, [])
 
   const result = await routedTurn($, 'i want to give grokbot local access to apify, gemini, claude and gpt as localhost tools, take educlaude from github, make it reachable from grokbot for research and document creation, all env keys are in render, fix it')
@@ -241,7 +246,7 @@ test('when the classifier is unreachable the last verdict is reused', GW, async 
   store.set('last-verdict', { score: 2, kind: 'code' })
   on('model.classify', () => ({ deny: 'no network' }))
   const runs: any[] = []
-  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'ok\n', stderr: '' } } })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('ok'), stderr: '' } } })
   recordSteps(on, [])
 
   await routedTurn($, 'grep the repo for TODO comments and list the files')
@@ -251,7 +256,7 @@ test('when the classifier is unreachable the last verdict is reused', GW, async 
 test('the kind picks the model: research at a coding score goes to Kimi', GW, async ($, on) => {
   stubSession(on, { score: '5 research' })
   const runs: any[] = []
-  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'findings\n', stderr: '' } } })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('findings'), stderr: '' } } })
   recordSteps(on, [])
 
   await routedTurn($, 'research how other teams do blue-green deploys on render and compare three approaches')
@@ -261,7 +266,7 @@ test('the kind picks the model: research at a coding score goes to Kimi', GW, as
 test('a borderline score is sampled twice and the higher one wins', GW, async ($, on) => {
   stubSession(on, { scores: ['7 code', '8 code'] })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -274,7 +279,7 @@ test('two child failures for a kind lower its threshold, so the next borderline 
   const store = stubSession(on, { score: '7 code' })
   store.set('failures', { code: 2 })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -302,7 +307,7 @@ const PANE = {
 
 test('/route stats opens the pane, which charts the turns the session routed', GW, async ($, on) => {
   stubSession(on, { scores: ['5 code', '5 research'] })
-  on('process.run', () => ({ value: { exitCode: 0, stdout: 'ok\n', stderr: '' } }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('ok'), stderr: '' } }))
   recordSteps(on, [])
 
   await routedTurn($, 'add a unit test for the parseVerdict helper and run it')
@@ -327,7 +332,7 @@ test('/route stats opens the pane, which charts the turns the session routed', G
 test('after a child-answered turn, "continue" goes to the main session instead of a memoryless child', GW, async ($, on) => {
   stubSession(on, { score: '3 code' })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'child did step one\n', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('child did step one'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -344,7 +349,7 @@ test('while the main session is mid-task, a coding-score follow-up stays on it',
   const working = [{ role: 'user', text: 'refactor the auth module', toolUses: [] }, { role: 'assistant', text: 'Edited three files.', toolUses: [{ name: 'Edit' }, { name: 'Bash' }] }]
   stubSession(on, { score: '5 code', messages: working })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   const seen: string[] = []
   recordSteps(on, seen)
 
@@ -359,9 +364,57 @@ test('while the main session is mid-task, a lookup can still go to the child', G
   const working = [{ role: 'assistant', text: 'Edited three files.', toolUses: [{ name: 'Edit' }] }]
   stubSession(on, { score: '1 research', messages: working })
   let runs = 0
-  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: 'x', stderr: '' } } })
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
   recordSteps(on, [])
 
   await routedTurn($, 'what does the --bare flag of claude do, in one line, do not touch any files')
   expect(runs).toBe(1)
+})
+
+const DENIED = { result: 'I need approval to run git pull --ff-only', permission_denials: [{ tool_name: 'Bash', tool_input: { command: 'git pull --ff-only' } }] }
+
+test('a command the child cannot run is relayed to the user; on approval the same child resumes with it allowed', GW, async ($, on) => {
+  stubSession(on, { score: '4 code' })
+  const runs: any[] = []
+  on('process.run', ($, e) => {
+    runs.push(e)
+    const resumed = e.argv.includes('--resume')
+    return { value: { exitCode: 0, stdout: resumed ? childJson('pulled and finished') : childJson('I need approval', DENIED), stderr: '' } }
+  })
+  const asked: string[] = []
+  on('tool.call', ($, e) => { asked.push(e.questions[0].question); return { result: { answers: { [e.questions[0].question]: 'Allow and continue' } } } })
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'update the working copy from origin and tell me what changed in the last commit')
+  expect(asked.length).toBe(1)
+  expect(asked[0]).toContain('git pull --ff-only')
+  expect(runs.length).toBe(2)
+  expect(runs[1].argv.join(' ')).toContain('--resume sid-1')
+  expect(runs[1].argv.join(' ')).toContain('--allowedTools Bash(git pull --ff-only)')
+  expect(runs[1].init.stdin).toContain('git pull --ff-only')
+  expect(result.answer).toBe('pulled and finished')
+})
+
+test('a denied relay returns the child\'s own explanation and does not resume', GW, async ($, on) => {
+  stubSession(on, { score: '4 code' })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('I need approval', DENIED), stderr: '' } } })
+  on('tool.call', ($, e) => ({ result: { answers: { [e.questions[0].question]: 'Deny' } } }))
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'update the working copy from origin and tell me what changed in the last commit')
+  expect(runs).toBe(1)
+  expect(result.answer).toBe('I need approval to run git pull --ff-only')
+})
+
+test('when nobody can answer the question, the relay counts as denied', GW, async ($, on) => {
+  stubSession(on, { score: '4 code' })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('I need approval', DENIED), stderr: '' } } })
+  on('tool.call', () => ({ deny: 'no one to ask' }))
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'update the working copy from origin and tell me what changed in the last commit')
+  expect(runs).toBe(1)
+  expect(result.answer).toBe('I need approval to run git pull --ff-only')
 })

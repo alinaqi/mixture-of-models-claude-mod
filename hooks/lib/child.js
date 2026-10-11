@@ -16,7 +16,7 @@ export function childEnv(child, key) {
 // The flags after the program name (`claude`, written as fixed text at the $.process.run call).
 // --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery.
 export function childArgs(child, model, cwd) {
-  return ['-p', '--model', model, '--output-format', 'text', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args]
+  return ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args]
 }
 
 function describe(m) {
@@ -40,4 +40,34 @@ export function buildBrief(messages, prompt, limit) {
 export function gatewayFrom(options, child) {
   const o = options || {}
   return { baseUrl: o.gateway_url || child.baseUrl || '', key: o.gateway_key || '' }
+}
+
+function resultOf(raw) {
+  try {
+    const d = JSON.parse(raw)
+    const items = Array.isArray(d) ? d : [d]
+    return items.find((x) => x && x.type === 'result') || items[items.length - 1] || {}
+  } catch {
+    return {}
+  }
+}
+
+// The headless child's JSON: its answer, its session id (for --resume), and every
+// command the permission system refused, so the user can be asked for real.
+export function parseChildOutput(raw, exitCode) {
+  const r = resultOf(raw)
+  const answer = String(r.result || '').trim()
+  const ok = exitCode === 0 && !r.is_error && answer !== ''
+  const seen = new Set()
+  const denials = (r.permission_denials || []).map((d) => ({ tool: d.tool_name, command: d.tool_name === 'Bash' ? d.tool_input.command || '' : '' }))
+    .filter((d) => !seen.has(d.tool + d.command) && seen.add(d.tool + d.command))
+  return { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [] }
+}
+
+export function allowPatterns(denials) {
+  return denials.map((d) => (d.tool === 'Bash' ? 'Bash(' + d.command + ')' : d.tool))
+}
+
+export function relayText(patterns) {
+  return 'The user approved these, and they are now allowed: ' + patterns.join(', ') + '. Continue the task from where you stopped and run them.'
 }

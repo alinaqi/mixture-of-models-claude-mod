@@ -4,9 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.8.0] - 2026-10-11
+
+### Added
+- Permission relay. A headless child cannot ask you anything, so a command its permission mode refused used to come back as prose ("I need approval to run git pull --ff-only") with no prompt in Claude Code. Now the child reports the refusal, the mod asks you in Claude Code's question dialog naming the exact command, and "Allow and continue" resumes the same child session with only that command allowed, so it carries on where it stopped. "Deny", or nobody to answer, keeps the child's own explanation as the answer. `child.relayRounds` (default 2) caps the rounds per turn.
 
 ### Changed
+- The child runs with `--output-format json` so its session id and permission refusals can be read; its answer text is unchanged.
 - README: removed the early-status notice.
 
 ## [0.7.1] - 2026-10-10

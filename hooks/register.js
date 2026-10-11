@@ -3,7 +3,7 @@
 import { parseConfig } from './lib/config.js'
 import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from './lib/classify.js'
 import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
-import { buildBrief, childArgs, childEnv, childReady, gatewayFrom } from './lib/child.js'
+import { allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from './lib/child.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
@@ -22,13 +22,9 @@ async function loadConfig($) {
 }
 
 // The only network call the mod makes itself: a local Ollama, fixed address, no credentials.
-async function askOllama($, text) {
-  try {
-    const r = await $.http.fetch('http://localhost:11434/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
-    return r.ok ? parseVerdict(ollamaReply(r.text)) : undefined
-  } catch {
-    return undefined
-  }
+function askOllama($, text) {
+  return $.http.fetch('http://localhost:11434/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
+    .then((r) => (r.ok ? parseVerdict(ollamaReply(r.text)) : undefined)).catch(() => undefined)
 }
 
 function askClaude($, text) {
@@ -45,10 +41,8 @@ async function sample($, text) {
 // One sample, a second on the coding/critical edge (the higher wins), else the last verdict seen.
 async function classify($, text) {
   const first = await sample($, text)
-  if (!first) {
-    const cached = await $.store.get('last-verdict')
-    return cached ? { ...cached, source: 'cache' } : { score: 10, kind: 'code', source: 'default' }
-  }
+  const cached = first ? null : await $.store.get('last-verdict')
+  if (!first) return cached ? { ...cached, source: 'cache' } : { score: 10, kind: 'code', source: 'default' }
   if (!isBorderline(first.score, cfg.thresholds)) return first
   const second = await sample($, text)
   return second && second.score > first.score ? second : first
@@ -85,15 +79,30 @@ function shouldDelegate(e) {
   return Boolean(decision.model) && decision.model !== sessionModel
 }
 
+// The only program this mod runs: Claude Code itself, headless, on the routed model.
+async function spawnChild($, extra, stdin) {
+  const argv = ['claude', ...childArgs(cfg.child, decision.model, await $.session.cwd()), ...extra]
+  const r = await $.process.run(argv, { env: childEnv(cfg.child, key), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
+  return parseChildOutput(r.stdout, r.exitCode)
+}
+
+// A command the child was refused becomes a real question here; nobody to ask counts as no.
+function askAllow($, patterns) {
+  return $.ui.ask('Child on ' + decision.model + ' wants to run: ' + patterns.join(' · '), ['Allow and continue', 'Deny'])
+    .then((a) => a === 'Allow and continue').catch(() => false)
+}
+
 async function runChild($) {
-  const brief = buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages)
   const started = Date.now()
-  // The only program this mod runs: Claude Code itself, headless, on the routed model.
-  const r = await $.process.run(['claude', ...childArgs(cfg.child, decision.model, await $.session.cwd())], { env: childEnv(cfg.child, key), stdin: brief, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
-  const ok = r.exitCode === 0 && r.stdout.trim() !== ''
-  decision = { ...decision, child: { ms: Date.now() - started, exitCode: ok ? 0 : r.exitCode || 1 } }
-  if (!ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
-  return ok ? r.stdout.trim() : ''
+  let out = await spawnChild($, [], buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages))
+  for (let round = 0; out.ok && out.denials.length && round < cfg.child.relayRounds; round += 1) {
+    const patterns = allowPatterns(out.denials)
+    if (!(await askAllow($, patterns))) break
+    out = await spawnChild($, ['--resume', out.sessionId, '--allowedTools', ...patterns], relayText(patterns))
+  }
+  decision = { ...decision, child: { ms: Date.now() - started, exitCode: out.ok ? 0 : 1 } }
+  if (!out.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
+  return out.answer
 }
 
 async function pinFrom($, arg) {
@@ -108,11 +117,6 @@ function bandView(e, theirs) {
   return { disabled, ready, sessionModel, pin, decision, routes: cfg.routes, isWorking: e.props.isWorking, theirs }
 }
 
-function taggedModel(props) {
-  if (cfg.ui.tags === 'off' || !props.isFirstOfReply) return undefined
-  return answered.get(props.text.trim()) || (cfg.ui.tags === 'all' ? sessionModel : undefined)
-}
-
 export function register(on, opts) {
   options = opts || {}
   on('session.start', async ($, e, next) => {
@@ -120,15 +124,11 @@ export function register(on, opts) {
     if (disabled) return next(e)
     await loadConfig($)
     applyPin()
-    try {
-      await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [stats|auto|off|reset|simple|coding|critical|<model>]', argumentHint: '[stats|auto|off|reset|label|model]', immediate: true })
-    } catch {
-      $.ui.log('/route is taken by another plugin')
-    }
+    await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [stats|auto|off|reset|simple|coding|critical|<model>]', argumentHint: '[stats|auto|off|reset|label|model]', immediate: true })
+      .catch(() => $.ui.log('/route is taken by another plugin'))
     return next(e)
   })
 
-  // Fail open: a classifier that throws or times out must never swallow the prompt.
   on('prompt.submit', async ($, e, next) => {
     if (disabled) return next(e)
     lastPrompt = e.text
@@ -137,8 +137,7 @@ export function register(on, opts) {
   }).catch(async ($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
-    const { child, ...fresh } = decision
-    decision = fresh
+    decision = { ...decision, child: undefined }
     return next(e)
   })
 
@@ -174,7 +173,8 @@ export function register(on, opts) {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    const model = taggedModel(e.props)
+    const tagged = cfg.ui.tags !== 'off' && e.props.isFirstOfReply
+    const model = tagged ? answered.get(e.props.text.trim()) || (cfg.ui.tags === 'all' ? sessionModel : undefined) : undefined
     if (!model) return next(e)
     return tagTree($.ui.resolve(e), tagText(model, sessionModel), await next(e))
   })

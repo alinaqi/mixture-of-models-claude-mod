@@ -75,6 +75,7 @@ Claude and the gateway are both visible, all the time:
 | :- | :- | :- |
 | Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  1: auto  2: glm  3: kimi  4: claude  5: off` | `… · running glm-5.3 in a child…` while it runs |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
+| Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback |
 | Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: …` | same |
@@ -126,7 +127,7 @@ The hooks module `hooks/register.js` registers nine hooks. What each one does wi
 | `session.start` | Reads `~/.claude/model-config.json`, takes the gateway URL and key from the plugin's options, remembers the session's model, loads the `/route` pin from the plugin store, and registers the `/route` command. Does nothing when `MAGGY_ROUTER_CHILD` is set, so the mod stays inactive inside its own child. |
 | `prompt.submit` | Passes every prompt through unchanged. On the side it decides the route: pre-rules first, then a 1-10 blast score from the classifier (see Network), then the thresholds. Never drops, rewrites or adds to a prompt. Fails open: if scoring throws, the prompt still goes through. |
 | `turn.start` | Clears the previous turn's child result. |
-| `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
+| `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
 | `turn.complete` | Appends a line under the answer with the route, score, cost and where it ran, and updates per-day counts in the plugin store. |
 | `ui.render` for `AbovePrompt` | Draws the band: the current mode and last decision, plus buttons that change the `/route` pin. Keeps whatever other mods draw there. |
 | `ui.render` for `AssistantMessage` | Puts a dim provenance line above a reply the child produced. Other replies are passed through. |
@@ -157,10 +158,10 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 **How:** one `$.process.run` call, in `turn.step`. The program name is the fixed text `claude` at the call. Its arguments:
 
 ```
-claude -p --model <routed model id> --output-format text --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
+claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
-`--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
+and, only after you approve a relayed command (see below), the same program again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
 
 ### Files and environment it reads
 
@@ -194,7 +195,8 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
-      "contextMessages": 12
+      "contextMessages": 12,
+      "relayRounds": 2
     },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true
@@ -210,6 +212,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 - `child.args`: extra flags. The default is `--bare` (no inherited hooks or plugins, API-key auth only, so the child can never fall back to your subscription) plus `acceptEdits` so it can edit files without prompting. The mod always adds `--add-dir <cwd>`, which keeps the project's `CLAUDE.md` in reach under `--bare`. Add `--dangerously-skip-permissions` only if you want the child to run commands unattended; drop `--bare` if you want your hooks and plugins inside the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.
+- `child.relayRounds`: how many times one routed turn may pause to ask you about commands the child was refused (default 2).
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
 ## Commands
@@ -229,6 +232,7 @@ Pins persist across sessions in the plugin's store.
 ## What the child can and cannot do
 
 - It has Claude Code's tools and runs in the session's working directory, so it can read, edit and run things. Its tool calls are not shown in the main transcript, only its final text.
+- When it needs a command its permission mode doesn't allow (`git pull`, `npm install`, a deploy), it cannot ask you itself. The mod relays the request: you get Claude Code's question dialog naming the exact command, and "Allow and continue" resumes the same child with only that command allowed. Read-only commands such as `git status` or `git log` already run without asking.
 - It does not share the main session's memory. The brief carries the last `contextMessages` exchanges (12 by default, each truncated to 1,200 characters) and the task. This is why follow-ups never go to a child: see [How it decides](#how-it-decides).
 - It runs `--bare` by default, so your hooks and plugins stay out of it. The mod also detects the `MAGGY_ROUTER_CHILD` marker and does nothing inside a child.
 - The tag and the route line name the model the mod **asked for**. A gateway that routes by intent, as palgu does, may answer with another model; Claude Code's `-p` output does not expose which, so the mod cannot show it.
