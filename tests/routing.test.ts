@@ -93,3 +93,8 @@ test('midTaskGuard keeps coding work on the main session while it is mid-task, l
   expect(midTaskGuard('coding', { lastHadTools: false })).toBe(false)
   expect(midTaskGuard('critical', { lastHadTools: true })).toBe(false)
 })
+
+test('summaryLine says when a child answer was discarded and why', async () => {
+  const d = { label: 'simple', model: 'glm-5.3', source: 'ollama', child: { ms: 4000, exitCode: 1, rejected: 'unverified claim' } }
+  expect(summaryLine(d, null)).toBe('route: glm-5.3 · simple via ollama · child answer discarded (unverified claim), main model answered')
+})

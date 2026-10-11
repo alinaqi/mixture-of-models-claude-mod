@@ -3,6 +3,14 @@
 
 const MESSAGE_CHARS = 1200
 
+// Read first by every child: what it cannot see, what it must not invent, how to hand back.
+export const CHILD_PREAMBLE = [
+  'You are a delegate in a separate headless process. You have no access to the main session: not its full conversation, teammates, background tasks, PRs, branches or tools.',
+  'Never invent statuses, IDs, PR numbers, run results, commit counts or file changes. Report only what your own tool calls in this run showed or did.',
+  'Never ask the user to approve or run anything, and do not narrate what you would do: do it with your tools, or hand back.',
+  'If the task needs the main session\'s state or tools, reply with HANDBACK on the first line and one line saying why.',
+].join('\n')
+
 export function childReady(child, key) {
   return Boolean(child.baseUrl && key)
 }
@@ -31,8 +39,8 @@ export function buildBrief(messages, prompt, limit) {
   const last = history[history.length - 1]
   if (last && last.role === 'user' && last.text === prompt) history = history.slice(0, -1)
   history = history.slice(-limit)
-  if (!history.length) return prompt
-  return 'Context from the main session:\n' + history.map(describe).join('\n') + '\n\nTask:\n' + prompt
+  const context = history.length ? '\n\nContext from the main session:\n' + history.map(describe).join('\n') : ''
+  return CHILD_PREAMBLE + context + '\n\nTask:\n' + prompt
 }
 
 // Where the child's gateway comes from: the URL from the plugin's options or model-config,
@@ -52,8 +60,9 @@ function resultOf(raw) {
   }
 }
 
-// The headless child's JSON: its answer, its session id (for --resume), and every
-// command the permission system refused, so the user can be asked for real.
+// The headless child's JSON: its answer, its session id (for --resume), every command the
+// permission system refused (so the user can be asked for real), and its turn count
+// (1 means it called no tools, which vet.js uses to spot unverified claims).
 export function parseChildOutput(raw, exitCode) {
   const r = resultOf(raw)
   const answer = String(r.result || '').trim()
@@ -61,7 +70,8 @@ export function parseChildOutput(raw, exitCode) {
   const seen = new Set()
   const denials = (r.permission_denials || []).map((d) => ({ tool: d.tool_name, command: d.tool_name === 'Bash' ? d.tool_input.command || '' : '' }))
     .filter((d) => !seen.has(d.tool + d.command) && seen.add(d.tool + d.command))
-  return { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [] }
+  const turns = typeof r.num_turns === 'number' ? r.num_turns : undefined
+  return { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [], turns }
 }
 
 export function allowPatterns(denials) {

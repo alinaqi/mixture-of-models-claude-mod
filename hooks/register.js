@@ -1,9 +1,10 @@
 // mixture-of-models: Maggy's routing as a Claude Code mod. Score each prompt; answer a routed
 // turn with a headless `claude -p` child on the gateway; the main session never leaves its model.
 import { parseConfig } from './lib/config.js'
-import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from './lib/classify.js'
+import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from './lib/classify.js'
 import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
 import { allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from './lib/child.js'
+import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
@@ -58,7 +59,10 @@ function applyPin() {
   if (pin.mode === 'model') decision = { label: 'pinned', source: 'pin', model: pin.model === 'claude' ? sessionModel : pin.model }
 }
 
+// Notifications, operator commands and security turns stay on the main session, pinned or not.
 async function decide($, text) {
+  const stay = sessionTurn(text)
+  if (stay) return setDecision('main', stay)
   if (pin.mode === 'model' || pin.mode === 'label') return applyPin()
   const last = (await $.session.messages()).filter((m) => m.role === 'assistant').pop()
   const ctx = { lastHadTools: Boolean(last && last.toolUses.length), lastWasChild }
@@ -100,9 +104,11 @@ async function runChild($) {
     if (!(await askAllow($, patterns))) break
     out = await spawnChild($, ['--resume', out.sessionId, '--allowedTools', ...patterns], relayText(patterns))
   }
-  decision = { ...decision, child: { ms: Date.now() - started, exitCode: out.ok ? 0 : 1 } }
-  if (!out.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
-  return out.answer
+  // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
+  const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: '' }
+  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason } }
+  if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
+  return vet.ok ? out.answer : ''
 }
 
 async function pinFrom($, arg) {
@@ -146,7 +152,7 @@ export function register(on, opts) {
     if (!shouldDelegate(e)) return yield* next(e)
     const answer = await runChild($)
     if (!answer) {
-      $.ui.log('child on ' + decision.model + ' failed, main model takes this turn')
+      $.ui.log('child on ' + decision.model + (decision.child.rejected ? ' answer discarded (' + decision.child.rejected + ')' : ' failed') + ', main model takes this turn')
       return yield* next(e)
     }
     lastWasChild = true

@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { KINDS, SCORES, VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify } from '../hooks/lib/classify.js'
+import { KINDS, SCORES, VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from '../hooks/lib/classify.js'
 import { DEFAULTS } from '../hooks/lib/config.js'
 
 test('a slash command is skipped', async () => {
@@ -20,7 +20,7 @@ test('a continuation phrase keeps the current route while the main session is wo
 })
 
 test('a continuation after a child-answered turn goes back to the main session, which holds the transcript', async () => {
-  expect(preClassify('continue', { lastWasChild: true })).toEqual({ kind: 'main', reason: 'continuation after a child turn' })
+  expect(preClassify('continue', { lastWasChild: true })).toEqual({ kind: 'main', reason: 'session command' })
   expect(preClassify('now add tests for it', { lastWasChild: true })).toEqual({ kind: 'main', reason: 'follow-up after a child turn' })
 })
 
@@ -44,6 +44,38 @@ test('a long prompt is classified even mid-task', async () => {
 
 test('a review-shaped prompt is classified like any other; the kind comes from the classifier', async () => {
   expect(preClassify('review this diff for mistakes and summarise the risks', {})).toEqual({ kind: 'classify' })
+})
+
+const NOTIFICATIONS = [
+  '<teammate-message teammate_id="team-lead">AUTHORITY: build the importer and open a PR</teammate-message>',
+  '{"type":"idle_notification","from":"worker-2","timestamp":"2026-10-11T09:00:00Z"}',
+  '<task-notification><task-id>b7</task-id><status>completed</status></task-notification>',
+  '[SYSTEM NOTIFICATION - NOT USER INPUT] Background command finished with exit code 0',
+]
+
+test('notification turns (teammates, background tasks, system) always stay on the main session', async () => {
+  for (const text of NOTIFICATIONS) {
+    expect(sessionTurn(text)).toBe('notification')
+    expect(preClassify(text, {})).toEqual({ kind: 'main', reason: 'notification' })
+  }
+})
+
+test('short operator commands about session state or tools stay on the main session', async () => {
+  for (const text of ['approve git pull --ff-only', 'continue', 'what\'s the status', 'check the sub agents', 'merge it', 'resume', 'is PR #712 green yet?', 'push the branch']) {
+    expect(sessionTurn(text)).toBe('session command')
+    expect(preClassify(text, {})).toEqual({ kind: 'main', reason: 'session command' })
+  }
+})
+
+test('security and verdict turns stay on the main session', async () => {
+  expect(preClassify('give me the security review verdict on the token handling change', {})).toEqual({ kind: 'main', reason: 'security or verdict' })
+  expect(sessionTurn('is this a vulnerability or not')).toBe('security or verdict')
+})
+
+test('ordinary self-contained tasks are still classified', async () => {
+  for (const text of ['grep the repo for TODO comments and list the files', 'write a function that parses ISO dates', 'rewrite the auth middleware so refresh tokens rotate and add tests for the expiry path']) {
+    expect(sessionTurn(text)).toBe('')
+  }
 })
 
 test('classifierPrompt asks for a 1-10 blast score and a task kind, with the difficulty clause', async () => {

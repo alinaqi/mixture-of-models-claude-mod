@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from '../hooks/lib/child.js'
+import { CHILD_PREAMBLE, allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from '../hooks/lib/child.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
 
@@ -49,8 +49,18 @@ test('buildBrief hands the child recent context and the task', async () => {
   expect(brief.split('user: now add tests for it').length).toBe(1)
 })
 
-test('buildBrief with no history is just the task', async () => {
-  expect(buildBrief([], 'grep for TODO', 6)).toBe('grep for TODO')
+test('buildBrief with no history is the preamble and the task', async () => {
+  expect(buildBrief([], 'grep for TODO', 6)).toBe(CHILD_PREAMBLE + '\n\nTask:\ngrep for TODO')
+})
+
+test('the child preamble says it has no session context, must not invent, and hands back with HANDBACK', async () => {
+  const brief = buildBrief([{ role: 'user', text: 'hi', toolUses: [] }], 'merge the PR', 6)
+  expect(brief.startsWith(CHILD_PREAMBLE)).toBe(true)
+  expect(CHILD_PREAMBLE).toMatch(/no access to the main session/i)
+  expect(CHILD_PREAMBLE).toMatch(/never invent/i)
+  expect(CHILD_PREAMBLE).toMatch(/PR numbers/)
+  expect(CHILD_PREAMBLE).toMatch(/^.*HANDBACK/m)
+  expect(CHILD_PREAMBLE).toMatch(/never ask the user to approve or run/i)
 })
 
 test('buildBrief keeps only the last N messages and truncates long ones', async () => {
@@ -81,17 +91,18 @@ test('parseChildOutput reads the answer, session id and denied commands from hea
     { tool_name: 'Bash', tool_input: { command: 'git pull --ff-only', dangerouslyDisableSandbox: true } },
     { tool_name: 'WebFetch', tool_input: { url: 'https://x' } },
   ] }
-  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [] })
+  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined })
+  expect(parseChildOutput(JSON.stringify({ ...RESULT, num_turns: 3 }), 0).turns).toBe(3)
   expect(parseChildOutput(JSON.stringify([{ type: 'system' }, denied]), 0)).toEqual({
     ok: true, answer: 'I need approval', sessionId: 'sid-1',
-    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }],
+    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined,
   })
 })
 
 test('parseChildOutput treats a non-zero exit, an error result or unparsable output as a failed child', async () => {
   expect(parseChildOutput(JSON.stringify(RESULT), 1).ok).toBe(false)
   expect(parseChildOutput(JSON.stringify({ ...RESULT, is_error: true }), 0).ok).toBe(false)
-  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [] })
+  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, result: '   ' }), 0).ok).toBe(false)
 })
 

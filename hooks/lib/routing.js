@@ -62,6 +62,7 @@ function cachePercent(usage) {
 }
 
 function childNote(child) {
+  if (child.rejected) return ' · child answer discarded (' + child.rejected + '), main model answered'
   if (child.exitCode !== 0) return ' · child failed, main model answered'
   return ' · child ' + Math.round(child.ms / 1000) + 's'
 }
