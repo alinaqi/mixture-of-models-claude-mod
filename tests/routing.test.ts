@@ -7,8 +7,8 @@ const SESSION = 'claude-opus-5'
 test('resolveModel: the tier decides whether Claude is mandatory, the kind picks the cheaper model', async () => {
   expect(resolveModel({ label: 'simple', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
   expect(resolveModel({ label: 'coding', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
-  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3')
-  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3')
+  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3.1-pro')
+  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3.1-pro')
   expect(resolveModel({ label: 'simple', kind: 'multimodal' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
   expect(resolveModel({ label: 'critical', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
 })
@@ -44,12 +44,15 @@ test('parseRouteArg understands show, auto, off, labels and model ids', async ()
   expect(parseRouteArg('coding', DEFAULT_ROUTES)).toEqual({ mode: 'label', label: 'coding' })
   expect(parseRouteArg('reset', DEFAULT_ROUTES)).toEqual({ mode: 'reset' })
   expect(parseRouteArg('stats', DEFAULT_ROUTES)).toEqual({ mode: 'stats' })
-  expect(parseRouteArg('kimi-k3', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3' })
+  expect(parseRouteArg('kimi-k3.1-pro', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro' })
+  expect(parseRouteArg('mercury-3', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'mercury-3' })
 })
 
 test('parseRouteArg expands a provider prefix to the configured model', async () => {
   expect(parseRouteArg('glm', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'glm-5.3' })
-  expect(parseRouteArg('kimi', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3' })
+  expect(parseRouteArg('kimi', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro' })
+  // an old kimi-k3 pin expands to its successor
+  expect(parseRouteArg('kimi-k3', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro' })
   expect(parseRouteArg('claude', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'claude' })
 })
 
@@ -70,8 +73,8 @@ test('summaryLine works without usage', async () => {
 })
 
 test('summaryLine shows the blast score and the kind when the classifier gave them', async () => {
-  const d = { label: 'coding', score: 5, kind: 'research', model: 'kimi-k3', source: 'claude-haiku-4-5', child: { ms: 8_000, exitCode: 0 } }
-  expect(summaryLine(d, null)).toBe('route: kimi-k3 · coding 5/10 research via claude-haiku-4-5 · child 8s')
+  const d = { label: 'coding', score: 5, kind: 'research', model: 'kimi-k3.1-pro', source: 'claude-haiku-4-5', child: { ms: 8_000, exitCode: 0 } }
+  expect(summaryLine(d, null)).toBe('route: kimi-k3.1-pro · coding 5/10 research via claude-haiku-4-5 · child 8s')
 })
 
 test('summaryLine reports a child run instead of API usage', async () => {
@@ -97,4 +100,13 @@ test('midTaskGuard keeps coding work on the main session while it is mid-task, l
 test('summaryLine says when a child answer was discarded and why', async () => {
   const d = { label: 'simple', model: 'glm-5.3', source: 'ollama', child: { ms: 4000, exitCode: 1, rejected: 'unverified claim' } }
   expect(summaryLine(d, null)).toBe('route: glm-5.3 · simple via ollama · child answer discarded (unverified claim), main model answered')
+})
+
+test('parseRouteArg expands a prefix to a gateway model that no route names', async () => {
+  expect(parseRouteArg('mercury', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'mercury-3' })
+  expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
+  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-v4-pro' })
+  // a configured route still wins over the catalogue
+  const routes = { ...DEFAULT_ROUTES, simple: 'mercury-2' }
+  expect(parseRouteArg('mercury', routes)).toEqual({ mode: 'model', model: 'mercury-2' })
 })

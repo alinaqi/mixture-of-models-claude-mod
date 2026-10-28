@@ -162,12 +162,12 @@ test('/route kimi pins the next routed turn to Kimi', GW, async ($, on) => {
 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const pinned = await $.command.run({ command: 'route', args: 'kimi' })
-  expect(pinned.text).toContain('kimi-k3')
+  expect(pinned.text).toContain('kimi-k3.1-pro')
   await $.prompt.submit({ text: 'grep the repo for TODO comments and list the files' })
   await $.turn.start({ turnId: 't1' })
   const result = await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
 
-  expect(runs[0].argv).toContain('kimi-k3')
+  expect(runs[0].argv).toContain('kimi-k3.1-pro')
   expect(result.answer).toBe('kimi says hi')
 })
 
@@ -192,8 +192,8 @@ test('the band shows the mode and its buttons pin a model', GW, async ($, on) =>
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /auto · no prompt yet/ })).toBeDefined()
   await ui.press({ key: 'pin-kimi' })
-  expect(store.get('pin')).toEqual({ mode: 'model', model: 'kimi-k3' })
-  expect(await ui.find({ type: 'Text', text: /pinned kimi-k3/ })).toBeDefined()
+  expect(store.get('pin')).toEqual({ mode: 'model', model: 'kimi-k3.1-pro' })
+  expect(await ui.find({ type: 'Text', text: /pinned kimi-k3\.1-pro/ })).toBeDefined()
   await ui.press({ key: 'pin-auto' })
   expect(store.get('pin')).toEqual({ mode: 'auto' })
   await ui.unmount()
@@ -260,7 +260,7 @@ test('the kind picks the model: research at a coding score goes to Kimi', GW, as
   recordSteps(on, [])
 
   await routedTurn($, 'research how other teams do blue-green deploys on render and compare three approaches')
-  expect(runs[0].argv).toContain('kimi-k3')
+  expect(runs[0].argv).toContain('kimi-k3.1-pro')
 })
 
 test('a borderline score is sampled twice and the higher one wins', GW, async ($, on) => {

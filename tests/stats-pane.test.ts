@@ -10,7 +10,7 @@ const el = {
 const SESSION = 'claude-opus-5'
 const LOG = [
   { day: '2026-10-10', model: 'glm-5.3', kind: 'code', label: 'coding', score: 5, source: 'ollama', child: { ms: 8000, exitCode: 0 } },
-  { day: '2026-10-10', model: 'kimi-k3', kind: 'research', label: 'coding', score: 5, source: 'ollama', child: { ms: 12000, exitCode: 0 } },
+  { day: '2026-10-10', model: 'kimi-k3.1-pro', kind: 'research', label: 'coding', score: 5, source: 'ollama', child: { ms: 12000, exitCode: 0 } },
   { day: '2026-10-10', model: SESSION, kind: 'code', label: 'critical', score: 9, source: 'ollama', child: null },
 ]
 const view = { summary: summarize(LOG, SESSION), sessionModel: SESSION, thresholds: { simple: 3, coding: 7 }, columns: 60 }
@@ -56,9 +56,9 @@ test('the scores tab is a 1-10 histogram with the cut-offs marked', async () => 
 test('the recent tab lists the newest decisions first with score, kind, model and where they ran', async () => {
   const all = texts(paneTree(el, { ...view, tab: 'recent' }, () => {}))
   expect(all.join('\n')).toMatch(/9\/10 code .*claude-opus-5 .*main/)
-  expect(all.join('\n')).toMatch(/5\/10 research .*kimi-k3 .*12s/)
+  expect(all.join('\n')).toMatch(/5\/10 research .*kimi-k3\.1-pro .*12s/)
   const idx = (s) => all.findIndex((t) => t.includes(s))
-  expect(idx('claude-opus-5') < idx('kimi-k3')).toBe(true)
+  expect(idx('claude-opus-5') < idx('kimi-k3.1-pro')).toBe(true)
 })
 
 test('an empty log draws a hint instead of bars', async () => {

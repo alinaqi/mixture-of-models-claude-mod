@@ -57,7 +57,9 @@ The classifier is asked one question: how much damage does a wrong answer do? It
 
 The prompt tells the classifier that length, the number of services named, or pasted API keys do not raise the score by themselves, which is what used to push ordinary integration work onto the main session. It also says that deep reasoning (algorithms with proofs, concurrency, performance tuning, cryptography) scores at least 7 whatever the blast radius, so hard-but-safe work stays on Claude. Move the cut-offs with `router.thresholds`; for example `{ "simple": 3, "coding": 8 }` keeps everything but 9-10 off Claude.
 
-**The kind picks the model.** Below `critical`, `routes.kinds` maps the task kind to a model: by default `research` and `review` go to Kimi for its long context, `multimodal` stays on Claude, and everything else takes the tier's model (GLM). Add `"docs": "deepseek-v4-pro"` or `"data": "..."` to the matrix as your gateway allows.
+**The kind picks the model.** Below `critical`, `routes.kinds` maps the task kind to a model: by default `research` and `review` go to Kimi (`kimi-k3.1-pro`) for its long context, `multimodal` stays on Claude, and everything else takes the tier's model (GLM). Add `"docs": "deepseek-v4-pro"` or `"data": "..."` to the matrix as your gateway allows.
+
+**Models you can name.** Any model id your gateway serves works in `routes`, `routes.kinds` or a pin. The mod knows these Palgu gateway models, so `/route <prefix>` expands to them even when no route names them: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro` and `mercury-3`. `kimi-k3.1-pro` replaces `kimi-k3`; an old `/route kimi-k3` pin expands to it. `mercury-3` is Inception's Mercury 3, a fast diffusion model with a 1M-token context and tool calling. It is an option, not a default: no route uses it until its speed and quality on routed turns have been measured. To try it for simple work, set `"routes": { "simple": "mercury-3" }`, or pin it for a few turns with `/route mercury`.
 
 **Borderline scores get a second opinion.** A score on the coding cut-off or one above it is sampled a second time and the higher wins, so a 7-or-8 debugging task doesn't flip tiers on classifier noise.
 
@@ -206,7 +208,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
   "primary": "glm",
   "router": {
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
-                    "kinds": { "research": "kimi-k3", "review": "kimi-k3", "multimodal": "claude" } },
+                    "kinds": { "research": "kimi-k3.1-pro", "review": "kimi-k3.1-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",
@@ -245,7 +247,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 | `/route simple\|coding\|critical` | Pin a tier |
 | `/route reset` | Clear the per-kind failure memory |
 | `/route stats` | Open the stats pane: models, kinds, scores, recent |
-| `/route glm`, `/route kimi`, `/route kimi-k3`, `/route claude` | Pin a model (a prefix expands to the configured model) |
+| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route mercury`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model) |
 
 Pins persist across sessions in the plugin's store.
 

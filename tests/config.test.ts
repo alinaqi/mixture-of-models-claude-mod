@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { DEFAULTS, parseConfig } from '../hooks/lib/config.js'
+import { DEFAULTS, GATEWAY_MODELS, parseConfig } from '../hooks/lib/config.js'
 
 test('an empty or invalid file yields the defaults', async () => {
   expect(parseConfig('')).toEqual(DEFAULTS)
@@ -8,7 +8,7 @@ test('an empty or invalid file yields the defaults', async () => {
 
 test('a non-Claude primary becomes the coding route; primary claude keeps the cheap default', async () => {
   expect(parseConfig('{"primary":"glm"}').routes.coding).toBe('glm-5.3')
-  expect(parseConfig('{"primary":"kimi"}').routes.coding).toBe('kimi-k3')
+  expect(parseConfig('{"primary":"kimi"}').routes.coding).toBe('kimi-k3.1-pro')
   expect(parseConfig('{"primary":"claude"}').routes.coding).toBe('glm-5.3')
   expect(parseConfig('{"primary":"claude","router":{"routes":{"coding":"claude"}}}').routes.coding).toBe('claude')
 })
@@ -16,11 +16,11 @@ test('a non-Claude primary becomes the coding route; primary claude keeps the ch
 test('routes have a tier default and a per-kind matrix, each overridable on its own', async () => {
   expect(DEFAULTS.routes).toEqual({
     simple: 'glm-5.3', coding: 'glm-5.3', critical: 'claude',
-    kinds: { research: 'kimi-k3', review: 'kimi-k3', multimodal: 'claude' },
+    kinds: { research: 'kimi-k3.1-pro', review: 'kimi-k3.1-pro', multimodal: 'claude' },
   })
   const cfg = parseConfig('{"router":{"routes":{"kinds":{"research":"kimi-k3-long"},"coding":"deepseek-v4-pro"}}}')
   expect(cfg.routes.kinds.research).toBe('kimi-k3-long')
-  expect(cfg.routes.kinds.review).toBe('kimi-k3')
+  expect(cfg.routes.kinds.review).toBe('kimi-k3.1-pro')
   expect(cfg.routes.coding).toBe('deepseek-v4-pro')
   expect(cfg.routes.simple).toBe('glm-5.3')
 })
@@ -64,4 +64,14 @@ test('the ui block defaults to the band on and tags on routed replies', async ()
 test('thresholds default to 3/7 and can be moved', async () => {
   expect(parseConfig('').thresholds).toEqual({ simple: 3, coding: 7 })
   expect(parseConfig('{"router":{"thresholds":{"coding":8}}}').thresholds).toEqual({ simple: 3, coding: 8 })
+})
+
+test('the gateway catalogue lists the models a pin can name, kimi-k3 retired', async () => {
+  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3'])
+  expect(JSON.stringify(DEFAULTS)).not.toMatch(/kimi-k3"/)
+})
+
+test('mercury-3 is an option, never a default route', async () => {
+  expect(JSON.stringify(DEFAULTS.routes)).not.toMatch(/mercury/)
+  expect(parseConfig('{"router":{"routes":{"simple":"mercury-3"}}}').routes.simple).toBe('mercury-3')
 })

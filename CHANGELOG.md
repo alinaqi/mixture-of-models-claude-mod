@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-10-28
+
+### Changed
+- Research and review turns, and `primary: "kimi"`, now go to `kimi-k3.1-pro`, the successor of `kimi-k3`. A saved `/route kimi-k3` pin expands to `kimi-k3.1-pro`.
+
+### Added
+- `mercury-3` (Inception's Mercury 3: fast, 1M-token context, tool calling) can be named in `routes`, `routes.kinds` or a pin, and `/route mercury` pins it. It is not a default route: that waits for a measured speed and quality check on routed turns.
+- `/route <prefix>` also expands to the Palgu gateway models no route names: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro` and `mercury-3`.
+
 ## [0.9.0] - 2026-10-11
 
 ### Fixed

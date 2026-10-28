@@ -1,5 +1,5 @@
 // Route resolution, the /route argument grammar, and the summary line. Pure.
-import { LABELS } from './config.js'
+import { GATEWAY_MODELS, LABELS } from './config.js'
 
 // The tier says whether Claude is mandatory; below that, the kind picks the cheaper model.
 export function resolveModel(decision, routes, sessionModel) {
@@ -36,7 +36,8 @@ export function routeModels(routes) {
 }
 
 function modelByPrefix(arg, routes) {
-  return routeModels(routes).find((m) => m.startsWith(arg))
+  const match = (m) => m.startsWith(arg)
+  return routeModels(routes).find(match) || GATEWAY_MODELS.find(match)
 }
 
 export function parseRouteArg(arg, routes) {

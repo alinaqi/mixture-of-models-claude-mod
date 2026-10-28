@@ -12,8 +12,8 @@ test('childArgs are the headless flags for the routed model, with the cwd added 
 })
 
 test('childArgs honours custom args', async () => {
-  const args = childArgs({ ...CHILD, args: ['--dangerously-skip-permissions'] }, 'kimi-k3', '/work')
-  expect(args).toContain('kimi-k3')
+  const args = childArgs({ ...CHILD, args: ['--dangerously-skip-permissions'] }, 'kimi-k3.1-pro', '/work')
+  expect(args).toContain('kimi-k3.1-pro')
   expect(args).toContain('--dangerously-skip-permissions')
   expect(args).not.toContain('--bare')
 })

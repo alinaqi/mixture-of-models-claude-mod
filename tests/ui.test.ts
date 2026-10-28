@@ -25,7 +25,7 @@ test('bandText describes each state', async () => {
   expect(bandText({ ...base, disabled: true })).toBe('mixture-of-models · inactive inside a child session')
   expect(bandText({ ...base, ready: false })).toBe('mixture-of-models · observe-only: no gateway key for the child')
   expect(bandText({ ...base, pin: { mode: 'off' } })).toBe('mixture-of-models · off · everything on claude-opus-5')
-  expect(bandText({ ...base, pin: { mode: 'model', model: 'kimi-k3' }, decision: { label: 'pinned', model: 'kimi-k3', source: 'pin' } })).toBe('mixture-of-models · pinned kimi-k3')
+  expect(bandText({ ...base, pin: { mode: 'model', model: 'kimi-k3.1-pro' }, decision: { label: 'pinned', model: 'kimi-k3.1-pro', source: 'pin' } })).toBe('mixture-of-models · pinned kimi-k3.1-pro')
   expect(bandText({ ...base, pin: { mode: 'label', label: 'coding' }, decision: { label: 'coding', model: 'glm-5.3', source: 'pin' } })).toBe('mixture-of-models · pinned coding → glm-5.3')
   expect(bandText(base)).toBe('mixture-of-models · auto · last: glm-5.3 (coding via ollama)')
   expect(bandText({ ...base, decision: { ...base.decision, score: 5, kind: 'code' } })).toBe('mixture-of-models · auto · last: glm-5.3 (coding 5/10 code via ollama)')
@@ -50,7 +50,7 @@ test('bandTree draws the text, the buttons with the active one bright, and keeps
 })
 
 test('bandTree marks the pinned provider active and omits a missing "theirs"', async () => {
-  const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin: { mode: 'model', model: 'kimi-k3' }, theirs: undefined }, () => {})
+  const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin: { mode: 'model', model: 'kimi-k3.1-pro' }, theirs: undefined }, () => {})
   const buttons = tree.children[0].children.slice(1)
   expect(buttons.map((b) => b.dimColor)).toEqual([true, true, false, true, true])
   expect(tree.children.length).toBe(1)
@@ -69,5 +69,5 @@ test('tagTree puts a dim tag above what Claude Code drew', async () => {
 test('reportText is the /route answer: state, mode and the current decision', async () => {
   expect(reportText(base)).toBe('mixture-of-models live · mode auto · current route: glm-5.3 · coding via ollama · main session')
   expect(reportText({ ...base, ready: false, pin: { mode: 'off' } })).toBe('mixture-of-models observe-only (no gateway key for the child) · mode off · current route: glm-5.3 · coding via ollama · main session')
-  expect(reportText({ ...base, disabled: true, pin: { mode: 'model', model: 'kimi-k3' } })).toBe('mixture-of-models disabled (child session) · mode model kimi-k3 · current route: glm-5.3 · coding via ollama · main session')
+  expect(reportText({ ...base, disabled: true, pin: { mode: 'model', model: 'kimi-k3.1-pro' } })).toBe('mixture-of-models disabled (child session) · mode model kimi-k3.1-pro · current route: glm-5.3 · coding via ollama · main session')
 })
