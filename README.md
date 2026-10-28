@@ -135,8 +135,8 @@ The directory's security scan compares this section with the code. Everything th
 
 - It **fetches** `http://localhost:11434/api/chat` with `$.http.fetch`, sending the prompt text and the scoring rubric to a local Ollama, to score the prompt. No credentials, nothing leaves the machine.
 - It **calls** `$.model.classify`, which sends the same prompt text and rubric to Anthropic through Claude Code's own API client on your own account, when Ollama does not answer.
-- It **runs** one program, `claude` (Claude Code itself, headless), with `$.process.run`, for routed turns only, with the environment variables `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured. That child **sends** your prompt and a short brief of recent session text to that gateway.
-- It **reads** `~/.claude/model-config.json`, `HOME` and `MAGGY_ROUTER_CHILD`, and **stores** the route pin, per-day counts, the last verdict, per-kind failure counts and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child time and exit code; never prompt text) in the plugin store.
+- It **runs** one program, `claude` (Claude Code itself, headless), with `$.process.run`, for routed turns only, with the environment variables `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured, and `ANTHROPIC_CUSTOM_HEADERS` set to identify it (see [Headers the child sends](#headers-the-child-sends)). That child **sends** your prompt and a short brief of recent session text to that gateway.
+- It **reads** `~/.claude/model-config.json`, `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS`, and **stores** the route pin, per-day counts, the last verdict, per-kind failure counts and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child time and exit code; never prompt text) in the plugin store.
 
 Full detail follows; a privacy policy is at [PRIVACY.md](PRIVACY.md).
 
@@ -183,12 +183,25 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
-and, only after you approve a relayed command (see below), the same program again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
+and, only after you approve a relayed command (see below), the same program again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values), `ANTHROPIC_CUSTOM_HEADERS` (below) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
+
+### Headers the child sends
+
+Every request the child makes to the gateway carries two headers, so Palgu's dashboard can show its traffic as Mixture-of-Models, per project:
+
+```
+x-srooter-client: mixture-of-models/0.11.0
+x-srooter-project: <the session folder's name>
+```
+
+The project is the last segment of the session's working directory, slugged the way the gateway's project detection does it: anything outside `[A-Za-z0-9._-]` becomes `-`, leading and trailing `-._` are dropped, at most 64 characters, lowercase (`/Users/me/My App` → `my-app`). When nothing usable is left, the header is left out. Neither header holds a path, prompt text or anything else.
+
+They go in the child's `ANTHROPIC_CUSTOM_HEADERS` (Claude Code's newline-separated `Name: value` list), set in the same place as `ANTHROPIC_BASE_URL`: no gateway configured, no headers, and the child talks only to that gateway. If you already set `ANTHROPIC_CUSTOM_HEADERS`, your lines come first and are kept; a `x-srooter-client` or `x-srooter-project` of your own wins over the mod's. The main session's requests are unchanged.
 
 ### Files and environment it reads
 
 - `~/.claude/model-config.json`, through `$.fs.read`, for routes, thresholds, the classifier alias and child settings. It holds no credentials. Missing or invalid, the defaults apply.
-- The environment variables `HOME` and `MAGGY_ROUTER_CHILD`, through `$.env.get`.
+- The environment variables `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (to keep your own custom headers in the child), through `$.env.get`.
 - Nothing else. The gateway key is never read from a file or from the environment; it comes only from the plugin's `gateway_key` option, which Claude Code keeps in secure storage.
 
 ### What it stores
@@ -290,7 +303,8 @@ mixture-of-models-claude-mod/
 │       ├── config.js       # defaults and the model-config.json overlay
 │       ├── classify.js     # Maggy's pre-routing rules, classifier prompt, Ollama wire format
 │       ├── routing.js      # tier → model, /route grammar, summary line
-│       ├── child.js        # child argv, scoped env, readiness, env-file parsing, the brief and its preamble
+│       ├── child.js        # child argv, scoped env and identifying headers, readiness, env-file parsing, the brief and its preamble
+│       ├── version.js      # the mod's version, for x-srooter-client
 │       ├── vet.js          # discards handbacks, requests that you act, unverified claims, narration, repeats
 │       └── stats.js        # per-day counts
 └── tests/

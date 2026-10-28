@@ -5,12 +5,12 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[] } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
   on('session.cwd', () => ({ value: '/work' }))
-  on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : e.name === 'MAGGY_ROUTER_CHILD' ? opts.childEnv : undefined }))
+  on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : e.name === 'MAGGY_ROUTER_CHILD' ? opts.childEnv : e.name === 'ANTHROPIC_CUSTOM_HEADERS' ? opts.customHeaders : undefined }))
   on('fs.read', () => ({ value: CONFIG }))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => { store.set(e.key, e.value); return { value: undefined } })
@@ -80,6 +80,20 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
   expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
   expect(runs[0].init.stdin).toContain('grep the repo for TODO comments')
+})
+
+test('the child tells the gateway it is the mod, and which project, keeping the user\'s own headers', GW, async ($, on) => {
+  stubSession(on, { customHeaders: 'X-Team: platform' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+
+  const headers = runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')
+  expect(headers[0]).toBe('X-Team: platform')
+  expect(headers[1]).toMatch(/^x-srooter-client: mixture-of-models\/\d+\.\d+\.\d+$/)
+  expect(headers[2]).toBe('x-srooter-project: work')
 })
 
 test('a critical prompt never starts a child', GW, async ($, on) => {

@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { CHILD_PREAMBLE, allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from '../hooks/lib/child.js'
+import { CHILD_PREAMBLE, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText } from '../hooks/lib/child.js'
+import { VERSION } from '../hooks/lib/version.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
 
@@ -28,6 +29,40 @@ test('childEnv marks the child and scopes the gateway to it', async () => {
 
 test('childEnv without a base URL only marks the child', async () => {
   expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+})
+
+test('childEnv adds the identifying headers for the gateway, only when the child has one', async () => {
+  const headers = childHeaders('/work/app', '')
+  expect(childEnv(CHILD, 'srt_key', headers).ANTHROPIC_CUSTOM_HEADERS).toBe(headers)
+  expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key', headers)).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+})
+
+test('childHeaders names the mod and its version, and the project folder', async () => {
+  expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+  expect(childHeaders('/Users/me/code/palgu-web', '')).toBe('x-srooter-client: mixture-of-models/' + VERSION + '\nx-srooter-project: palgu-web')
+})
+
+test('childHeaders keeps the user\'s own custom headers and appends ours once', async () => {
+  const theirs = 'X-Team: platform\nX-Trace: on\n'
+  const merged = childHeaders('/work/app', theirs)
+  expect(merged).toBe('X-Team: platform\nX-Trace: on\nx-srooter-client: mixture-of-models/' + VERSION + '\nx-srooter-project: app')
+  expect(childHeaders('/work/app', merged)).toBe(merged)
+  expect(childHeaders('/work/app', 'X-Srooter-Project: mine')).toBe('X-Srooter-Project: mine\nx-srooter-client: mixture-of-models/' + VERSION)
+})
+
+test('childHeaders leaves the project out when the folder name has no usable slug', async () => {
+  expect(childHeaders('/', '')).toBe('x-srooter-client: mixture-of-models/' + VERSION)
+  expect(childHeaders('/work/a..b', '')).toBe('x-srooter-client: mixture-of-models/' + VERSION)
+})
+
+test('projectSlug follows the gateway\'s project_detect rule: lowercase, [a-z0-9._-], at most 64', async () => {
+  expect(projectSlug('/Users/me/My Project (v2)!')).toBe('my-project-v2')
+  expect(projectSlug('/work/app/')).toBe('app')
+  expect(projectSlug('C:\\Users\\me\\Repo.Name')).toBe('repo.name')
+  expect(projectSlug('/work/_.-x_y-._')).toBe('x_y')
+  expect(projectSlug('/work/' + 'A'.repeat(80))).toBe('a'.repeat(64))
+  expect(projectSlug('/work/日本語')).toBe('')
+  expect(projectSlug('')).toBe('')
 })
 
 test('childReady needs a base URL plus a key', async () => {

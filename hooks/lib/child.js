@@ -1,6 +1,8 @@
 // The delegate: a headless `claude -p` child on the gateway. Argument vector,
 // scoped environment, readiness, env-file parsing and the context brief. Pure.
 
+import { VERSION } from './version.js'
+
 const MESSAGE_CHARS = 1200
 
 // Read first by every child: what it cannot see, what it must not invent, how to hand back.
@@ -15,10 +17,32 @@ export function childReady(child, key) {
   return Boolean(child.baseUrl && key)
 }
 
-export function childEnv(child, key) {
+// The headers ride in the same branch as the base URL, so they only ever reach the gateway.
+export function childEnv(child, key, headers) {
   const env = { MAGGY_ROUTER_CHILD: '1' }
   if (child.baseUrl) Object.assign(env, { ANTHROPIC_BASE_URL: child.baseUrl, ANTHROPIC_API_KEY: key })
+  if (child.baseUrl && headers) env.ANTHROPIC_CUSTOM_HEADERS = headers
   return env
+}
+
+// The cwd's folder name, slugged like the gateway's project_detect: runs outside [A-Za-z0-9._-]
+// become '-', edges lose '-._', at most 64, lowercase. '' when nothing usable is left.
+export function projectSlug(cwd) {
+  const name = String(cwd || '').split(/[\\/]/).filter(Boolean).pop() || ''
+  const slug = name.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-._]+|[-._]+$/g, '')
+  return slug.slice(0, 64).toLowerCase()
+}
+
+// ANTHROPIC_CUSTOM_HEADERS for the child: the user's own lines first, then who the child is and
+// which project it works in, each only if the user has not set that header already.
+export function childHeaders(cwd, theirs) {
+  const lines = String(theirs || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  const has = (name) => lines.some((l) => l.toLowerCase().startsWith(name + ':'))
+  const project = projectSlug(cwd)
+  const ours = [['x-srooter-client', 'mixture-of-models/' + VERSION]]
+  if (project && !project.includes('..')) ours.push(['x-srooter-project', project])
+  for (const [name, value] of ours) if (!has(name)) lines.push(name + ': ' + value)
+  return lines.join('\n')
 }
 
 // The flags after the program name (`claude`, written as fixed text at the $.process.run call).
