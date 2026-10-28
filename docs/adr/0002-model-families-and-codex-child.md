@@ -23,8 +23,25 @@ ADR 0001 rules out re-pointing or renaming the main session. A mod could rewrite
 - The main session is still never renamed, re-pointed or touched.
 - A subscription child loads the user's hooks and plugins (no `--bare`); the mod disables itself there via `MAGGY_ROUTER_CHILD`. Other hooks may add output to the child's run.
 - The mod now runs two programs, `claude` and `codex`; README, PRIVACY and the static analysis list both.
-- Codex has no permission-denial report, so the permission relay does not apply to it: its sandbox (`workspace-write` by default) decides, and a blocked command fails inside the run.
+- ~~Codex has no permission-denial report, so the permission relay does not apply to it: its sandbox (`workspace-write` by default) decides, and a blocked command fails inside the run.~~ Superseded by the 0.12.1 amendment below: that default let a routed Codex turn edit files and run any command in the workspace without the user's approval, which the Claude child never does.
 - A subscription child spends the user's Claude plan, like the main session would; it is not a cost saving, it is a model choice.
+
+## Amendment (0.12.1, 2026-10-28): Codex approval parity
+
+**Finding** (security review, medium): `codex exec … --sandbox workspace-write` with no approval policy let a routed Codex turn run arbitrary commands in the workspace without the user's approval, while the Claude child relays every refused command to the user. The Codex path bypassed the mod's approval model.
+
+**Facts, checked against Codex CLI 0.163.0** with a fake Responses endpoint in a throwaway `HOME`:
+- `codex exec` always runs with approval policy Never. `-c approval_policy="untrusted"` is rejected (`no longer supported`); `on-request` and `on-failure` are accepted but a request to escalate is still refused (`approval policy is Never; reject command`). So nothing can be asked mid-run, and inside `workspace-write` every command runs unasked.
+- `--json` reports neither a sandbox-blocked command nor a refused escalation: neither emits an item. A refused escalation only leaves a `reject command` log line on stderr.
+- `codex exec -C <dir> resume --json -c sandbox_mode=… <thread> -` resumes a thread with a different sandbox (`resume` has no `--sandbox` or `-C` of its own).
+
+**Decision:**
+1. The default sandbox is `read-only` (`router.codex.sandbox`), with `-c approval_policy="never"` explicit. Writes cannot be gated in exec mode, so read-only is the only default no wider than the Claude child. `workspace-write` (network forced off) and `danger-full-access` are explicit opt-ins, documented as running commands unasked.
+2. `router.codex.args` cannot set the sandbox, approval policy, extra writable dirs or the git check; such flags are dropped and logged.
+3. `--skip-git-repo-check` only with `router.codex.allowOutsideGit: true`.
+4. Refusals are relayed: the brief asks Codex to name each blocked command on a `NEEDS-APPROVAL:` line; the mod asks the user through the same dialog as the Claude child, naming the commands and that approving allows edits in the project for the rest of the turn. On approval the same thread resumes with `workspace-write`, network still off. Otherwise the answer and the route line name what was refused, and stderr rejections Codex did not name are counted.
+
+**Consequences:** a read-only Codex turn that needs to write costs one extra question and a resume. Approval is per turn, not per command: Codex cannot allow one command only, and the question says so. The refusal report depends on Codex following the instruction; when it does not, the route line still shows the sandbox the turn ran in. Revisit if `codex exec --json` starts reporting refusals or regains an approval policy usable in exec mode.
 
 ## Alternatives Considered
 

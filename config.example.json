@@ -18,7 +18,7 @@
       "claude": { "auto": { "simple": "haiku", "coding": "sonnet", "critical": "opus" } },
       "kimi":   { "auto": { "simple": "highspeed", "coding": "pro", "critical": "pro" } }
     },
-    "codex":   { "auth": "palgu", "args": ["--sandbox", "workspace-write"] },
+    "codex":   { "auth": "palgu", "sandbox": "read-only", "allowOutsideGit": false, "args": [] },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true
   }

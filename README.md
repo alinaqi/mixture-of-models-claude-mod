@@ -83,7 +83,7 @@ Why a child for a Claude member, not the session's own `/model`: the main sessio
 `codex`, `codex/<model>` and `codex/auto` routes, and `/route codex`, answer the turn with the Codex CLI in non-interactive mode:
 
 ```
-codex exec --json --skip-git-repo-check -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox workspace-write -
+codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox read-only -c approval_policy="never" -
 ```
 
 with the same brief on stdin, the same `child.timeoutMs`, the same vetting, failure memory, route line and provenance tag as the Claude child. `router.codex.auth` picks the account:
@@ -91,7 +91,22 @@ with the same brief on stdin, the same `child.timeoutMs`, the same vetting, fail
 - `"palgu"` (default): Codex talks to Palgu's Responses endpoint, `/v1/responses`. The mod adds an explicit `palgu` provider with `-c model_provider="palgu"`, `-c model_providers.palgu.base_url="<gateway>/v1"`, `-c model_providers.palgu.wire_api="responses"` and `-c model_providers.palgu.env_key="PALGU_API_KEY"`, as [Palgu's Codex docs](https://www.palgu.ai) describe (Codex ignores `OPENAI_BASE_URL` under a ChatGPT login, so the provider must be explicit). The base URL is your `gateway_url` with `/anthropic` replaced by `/v1`, or `router.codex.baseUrl`. Your gateway key goes only into the child's environment as `PALGU_API_KEY`, never on the command line, never printed. Needs the gateway URL and key, like the Claude gateway child.
 - `"chatgpt"`: no provider flags and no key: Codex uses your own `codex login` and `~/.codex/config.toml`. The mod never reads or writes `~/.codex`.
 
-`router.codex.args` replaces `--sandbox workspace-write` (Codex's sandbox: it may edit files in the project, but not outside it or on the network). Codex reports no refused commands the way Claude Code does, so the permission relay does not apply: a command its sandbox blocks fails inside the run, and Codex answers with what it could do. If `codex` is not on `PATH` the mod says `codex is not installed: npm install -g @openai/codex (or brew install --cask codex) …`, the route line says `child answer discarded (codex not installed)`, and the main model answers.
+#### Sandbox and approvals
+
+`codex exec` cannot ask anyone anything: in non-interactive mode Codex runs with approval policy Never (Codex 0.163 rejects `approval_policy = "untrusted"` outright), so a command its sandbox allows runs without a question, and one it does not is refused. The sandbox is therefore the only gate, and the mod keeps it narrow:
+
+- **`router.codex.sandbox`** is `"read-only"` by default: Codex can read the project and run commands that only read; it cannot edit files or use the network. That is narrower than the Claude child (`acceptEdits`), because `codex exec` has no way to let edits through while still gating commands. `-c approval_policy="never"` is passed explicitly, so a request to escalate out of the sandbox is refused, never run.
+- **Opting out, at your own risk:** `"workspace-write"` lets Codex edit files in the project **and run any command there without asking you** (network stays off: `-c sandbox_workspace_write.network_access=false`). `"danger-full-access"` removes the sandbox entirely; only use it in a disposable, externally sandboxed environment. Any other value means read-only.
+- **`router.codex.allowOutsideGit`** (default `false`) adds `--skip-git-repo-check`. Without it Codex refuses to start outside a git repository, the route line says `child answer discarded (outside a git repo; set router.codex.allowOutsideGit)`, and the main model answers.
+- **`router.codex.args`** adds flags (for example `-c model_reasoning_effort="high"`), but never the sandbox or approval: `--sandbox`/`-s`, `--dangerously-bypass-approvals-and-sandbox`, `--approve-for-me`, `--full-auto`, `--add-dir`, `--skip-git-repo-check`, `-a`/`--ask-for-approval` and `-c approval_policy=…`/`sandbox_mode=…`/`sandbox_workspace_write.…`/`sandbox_permissions=…` are dropped, and the session log names what was ignored. `--ephemeral` there also disables the resume below.
+
+**Refused commands.** `codex exec --json` does not report a command its sandbox blocked, nor an escalation it refused: neither appears as an event (checked against Codex 0.163.0). So the brief tells Codex to end its answer with `NEEDS-APPROVAL: <exact command>` for each command the sandbox blocked, and the mod also counts the `reject command` lines Codex writes to stderr for refused escalations. Then, as for the Claude child:
+
+- With the read-only default, the mod asks you with the same dialog, naming the commands and what approving allows: *"Codex child on codex/default was refused by its read-only sandbox: touch made.txt. Allow and continue resumes it for this turn with permission to edit files in the project and run commands there (no network)."* On **Allow and continue** the same thread resumes (`codex exec -C <cwd> resume --json … -c sandbox_mode="workspace-write" -c approval_policy="never" -c sandbox_workspace_write.network_access=false <thread> -`) with a message naming the approved commands. That widens the sandbox for the rest of that turn, not just for the named commands, which is why the question says so. It is asked at most once per turn (`child.relayRounds: 0` turns it off).
+- On **Deny**, when nobody can answer, or when your sandbox is already wider than read-only, nothing is widened and the refusal is never silent: the answer ends with a line naming the refused commands (*Codex's sandbox refused, and nothing ran: `touch made.txt`.*) and the route line shows `· sandbox read-only · refused: touch made.txt` (or `refused: 2 unnamed` for escalations Codex did not name).
+- Because the refusal report comes from Codex's own answer, a model that ignores the instruction can still leave a refusal unnamed. The route line always shows the sandbox the turn ran in (`sandbox read-only`, or `sandbox workspace-write (approved)`), so a turn that could not write is visible as such.
+
+If `codex` is not on `PATH` the mod says `codex is not installed: npm install -g @openai/codex (or brew install --cask codex) …`, the route line says `child answer discarded (codex not installed)`, and the main model answers.
 
 **Borderline scores get a second opinion.** A score on the coding cut-off or one above it is sampled a second time and the higher wins, so a 7-or-8 debugging task doesn't flip tiers on classifier noise.
 
@@ -181,7 +196,7 @@ The hooks module `hooks/register.js` registers nine hooks. What each one does wi
 | `session.start` | Reads `~/.claude/model-config.json`, takes the gateway URL and key from the plugin's options, remembers the session's model, loads the `/route` pin from the plugin store, and registers the `/route` command. Does nothing when `MAGGY_ROUTER_CHILD` is set, so the mod stays inactive inside its own child. |
 | `prompt.submit` | Passes every prompt through unchanged. On the side it decides the route: pre-rules first, then a 1-10 blast score from the classifier (see Network), then the thresholds. Never drops, rewrites or adds to a prompt. Fails open: if scoring throws, the prompt still goes through. |
 | `turn.start` | Clears the previous turn's child result. |
-| `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process (Claude Code on the gateway or on your Claude login, or Codex) described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
+| `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process (Claude Code on the gateway or on your Claude login, or Codex) described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. A Codex child is asked the same way about the commands it names as refused, once per turn; on "Allow and continue" the same Codex thread resumes with edits in the project allowed (see [Sandbox and approvals](#sandbox-and-approvals)). For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
 | `turn.complete` | Appends a line under the answer with the route, score, cost and where it ran, and updates per-day counts in the plugin store. |
 | `ui.render` for `AbovePrompt` | Draws the band: the current mode and last decision, plus buttons that change the `/route` pin. Keeps whatever other mods draw there. |
 | `ui.render` for `AssistantMessage` | Puts a dim provenance line above a reply the child produced. Other replies are passed through. |
@@ -219,7 +234,7 @@ claude -p --model <routed model id> --output-format json --max-turns <child.maxT
 
 For a `claude/<member>` route the same program runs with `--model <member id>` and `child.subscriptionArgs` (`--permission-mode acceptEdits`) in place of `child.args`, so without `--bare`, and its environment is `MAGGY_ROUTER_CHILD=1` plus `ANTHROPIC_BASE_URL` set empty, so it runs on your Claude login.
 
-For a `codex` route the program is `codex`, with the arguments shown under [Codex as a child](#codex-as-a-child), the brief on stdin, the environment `MAGGY_ROUTER_CHILD=1` plus, on the Palgu path only, `PALGU_API_KEY`, and the same `child.timeoutMs`.
+For a `codex` route the program is `codex`, with the arguments shown under [Codex as a child](#codex-as-a-child) (and, only after you approve a refused command, `exec -C <cwd> resume … <thread> -` as described there), the brief on stdin, the environment `MAGGY_ROUTER_CHILD=1` plus, on the Palgu path only, `PALGU_API_KEY`, and the same `child.timeoutMs`.
 
 For the gateway and Claude-member children, and only after you approve a relayed command (see below), the same program runs again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The gateway child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values), `ANTHROPIC_CUSTOM_HEADERS` (below) and `MAGGY_ROUTER_CHILD=1`; the Claude-member and Codex children get no identifying headers. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
 
@@ -278,7 +293,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "kimi":   { "members": { "pro": "kimi-k3.1-pro", "highspeed": "kimi-k3.1-pro-highspeed" },
                   "auto":    { "simple": "highspeed", "coding": "pro", "critical": "pro" } }
     },
-    "codex":   { "auth": "palgu", "baseUrl": "", "args": ["--sandbox", "workspace-write"] },
+    "codex":   { "auth": "palgu", "baseUrl": "", "sandbox": "read-only", "allowOutsideGit": false, "args": [] },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true
   }
@@ -304,7 +319,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.relayRounds`: how many times one routed turn may pause to ask you about commands the child was refused (default 2).
 - `child.subscriptionArgs`: the flags for a `claude/<member>` child, in place of `child.args`. No `--bare` by default, because `--bare` allows only API-key auth and the point is your Claude login.
 - `families`: per family, `members` (alias → exact model id) and `auto` (tier → member alias, plus optional `criticalPlus` for 10/10 critical turns). Merged over the defaults per family; a new family name adds a gateway family.
-- `codex.auth`: `palgu` (default; your gateway's `/v1/responses` with your gateway key) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not your `gateway_url` with `/anthropic` → `/v1`. `codex.args`: replaces `--sandbox workspace-write`.
+- `codex.auth`: `palgu` (default; your gateway's `/v1/responses` with your gateway key) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not your `gateway_url` with `/anthropic` → `/v1`. `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
 ## Commands

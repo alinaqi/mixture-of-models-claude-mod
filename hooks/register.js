@@ -6,7 +6,7 @@ import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVer
 import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, summaryLine } from './lib/routing.js'
 import { allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText, subscriptionEnv } from './lib/child.js'
 import { checkRoute, familiesText, isAutoRoute, routeValue, targetFor } from './lib/families.js'
-import { CODEX_INSTALL, codexArgs, codexBaseUrl, codexEnv, codexReady, missingCodex, parseCodexOutput } from './lib/codex.js'
+import { CODEX_INSTALL, codexArgs, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexReady, codexRelayText, codexResumeArgs, droppedArgs, missingCodex, parseCodexOutput, refusalNote, sandboxOf } from './lib/codex.js'
 import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
@@ -22,6 +22,8 @@ async function loadConfig($) {
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
   ready = childReady(cfg.child, key)
   codexOk = codexReady(cfg.codex, { baseUrl: cfg.child.baseUrl, key })
+  const dropped = droppedArgs(cfg.codex)
+  if (dropped.length) $.ui.log('router.codex.args: ignored ' + dropped.join(' ') + ' (set router.codex.sandbox or router.codex.allowOutsideGit instead)')
   sessionModel = await $.session.model()
   pin = (await $.store.get('pin')) || { mode: 'auto' }
 }
@@ -97,7 +99,6 @@ function shouldDelegate(e) {
 // Claude Code itself, headless, on the routed model: on the gateway, or on your Claude login.
 // The gateway child's env names the mod and the project to the gateway, after any custom headers the user set.
 async function spawnChild($, extra, stdin) {
-  if (decision.runner === 'codex') return spawnCodex($, stdin)
   const sub = decision.runner === 'subscription'
   const cwd = await $.session.cwd()
   const argv = ['claude', ...childArgs(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child, decision.id, cwd), ...extra]
@@ -106,32 +107,56 @@ async function spawnChild($, extra, stdin) {
   return parseChildOutput(r.stdout, r.exitCode)
 }
 
-// The Codex CLI, non-interactive, on Palgu's /v1/responses or on your own Codex login.
-async function spawnCodex($, stdin) {
-  const where = { cwd: await $.session.cwd(), baseUrl: codexBaseUrl(cfg.codex, cfg.child.baseUrl) }
-  const r = await $.process.run(['codex', ...codexArgs(cfg.codex, decision.id, where)], { env: codexEnv(cfg.codex, key), stdin, timeoutMs: cfg.child.timeoutMs })
+// The Codex CLI, non-interactive, on Palgu's /v1/responses or on your own Codex login. With a
+// thread id it resumes that thread after the user approved its refused commands.
+async function spawnCodex($, stdin, thread) {
+  const where = { cwd: await $.session.cwd(), baseUrl: codexBaseUrl(cfg.codex, cfg.child.baseUrl), thread }
+  const argv = thread ? codexResumeArgs(cfg.codex, decision.id, where) : codexArgs(cfg.codex, decision.id, where)
+  const r = await $.process.run(['codex', ...argv], { env: codexEnv(cfg.codex, key), stdin, timeoutMs: cfg.child.timeoutMs })
     .catch((err) => ({ exitCode: 1, stdout: '', missing: missingCodex(String((err && err.message) || err)) }))
   if (r.missing) $.ui.log(CODEX_INSTALL)
-  return { ...parseCodexOutput(r.stdout, r.exitCode), missing: Boolean(r.missing) }
+  const out = parseCodexOutput(r.stdout, r.exitCode, r.stderr)
+  return { ...out, reason: r.missing ? 'codex not installed' : out.reason }
 }
 
 // A command the child was refused becomes a real question here; nobody to ask counts as no.
-function askAllow($, patterns) {
-  return $.ui.ask('Child on ' + decision.model + ' wants to run: ' + patterns.join(' · '), ['Allow and continue', 'Deny'])
-    .then((a) => a === 'Allow and continue').catch(() => false)
+function askAllow($, question) {
+  return $.ui.ask(question, ['Allow and continue', 'Deny']).then((a) => a === 'Allow and continue').catch(() => false)
+}
+
+async function claudeTurn($, brief) {
+  let out = await spawnChild($, [], brief)
+  for (let round = 0; out.ok && out.denials.length && round < cfg.child.relayRounds; round += 1) {
+    const patterns = allowPatterns(out.denials)
+    if (!(await askAllow($, 'Child on ' + decision.model + ' wants to run: ' + patterns.join(' · ')))) break
+    out = await spawnChild($, ['--resume', out.sessionId, '--allowedTools', ...patterns], relayText(patterns))
+  }
+  return out
+}
+
+// Codex cannot be asked mid-run, so the commands it names as refused are asked here, once: on
+// "Allow" the same thread resumes with edits allowed. Whatever is still refused is named in the
+// answer and on the route line. Only a read-only sandbox is widened; any other is reported as is.
+async function codexTurn($, brief) {
+  const sandbox = sandboxOf(cfg.codex)
+  let out = await spawnCodex($, codexBrief(brief, sandbox)), approved = false
+  const commands = out.denials.map((d) => d.command)
+  if (sandbox === 'read-only' && out.ok && commands.length && cfg.child.relayRounds > 0 && (await askAllow($, codexAsk(decision.model, commands)))) {
+    out = await spawnCodex($, codexRelayText(commands), out.sessionId)
+    approved = true
+  }
+  const refused = out.denials.map((d) => d.command)
+  const note = { sandbox: approved ? 'workspace-write (approved)' : sandbox, refused, unnamed: Math.max(0, out.refused - refused.length) }
+  return { ...out, answer: out.ok ? (out.answer + refusalNote(refused)).trim() : '', note }
 }
 
 async function runChild($) {
   const started = Date.now()
-  let out = await spawnChild($, [], buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages))
-  for (let round = 0; out.ok && out.denials.length && round < cfg.child.relayRounds; round += 1) {
-    const patterns = allowPatterns(out.denials)
-    if (!(await askAllow($, patterns))) break
-    out = await spawnChild($, ['--resume', out.sessionId, '--allowedTools', ...patterns], relayText(patterns))
-  }
+  const brief = buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages)
+  const out = decision.runner === 'codex' ? await codexTurn($, brief) : await claudeTurn($, brief)
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
-  const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.missing ? 'codex not installed' : '' }
-  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason } }
+  const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.reason || '' }
+  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, ...(out.note || {}) } }
   if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
   return vet.ok ? out.answer : ''
 }

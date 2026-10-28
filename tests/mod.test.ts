@@ -583,6 +583,100 @@ test('/route codex runs codex exec on Palgu /v1/responses with the key in the en
   expect(done.text).toContain('route: codex (codex/default)')
 })
 
+test('a codex route defaults to a read-only sandbox, never escalates, stays in git repos and says so on the route line', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: codexJsonl('codex answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const { done } = await pinnedTurn($, 'codex', 'grep the repo for TODO comments and list the files')
+  const argv = runs[0].argv.join(' ')
+  expect(argv).toContain('--sandbox read-only -c approval_policy="never"')
+  expect(argv).not.toContain('workspace-write')
+  expect(argv).not.toContain('--skip-git-repo-check')
+  expect(runs[0].init.stdin).toContain('NEEDS-APPROVAL: <exact command>')
+  expect(done.text).toContain('sandbox read-only')
+})
+
+// Codex's answer naming a command its read-only sandbox refused.
+const NEEDS = 'The sandbox is read-only, so I could not create it.\nNEEDS-APPROVAL: touch made.txt'
+
+test('a command Codex was refused is relayed to the user; on approval the same thread resumes with edits allowed', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: codexJsonl(e.argv.includes('resume') ? 'created made.txt' : NEEDS), stderr: '' } } })
+  const asked: string[] = []
+  on('tool.call', ($, e) => { asked.push(e.questions[0].question); return { result: { answers: { [e.questions[0].question]: 'Allow and continue' } } } })
+  recordSteps(on, [])
+
+  const { result } = await pinnedTurn($, 'codex', 'create made.txt in the project root and confirm')
+  expect(asked.length).toBe(1)
+  expect(asked[0]).toContain('touch made.txt')
+  expect(runs.length).toBe(2)
+  expect(runs[1].argv.slice(0, 5)).toEqual(['codex', 'exec', '-C', '/work', 'resume'])
+  expect(runs[1].argv.join(' ')).toContain('sandbox_mode="workspace-write"')
+  expect(runs[1].argv.join(' ')).toContain('sandbox_workspace_write.network_access=false')
+  expect(runs[1].argv).toContain('th-1')
+  expect(runs[1].init.stdin).toContain('touch made.txt')
+  expect(result.answer).toBe('created made.txt')
+})
+
+test('a denied Codex relay does not resume, and the answer and route line both name the refused command', GW, async ($, on) => {
+  stubSession(on)
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: codexJsonl(NEEDS), stderr: '' } } })
+  on('tool.call', ($, e) => ({ result: { answers: { [e.questions[0].question]: 'Deny' } } }))
+  recordSteps(on, [])
+
+  const { result, done } = await pinnedTurn($, 'codex', 'create made.txt in the project root and confirm')
+  expect(runs).toBe(1)
+  expect(result.answer).toContain('could not create it')
+  expect(result.answer).toContain('refused')
+  expect(result.answer).toContain('touch made.txt')
+  expect(result.answer).not.toContain('NEEDS-APPROVAL')
+  expect(done.text).toContain('refused: touch made.txt')
+})
+
+test('with an opted-in workspace-write sandbox a refusal is reported, not offered: approving would widen nothing safely', GW, async ($, on) => {
+  stubSession(on, { config: '{"router":{"codex":{"sandbox":"workspace-write"}}}' })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: codexJsonl(NEEDS), stderr: '' } } })
+  const asked: string[] = []
+  on('tool.call', ($, e) => { asked.push(e.questions[0].question); return { result: { answers: { [e.questions[0].question]: 'Allow and continue' } } } })
+  recordSteps(on, [])
+
+  const { result, done } = await pinnedTurn($, 'codex', 'create made.txt in the project root and confirm')
+  expect(asked).toEqual([])
+  expect(runs).toBe(1)
+  expect(result.answer).toContain('touch made.txt')
+  expect(done.text).toContain('sandbox workspace-write · refused: touch made.txt')
+})
+
+test('router.codex.args that widen the sandbox are ignored, with a log line naming them', GW, async ($, on) => {
+  const logs: string[] = []
+  stubSession(on, { logs, config: '{"router":{"codex":{"args":["--sandbox","workspace-write","--ephemeral"]}}}' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: codexJsonl('codex answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  await pinnedTurn($, 'codex', 'grep the repo for TODO comments and list the files')
+  expect(runs[0].argv.join(' ')).toContain('--sandbox read-only')
+  expect(runs[0].argv).toContain('--ephemeral')
+  expect(runs[0].argv).not.toContain('workspace-write')
+  expect(logs.join('\n')).toContain('ignored --sandbox workspace-write')
+})
+
+test('outside a git repo Codex refuses to start; the route line says how to opt in and the main model answers', GW, async ($, on) => {
+  stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'Not inside a trusted directory and --skip-git-repo-check was not specified.\n' } }))
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const { done } = await pinnedTurn($, 'codex', 'grep the repo for TODO comments and list the files')
+  expect(seen).toEqual(['claude-opus-5'])
+  expect(done.text).toContain('router.codex.allowOutsideGit')
+})
+
 test('/route codex/gpt-5.6-terra on the ChatGPT login passes -m and no Palgu provider or key', async ($, on) => {
   stubSession(on, { config: '{"router":{"codex":{"auth":"chatgpt"}}}' })
   const runs: any[] = []
@@ -619,4 +713,17 @@ test('/route rejects an unknown member, and /route status lists the families', G
   const status = await $.command.run({ command: 'route', args: 'status' })
   expect(status.text).toContain('mode auto')
   expect(status.text).toContain('claude: fable, opus, sonnet, haiku')
+})
+
+test('a Codex answer that is only a NEEDS-APPROVAL line, denied, still answers with the refusal named', GW, async ($, on) => {
+  stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: codexJsonl('NEEDS-APPROVAL: touch made.txt'), stderr: '' } }))
+  on('tool.call', ($, e) => ({ result: { answers: { [e.questions[0].question]: 'Deny' } } }))
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const { result } = await pinnedTurn($, 'codex', 'create made.txt in the project root and confirm')
+  expect(seen).toEqual([])
+  expect(result.answer).toContain('refused')
+  expect(result.answer).toContain('touch made.txt')
 })

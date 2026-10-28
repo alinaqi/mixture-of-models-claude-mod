@@ -133,3 +133,14 @@ test('summaryLine names the family and the member, and marks an auto pick', asyn
   const codex = { label: 'coding', model: 'codex', source: 'pin', family: 'codex', member: '', auto: false, child: { ms: 3_000, exitCode: 0 } }
   expect(summaryLine(codex, null)).toBe('route: codex (codex/default) · coding via pin · child 3s')
 })
+
+test('summaryLine shows the Codex sandbox and every command it refused, named or not', async () => {
+  const codex = { label: 'coding', model: 'codex', source: 'pin', family: 'codex', member: '', auto: false }
+  const child = { ms: 3_000, exitCode: 0, sandbox: 'read-only', refused: [], unnamed: 0 }
+  expect(summaryLine({ ...codex, child }, null)).toBe('route: codex (codex/default) · coding via pin · child 3s · sandbox read-only')
+  const refused = { ...child, refused: ['touch made.txt', 'npm test'] }
+  expect(summaryLine({ ...codex, child: refused }, null)).toBe('route: codex (codex/default) · coding via pin · child 3s · sandbox read-only · refused: touch made.txt · npm test')
+  expect(summaryLine({ ...codex, child: { ...child, unnamed: 2 } }, null)).toBe('route: codex (codex/default) · coding via pin · child 3s · sandbox read-only · refused: 2 unnamed')
+  const discarded = { ...refused, exitCode: 1, rejected: 'narration' }
+  expect(summaryLine({ ...codex, child: discarded }, null)).toContain('main model answered · sandbox read-only · refused: touch made.txt')
+})

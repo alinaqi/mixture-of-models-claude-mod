@@ -71,7 +71,9 @@ export const DEFAULTS = {
   families: DEFAULT_FAMILIES,
   // The Codex child: `palgu` sends it to the gateway's /v1/responses with your gateway key,
   // `chatgpt` leaves it on your own Codex login and config. baseUrl overrides the derived /v1 URL.
-  codex: { auth: 'palgu', baseUrl: '', args: ['--sandbox', 'workspace-write'] },
+  // sandbox: read-only unless you opt in (codex exec cannot ask before a write); allowOutsideGit
+  // adds --skip-git-repo-check; args adds flags but never widens the sandbox (codex.js).
+  codex: { auth: 'palgu', baseUrl: '', sandbox: 'read-only', allowOutsideGit: false, args: [] },
   // The band above the prompt, and which replies get a provenance tag: 'routed', 'all' or 'off'.
   ui: { band: true, tags: 'routed' },
   summary: true,

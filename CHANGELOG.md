@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-10-28
+
+### Security
+- A Codex child no longer runs commands or edits files without your approval. It now runs in Codex's `read-only` sandbox with `approval_policy="never"` explicit, so it can read the project but not change it or use the network. Before, `--sandbox workspace-write` let a routed Codex turn edit files and run any command in your project unasked, unlike the Claude child, which asks you about every refused command.
+- When Codex is refused a command it needs, you are asked, with the same dialog as the Claude child, naming the commands. "Allow and continue" resumes the same Codex thread for that turn with edits in the project allowed (still no network); "Deny" leaves it read-only, and the answer and the route line (`· sandbox read-only · refused: <command>`) say what did not run. `codex exec --json` does not report refusals itself, so Codex is told to name them, and refused escalations it logs are counted.
+- Codex no longer runs outside a git repository unless you set `router.codex.allowOutsideGit: true`; the route line says so when it refuses.
+
+### Changed
+- New `router.codex.sandbox` (`read-only` by default; `workspace-write` or `danger-full-access` are opt-ins that let Codex run commands without asking) and `router.codex.allowOutsideGit`. `router.codex.args` now adds flags instead of replacing the sandbox, and any sandbox or approval flag in it (for example the old example's `--sandbox workspace-write`) is ignored with a log line: set `router.codex.sandbox` instead.
+- The route line for a Codex turn shows its sandbox, for example `· sandbox read-only` or `· sandbox workspace-write (approved)`.
+
 ## [0.12.0] - 2026-10-28
 
 ### Added
