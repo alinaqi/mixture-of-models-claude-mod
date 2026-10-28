@@ -48,7 +48,11 @@ Copy the `router` block from `config.example.json` into `~/.claude/model-config.
 
 One caution: an exported `ANTHROPIC_API_KEY` in your shell overrides the claude.ai login for the main session. Leave it unset if the main session should run on your subscription.
 
-## 5. Optional: free classification
+## 5. Optional: Codex
+
+For `codex` routes install the Codex CLI: `npm install -g @openai/codex` (or `brew install --cask codex`). By default it runs on your Palgu gateway's `/v1/responses` with the key from step 3. To use your own ChatGPT login instead, run `codex login` and set `"router": { "codex": { "auth": "chatgpt" } }` in `~/.claude/model-config.json`.
+
+## 6. Optional: free classification
 
 ```bash
 ollama pull qwen2.5-coder:3b
@@ -56,7 +60,7 @@ ollama pull qwen2.5-coder:3b
 
 Without Ollama the classifier falls back to `claude-haiku-4-5` on your plan.
 
-## 6. Try it
+## 7. Try it
 
 ```
 claude
@@ -64,5 +68,9 @@ claude
 grep the repo for TODOs     → spinner shows "via glm-5.3 (child)…", answer comes from the child
 /route kimi                 → pin the next turns to Kimi
 /route auto                 → back to classification
+/route claude/sonnet        → the next turns run on claude-sonnet-5-5, on your Claude login
+/route kimi/auto            → the score picks kimi-k3.1-pro-highspeed or kimi-k3.1-pro
+/route codex                → the next turns run on the Codex CLI (needs `npm install -g @openai/codex`)
+/route status               → mode, current family and member, the families
 /route stats                → a pane charting which models took your turns, kinds, scores, recent decisions
 ```

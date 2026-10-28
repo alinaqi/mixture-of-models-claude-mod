@@ -1,15 +1,18 @@
 // mixture-of-models: Maggy's routing as a Claude Code mod. Score each prompt; answer a routed
-// turn with a headless `claude -p` child on the gateway; the main session never leaves its model.
+// turn with a headless child (`claude -p` on the gateway or on your Claude login, or `codex exec`);
+// the main session never leaves its model.
 import { parseConfig } from './lib/config.js'
 import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from './lib/classify.js'
-import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
-import { allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText } from './lib/child.js'
+import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, summaryLine } from './lib/routing.js'
+import { allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText, subscriptionEnv } from './lib/child.js'
+import { checkRoute, familiesText, isAutoRoute, routeValue, targetFor } from './lib/families.js'
+import { CODEX_INSTALL, codexArgs, codexBaseUrl, codexEnv, codexReady, missingCodex, parseCodexOutput } from './lib/codex.js'
 import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 
-let cfg = parseConfig(''), options = {}, disabled = false, ready = false, key = '', sessionModel = ''
+let cfg = parseConfig(''), options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
 const answered = new Map()
 
@@ -18,6 +21,7 @@ async function loadConfig($) {
   cfg = parseConfig(await $.fs.read(home + '/.claude/model-config.json').catch(() => ''))
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
   ready = childReady(cfg.child, key)
+  codexOk = codexReady(cfg.codex, { baseUrl: cfg.child.baseUrl, key })
   sessionModel = await $.session.model()
   pin = (await $.store.get('pin')) || { mode: 'auto' }
 }
@@ -49,21 +53,23 @@ async function classify($, text) {
   return second && second.score > first.score ? second : first
 }
 
+// A pinned `<family>/auto` still classifies: the tier picks the member inside the pinned family.
 function setDecision(label, source, verdict) {
   decision = { label, source, ...(verdict || {}) }
-  decision.model = resolveModel(decision, cfg.routes, sessionModel)
+  const pinned = pin.mode === 'model' && isAutoRoute(pin.model) && label !== 'main'
+  Object.assign(decision, targetFor(pinned ? pin.model : routeValue(decision, cfg.routes), decision, cfg.families, sessionModel))
 }
 
 function applyPin() {
   if (pin.mode === 'label') setDecision(pin.label, 'pin')
-  if (pin.mode === 'model') decision = { label: 'pinned', source: 'pin', model: pin.model === 'claude' ? sessionModel : pin.model }
+  if (pin.mode === 'model') decision = { label: 'pinned', source: 'pin', ...targetFor(pin.model, { label: 'coding' }, cfg.families, sessionModel) }
 }
 
 // Notifications, operator commands and security turns stay on the main session, pinned or not.
 async function decide($, text) {
   const stay = sessionTurn(text)
   if (stay) return setDecision('main', stay)
-  if (pin.mode === 'model' || pin.mode === 'label') return applyPin()
+  if (pin.mode === 'label' || (pin.mode === 'model' && !isAutoRoute(pin.model))) return applyPin()
   const last = (await $.session.messages()).filter((m) => m.role === 'assistant').pop()
   const ctx = { lastHadTools: Boolean(last && last.toolUses.length), lastWasChild }
   const pre = preClassify(text, ctx)
@@ -75,22 +81,38 @@ async function decide($, text) {
   const thresholds = adjustThresholds(cfg.thresholds, await $.store.get('failures'), verdict.kind)
   const label = labelFor(verdict.score, thresholds)
   setDecision(label, midTaskGuard(label, ctx) ? 'mid-task guard' : verdict.source, { score: verdict.score, kind: verdict.kind })
-  if (midTaskGuard(label, ctx)) decision.model = sessionModel
+  if (midTaskGuard(label, ctx)) Object.assign(decision, targetFor('claude', decision, cfg.families, sessionModel))
+}
+
+// The gateway child needs the gateway, Codex its own auth; the subscription child only your login.
+function runnerReady() {
+  return { gateway: ready, codex: codexOk, subscription: true }[decision.runner] || false
 }
 
 function shouldDelegate(e) {
-  if (disabled || !ready || pin.mode === 'off' || e.agentId || e.index > 0) return false
-  return Boolean(decision.model) && decision.model !== sessionModel
+  if (disabled || pin.mode === 'off' || e.agentId || e.index > 0) return false
+  return runnerReady()
 }
 
-// The only program this mod runs: Claude Code itself, headless, on the routed model.
-// Its env names the mod and the project to the gateway, after any custom headers the user set.
+// Claude Code itself, headless, on the routed model: on the gateway, or on your Claude login.
+// The gateway child's env names the mod and the project to the gateway, after any custom headers the user set.
 async function spawnChild($, extra, stdin) {
+  if (decision.runner === 'codex') return spawnCodex($, stdin)
+  const sub = decision.runner === 'subscription'
   const cwd = await $.session.cwd()
-  const argv = ['claude', ...childArgs(cfg.child, decision.model, cwd), ...extra]
-  const headers = childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '')
-  const r = await $.process.run(argv, { env: childEnv(cfg.child, key, headers), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
+  const argv = ['claude', ...childArgs(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child, decision.id, cwd), ...extra]
+  const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '')
+  const r = await $.process.run(argv, { env: sub ? subscriptionEnv() : childEnv(cfg.child, key, headers), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
   return parseChildOutput(r.stdout, r.exitCode)
+}
+
+// The Codex CLI, non-interactive, on Palgu's /v1/responses or on your own Codex login.
+async function spawnCodex($, stdin) {
+  const where = { cwd: await $.session.cwd(), baseUrl: codexBaseUrl(cfg.codex, cfg.child.baseUrl) }
+  const r = await $.process.run(['codex', ...codexArgs(cfg.codex, decision.id, where)], { env: codexEnv(cfg.codex, key), stdin, timeoutMs: cfg.child.timeoutMs })
+    .catch((err) => ({ exitCode: 1, stdout: '', missing: missingCodex(String((err && err.message) || err)) }))
+  if (r.missing) $.ui.log(CODEX_INSTALL)
+  return { ...parseCodexOutput(r.stdout, r.exitCode), missing: Boolean(r.missing) }
 }
 
 // A command the child was refused becomes a real question here; nobody to ask counts as no.
@@ -108,14 +130,17 @@ async function runChild($) {
     out = await spawnChild($, ['--resume', out.sessionId, '--allowedTools', ...patterns], relayText(patterns))
   }
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
-  const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: '' }
+  const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.missing ? 'codex not installed' : '' }
   decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason } }
   if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
   return vet.ok ? out.answer : ''
 }
 
 async function pinFrom($, arg) {
-  pin = parseRouteArg(arg, cfg.routes)
+  const parsed = parseRouteArg(arg, cfg.routes)
+  const bad = parsed.mode === 'model' ? checkRoute(parsed.model, cfg.families) : ''
+  if (bad) return bad
+  pin = parsed
   await $.store.set('pin', pin)
   applyPin()
   $.ui.invalidate('ui.render')
@@ -123,7 +148,7 @@ async function pinFrom($, arg) {
 }
 
 function bandView(e, theirs) {
-  return { disabled, ready, sessionModel, pin, decision, routes: cfg.routes, isWorking: e.props.isWorking, theirs }
+  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, isWorking: e.props.isWorking, theirs }
 }
 
 export function register(on, opts) {
@@ -133,7 +158,7 @@ export function register(on, opts) {
     if (disabled) return next(e)
     await loadConfig($)
     applyPin()
-    await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [stats|auto|off|reset|simple|coding|critical|<model>]', argumentHint: '[stats|auto|off|reset|label|model]', immediate: true })
+    await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|auto|off|reset|label|model|family/member]', immediate: true })
       .catch(() => $.ui.log('/route is taken by another plugin'))
     return next(e)
   })
@@ -159,7 +184,7 @@ export function register(on, opts) {
       return yield* next(e)
     }
     lastWasChild = true
-    answered.set(answer, decision.model)
+    answered.set(answer, { model: decision.model, runner: decision.runner })
     if (answered.size > 50) answered.delete(answered.keys().next().value)
     yield { kind: 'text', index: 0, text: answer }
     return { turnId: e.turnId, index: e.index, answer, toolUses: [], stopReason: 'end_turn', usage: null }
@@ -183,9 +208,9 @@ export function register(on, opts) {
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     const tagged = cfg.ui.tags !== 'off' && e.props.isFirstOfReply
-    const model = tagged ? answered.get(e.props.text.trim()) || (cfg.ui.tags === 'all' ? sessionModel : undefined) : undefined
-    if (!model) return next(e)
-    return tagTree($.ui.resolve(e), tagText(model, sessionModel), await next(e))
+    const hit = tagged ? answered.get(e.props.text.trim()) || (cfg.ui.tags === 'all' ? { model: sessionModel } : undefined) : undefined
+    if (!hit) return next(e)
+    return tagTree($.ui.resolve(e), tagText(hit.model, sessionModel, hit.runner), await next(e))
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
@@ -201,7 +226,7 @@ export function register(on, opts) {
 
   on('command.run', { command: 'route' }, async ($, e) => {
     const parsed = parseRouteArg(e.args, cfg.routes)
-    if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) }
+    if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) + ' · ' + familiesText(cfg.families) }
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
     return { text: await pinFrom($, e.args) }

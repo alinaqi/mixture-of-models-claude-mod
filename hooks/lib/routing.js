@@ -1,12 +1,12 @@
 // Route resolution, the /route argument grammar, and the summary line. Pure.
 import { GATEWAY_MODELS, LABELS } from './config.js'
+import { routeValue } from './families.js'
 
 // The tier says whether Claude is mandatory; below that, the kind picks the cheaper model.
+// Family routes (`claude/auto`, `kimi/highspeed`) come back as written; families.js resolves them.
 export function resolveModel(decision, routes, sessionModel) {
-  const byTier = routes[decision.label]
-  if (!byTier || byTier === 'claude') return sessionModel
-  const model = (routes.kinds || {})[decision.kind] || byTier
-  return model === 'claude' ? sessionModel : model
+  const route = routeValue(decision, routes)
+  return route === 'claude' ? sessionModel : route
 }
 
 // While the main session is mid-task (its last answer used tools), coding-level work stays
@@ -42,7 +42,8 @@ function modelByPrefix(arg, routes) {
 
 export function parseRouteArg(arg, routes) {
   const word = (arg || '').trim().toLowerCase()
-  if (word === '') return { mode: 'show' }
+  if (word === '' || word === 'status') return { mode: 'show' }
+  if (word.includes('/')) return { mode: 'model', model: word }
   if (['auto', 'off', 'reset', 'stats'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
   return { mode: 'model', model: modelByPrefix(word, routes) || word }
@@ -73,6 +74,12 @@ function usageNote(usage) {
   return ' · ' + fmtTokens(contextTokens(usage)) + ' in / ' + fmtTokens(usage.output_tokens) + ' out · cache ' + cachePercent(usage) + '%'
 }
 
+// ` (claude/sonnet)`, or ` (claude/auto → sonnet)` when the tier picked the member.
+function familyNote(d) {
+  if (!d.family) return ''
+  return ' (' + d.family + '/' + (d.auto ? 'auto → ' : '') + (d.member || 'default') + ')'
+}
+
 // Every turn gets a line: where it ran (child or main session) and what it cost.
 export function tierText(decision) {
   const score = decision.score ? ' ' + decision.score + '/10' + (decision.kind ? ' ' + decision.kind : '') : ''
@@ -80,7 +87,7 @@ export function tierText(decision) {
 }
 
 export function summaryLine(decision, usage) {
-  const head = 'route: ' + decision.model + ' · ' + tierText(decision)
+  const head = 'route: ' + decision.model + familyNote(decision) + ' · ' + tierText(decision)
   if (decision.child) return head + childNote(decision.child)
   return head + usageNote(usage) + ' · main session'
 }

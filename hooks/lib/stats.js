@@ -47,7 +47,8 @@ export function summarize(log, sessionModel) {
   for (const e of log) if (e.score >= 1 && e.score <= 10) byScore[e.score - 1] += 1
   return {
     total: log.length,
-    offClaude: log.filter((e) => e.model !== sessionModel).length,
+    // A Claude-family child still runs on Claude, so it does not count as off Claude.
+    offClaude: log.filter((e) => e.model !== sessionModel && !String(e.model).startsWith('claude-')).length,
     byModel: countBy(log, 'model').map(([model, n]) => ({ model, n })),
     byKind: kindRows(log),
     byScore,

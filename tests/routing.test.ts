@@ -110,3 +110,26 @@ test('parseRouteArg expands a prefix to a gateway model that no route names', as
   const routes = { ...DEFAULT_ROUTES, simple: 'mercury-2' }
   expect(parseRouteArg('mercury', routes)).toEqual({ mode: 'model', model: 'mercury-2' })
 })
+
+test('parseRouteArg keeps <family>/<member> and family pins as written, and reads status', async () => {
+  expect(parseRouteArg('claude/sonnet', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'claude/sonnet' })
+  expect(parseRouteArg('Kimi/Auto', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi/auto' })
+  expect(parseRouteArg('codex', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'codex' })
+  expect(parseRouteArg('codex/gpt-5.6-terra', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'codex/gpt-5.6-terra' })
+  expect(parseRouteArg('status', DEFAULT_ROUTES)).toEqual({ mode: 'show' })
+})
+
+test('resolveModel keeps a Claude-family tier whatever the kind, and returns family routes as written', async () => {
+  const routes = { ...DEFAULT_ROUTES, critical: 'claude/opus', simple: 'claude/auto' }
+  expect(resolveModel({ label: 'critical', kind: 'research' }, routes, SESSION)).toBe('claude/opus')
+  expect(resolveModel({ label: 'simple', kind: 'review' }, routes, SESSION)).toBe('claude/auto')
+})
+
+test('summaryLine names the family and the member, and marks an auto pick', async () => {
+  const d = { label: 'coding', score: 5, kind: 'code', model: 'claude-sonnet-5-5', source: 'ollama', family: 'claude', member: 'sonnet', auto: true, child: { ms: 9_000, exitCode: 0 } }
+  expect(summaryLine(d, null)).toBe('route: claude-sonnet-5-5 (claude/auto → sonnet) · coding 5/10 code via ollama · child 9s')
+  const pinned = { label: 'pinned', model: 'kimi-k3.1-pro-highspeed', source: 'pin', family: 'kimi', member: 'highspeed', auto: false }
+  expect(summaryLine(pinned, null)).toBe('route: kimi-k3.1-pro-highspeed (kimi/highspeed) · pinned via pin · main session')
+  const codex = { label: 'coding', model: 'codex', source: 'pin', family: 'codex', member: '', auto: false, child: { ms: 3_000, exitCode: 0 } }
+  expect(summaryLine(codex, null)).toBe('route: codex (codex/default) · coding via pin · child 3s')
+})
