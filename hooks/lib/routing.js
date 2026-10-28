@@ -63,10 +63,21 @@ function cachePercent(usage) {
   return total ? Math.round((usage.cache_read_input_tokens / total) * 100) : 0
 }
 
-function childNote(child) {
+function outcomeNote(child) {
   if (child.rejected) return ' · child answer discarded (' + child.rejected + '), main model answered'
   if (child.exitCode !== 0) return ' · child failed, main model answered'
   return ' · child ' + Math.round(child.ms / 1000) + 's'
+}
+
+// A Codex child: its sandbox, and every command it was refused, by name or as a count of unnamed ones.
+function sandboxNote(child) {
+  if (!child.sandbox) return ''
+  const refused = [...(child.refused || []), ...(child.unnamed ? [child.unnamed + ' unnamed'] : [])]
+  return ' · sandbox ' + child.sandbox + (refused.length ? ' · refused: ' + refused.join(' · ') : '')
+}
+
+function childNote(child) {
+  return outcomeNote(child) + sandboxNote(child)
 }
 
 function usageNote(usage) {
