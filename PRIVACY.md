@@ -6,7 +6,7 @@ mixture-of-models is a Claude Code plugin that runs entirely on your machine. Th
 
 - **To a local Ollama at `http://localhost:11434`**, if one is running: the text of each prompt you submit, together with a scoring rubric, so the prompt can be scored 1-10. Nothing leaves your machine for this.
 - **To Anthropic, through Claude Code's own API client and your own account**, when no Ollama answers: the same prompt text and rubric, for the same score. This is the same channel Claude Code already uses for your session.
-- **To the gateway you configure** (`gateway_url`), through a child Claude Code process authenticated with the `gateway_key` you provide: for routed turns only, your prompt plus a short brief of the last few exchanges of your session (text only, truncated), and whatever that child's own agent loop sends while it works. The gateway's handling of that data is governed by the gateway operator's policy, not by this plugin. If no gateway is configured, nothing is sent and the plugin is observe-only.
+- **To the gateway you configure** (`gateway_url`), through a child Claude Code process authenticated with the `gateway_key` you provide: for routed turns only, your prompt plus a short brief of the last few exchanges of your session (text only, truncated), and whatever that child's own agent loop sends while it works. The gateway's handling of that data is governed by the gateway operator's policy, not by this plugin. Each of the child's requests also carries two headers that identify it to the gateway: `x-srooter-client: mixture-of-models/<version>` (the plugin's name and version) and `x-srooter-project: <folder name>` (the last segment of the session's working directory, lowercased and reduced to `a-z 0-9 . _ -`). They hold no path, no prompt text and no other content, and are sent only to the configured gateway. If no gateway is configured, nothing is sent and the plugin is observe-only.
 
 The plugin sends nothing to any other party, and nothing to the author.
 
@@ -16,7 +16,7 @@ In Claude Code's plugin store on your machine: your `/route` setting, per-day co
 
 ## What the plugin reads
 
-`~/.claude/model-config.json` (routing settings, no credentials) and the environment variables `HOME` and `MAGGY_ROUTER_CHILD`.
+`~/.claude/model-config.json` (routing settings, no credentials) and the environment variables `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (only so that custom headers you set yourself are kept in the child's requests to the gateway).
 
 ## Children
 

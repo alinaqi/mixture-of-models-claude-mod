@@ -3,7 +3,7 @@
 import { parseConfig } from './lib/config.js'
 import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from './lib/classify.js'
 import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, resolveModel, summaryLine } from './lib/routing.js'
-import { allowPatterns, buildBrief, childArgs, childEnv, childReady, gatewayFrom, parseChildOutput, relayText } from './lib/child.js'
+import { allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText } from './lib/child.js'
 import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
@@ -84,9 +84,12 @@ function shouldDelegate(e) {
 }
 
 // The only program this mod runs: Claude Code itself, headless, on the routed model.
+// Its env names the mod and the project to the gateway, after any custom headers the user set.
 async function spawnChild($, extra, stdin) {
-  const argv = ['claude', ...childArgs(cfg.child, decision.model, await $.session.cwd()), ...extra]
-  const r = await $.process.run(argv, { env: childEnv(cfg.child, key), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
+  const cwd = await $.session.cwd()
+  const argv = ['claude', ...childArgs(cfg.child, decision.model, cwd), ...extra]
+  const headers = childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '')
+  const r = await $.process.run(argv, { env: childEnv(cfg.child, key, headers), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
   return parseChildOutput(r.stdout, r.exitCode)
 }
 

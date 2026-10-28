@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-10-28
+
+### Added
+- The child Claude Code identifies itself to the Palgu gateway, so its traffic shows as Mixture-of-Models, per project, on the dashboard's project activity instead of generic API. Every child request carries `x-srooter-client: mixture-of-models/<version>` and `x-srooter-project: <the session folder's name>` (slugged like the gateway's project detection: lowercase, `[a-z0-9._-]`, at most 64 characters). They are set through the child's `ANTHROPIC_CUSTOM_HEADERS`, only when a gateway is configured, so they go to that gateway alone. No path, prompt or other content is in them.
+
+### Changed
+- Custom headers you set in `ANTHROPIC_CUSTOM_HEADERS` reach the child too: yours come first and are never dropped, and a `x-srooter-client` or `x-srooter-project` you set yourself wins over the mod's. The mod now reads that environment variable.
+- `npm run changelog` also fails when `package.json` or `hooks/lib/version.js` disagrees with the version in `plugin.json`.
+
 ## [0.10.0] - 2026-10-28
 
 ### Changed
