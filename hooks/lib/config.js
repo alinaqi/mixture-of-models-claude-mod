@@ -8,14 +8,19 @@ export const DEFAULT_ROUTES = {
   simple: 'glm-5.3',
   coding: 'glm-5.3',
   critical: 'claude',
-  kinds: { research: 'kimi-k3', review: 'kimi-k3', multimodal: 'claude' },
+  kinds: { research: 'kimi-k3.1-pro', review: 'kimi-k3.1-pro', multimodal: 'claude' },
 }
+
+// Models the gateway serves that a pin or a route may name; `/route <prefix>` expands to the
+// first one that matches when no configured route does. mercury-3 (Inception) is an option
+// only: no default route uses it until its speed and quality are measured.
+export const GATEWAY_MODELS = ['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3']
 
 // Maggy's "followed" primary, as model-config.json names it, to the model id a gateway resolves.
 // `claude` is deliberately absent: following Claude keeps critical work there, not coding work.
 export const PRIMARY_MODELS = {
   glm: 'glm-5.3',
-  kimi: 'kimi-k3',
+  kimi: 'kimi-k3.1-pro',
   deepseek: 'deepseek-v4-pro',
 }
 
