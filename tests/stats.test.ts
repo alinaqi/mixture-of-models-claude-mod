@@ -51,3 +51,8 @@ test('summarize gives model shares, the off-Claude headline, kinds by model, a s
 test('summarize of an empty log is all zeros', async () => {
   expect(summarize([], SESSION)).toEqual({ total: 0, offClaude: 0, byModel: [], byKind: [], byScore: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], recent: [], child: { runs: 0, failed: 0, avgMs: 0 } })
 })
+
+test('a turn on a Claude subscription child is not counted as off Claude', async () => {
+  const log = [{ ...LOG[0], model: 'claude-sonnet-5-5' }, LOG[1]]
+  expect(summarize(log, SESSION).offClaude).toBe(1)
+})

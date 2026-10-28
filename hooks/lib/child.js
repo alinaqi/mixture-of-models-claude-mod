@@ -45,6 +45,12 @@ export function childHeaders(cwd, theirs) {
   return lines.join('\n')
 }
 
+// A Claude-family member runs on the user's own Claude login. An inherited gateway URL is cleared
+// (empty counts as unset); ANTHROPIC_API_KEY is left alone, because an empty one counts as a key.
+export function subscriptionEnv() {
+  return { MAGGY_ROUTER_CHILD: '1', ANTHROPIC_BASE_URL: '' }
+}
+
 // The flags after the program name (`claude`, written as fixed text at the $.process.run call).
 // --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery.
 export function childArgs(child, model, cwd) {

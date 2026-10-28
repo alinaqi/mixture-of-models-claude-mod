@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-10-28
+
+### Added
+- Model families. A route, kind route or pin can be `<family>/<member>` or `<family>/auto`: `claude/sonnet`, `claude/auto`, `kimi/highspeed`, `kimi/auto`, `glm/5.3`, `codex/gpt-5.6-terra`. `auto` scores the prompt as before and picks the member for its tier from the family's `auto` map (Claude: simple → `claude-haiku-5-5`, coding → `claude-sonnet-5-5`, critical → `claude-opus-5-5`; Kimi: simple → `kimi-k3.1-pro-highspeed`, else `kimi-k3.1-pro`), never leaving the family. `claude-fable-5-1` is opt-in for 10/10 critical turns with `"criticalPlus": "fable"`. Members and maps are overridable per family in `router.families`.
+- Claude members run on your own Claude login: a headless `claude -p --model <id>` child without `--bare` and with no gateway, so `/route claude/sonnet` works with no gateway configured. A member that is the session's own model stays in the main session.
+- Codex as a child. `codex`, `codex/<model>` and `codex/auto` routes, and `/route codex`, answer the turn with `codex exec`, with the same brief, timeout, vetting, failure memory and route line as the Claude child. By default it uses your Palgu gateway's `/v1/responses` with your gateway key (in its environment only, never on the command line); `"codex": { "auth": "chatgpt" }` uses your own Codex login. A missing `codex` binary is reported with the install command and the main model answers.
+- `/route status` shows the mode, the current family and member, and every family with its members. The route line names the family and member, for example `claude-sonnet-5-5 (claude/auto → sonnet)`, and the reply tag says where the child ran.
+
+### Changed
+- `/route` refuses an unknown family or member and lists the valid ones, instead of pinning a model the gateway cannot serve.
+- The stats pane's "off Claude" count no longer counts turns that a Claude-member child answered.
+- A tier routed to a Claude member (`"critical": "claude/opus"`) is mandatory Claude: `routes.kinds` does not move it to a gateway model. Bare `"claude"` and plain model ids behave exactly as before.
+
 ## [0.11.0] - 2026-10-28
 
 ### Added

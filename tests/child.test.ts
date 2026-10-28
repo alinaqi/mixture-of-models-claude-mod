@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { CHILD_PREAMBLE, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText } from '../hooks/lib/child.js'
+import { CHILD_PREAMBLE, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText, subscriptionEnv } from '../hooks/lib/child.js'
 import { VERSION } from '../hooks/lib/version.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
@@ -151,4 +151,16 @@ test('relayText tells the resumed child what is now allowed', async () => {
   expect(text).toContain('git pull --ff-only')
   expect(text).toMatch(/now allowed/)
   expect(text).toMatch(/continue/i)
+})
+
+test('subscriptionEnv marks the child and clears an inherited gateway URL, but never sets an API key', async () => {
+  // An empty ANTHROPIC_API_KEY counts as a key and breaks the subscription login, so it is left alone.
+  expect(subscriptionEnv()).toEqual({ MAGGY_ROUTER_CHILD: '1', ANTHROPIC_BASE_URL: '' })
+})
+
+test('the subscription child drops --bare, which would force API-key auth, and keeps acceptEdits', async () => {
+  expect(DEFAULTS.child.subscriptionArgs).toEqual(['--permission-mode', 'acceptEdits'])
+  const args = childArgs({ ...CHILD, args: CHILD.subscriptionArgs }, 'claude-sonnet-5-5', '/work')
+  expect(args).toContain('claude-sonnet-5-5')
+  expect(args).not.toContain('--bare')
 })

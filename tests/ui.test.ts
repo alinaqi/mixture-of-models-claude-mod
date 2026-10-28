@@ -71,3 +71,23 @@ test('reportText is the /route answer: state, mode and the current decision', as
   expect(reportText({ ...base, ready: false, pin: { mode: 'off' } })).toBe('mixture-of-models observe-only (no gateway key for the child) · mode off · current route: glm-5.3 · coding via ollama · main session')
   expect(reportText({ ...base, disabled: true, pin: { mode: 'model', model: 'kimi-k3.1-pro' } })).toBe('mixture-of-models disabled (child session) · mode model kimi-k3.1-pro · current route: glm-5.3 · coding via ollama · main session')
 })
+
+test('tagText says where a child ran: gateway, Claude subscription or Codex', async () => {
+  expect(tagText('glm-5.3', SESSION, 'gateway')).toBe('⇢ glm-5.3 · child on gateway')
+  expect(tagText('claude-sonnet-5-5', SESSION, 'subscription')).toBe('⇢ claude-sonnet-5-5 · child on your Claude subscription')
+  expect(tagText('codex', SESSION, 'codex')).toBe('⇢ codex · Codex child')
+})
+
+test('bandButtons gives family routes one button per family, and Claude members none of their own', async () => {
+  const routes = { simple: 'claude/haiku', coding: 'kimi/auto', critical: 'claude/opus', kinds: { review: 'codex/auto' } }
+  expect(bandButtons(routes).map((b) => b.arg)).toEqual(['auto', 'kimi', 'codex', 'claude', 'off'])
+})
+
+test('the band names a pinned family member, and a pinned member lights its family button', async () => {
+  const pin = { mode: 'model', model: 'claude/sonnet' }
+  const decision = { label: 'pinned', model: 'claude-sonnet-5-5', source: 'pin', family: 'claude', member: 'sonnet' }
+  expect(bandText({ ...base, pin, decision })).toBe('mixture-of-models · pinned claude/sonnet → claude-sonnet-5-5')
+  const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin, decision }, () => {})
+  const lit = tree.children[0].children.slice(1).filter((b) => !b.dimColor).map((b) => b.label)
+  expect(lit).toEqual(['claude'])
+})

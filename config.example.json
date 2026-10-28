@@ -14,6 +14,11 @@
       "contextMessages": 12,
       "relayRounds": 2
     },
+    "families": {
+      "claude": { "auto": { "simple": "haiku", "coding": "sonnet", "critical": "opus" } },
+      "kimi":   { "auto": { "simple": "highspeed", "coding": "pro", "critical": "pro" } }
+    },
+    "codex":   { "auth": "palgu", "args": ["--sandbox", "workspace-write"] },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true
   }

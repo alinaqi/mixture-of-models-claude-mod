@@ -5,17 +5,17 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[] } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
   on('session.cwd', () => ({ value: '/work' }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : e.name === 'MAGGY_ROUTER_CHILD' ? opts.childEnv : e.name === 'ANTHROPIC_CUSTOM_HEADERS' ? opts.customHeaders : undefined }))
-  on('fs.read', () => ({ value: CONFIG }))
+  on('fs.read', () => ({ value: opts.config ?? CONFIG }))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => { store.set(e.key, e.value); return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
-  on('ui.log', () => ({ value: undefined }))
+  on('ui.log', ($, e) => { opts.logs?.push(e.text ?? e.message ?? JSON.stringify(e)); return { value: undefined } })
   on('session.messages', () => ({ value: opts.messages ?? [] }))
   on('prompt.submit', ($, e) => ({ text: e.text }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
@@ -487,4 +487,136 @@ test('a child that claims a change it never made is discarded for the main model
   expect(result.answer).toBe('main answer')
   const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
   expect(done.text).toContain('unverified claim')
+})
+
+// What `codex exec --json` prints: a thread, a tool call, the answer.
+function codexJsonl(text: string) {
+  return [{ type: 'thread.started', thread_id: 'th-1' }, { type: 'item.completed', item: { type: 'command_execution', command: 'ls', exit_code: 0 } },
+    { type: 'item.completed', item: { type: 'agent_message', text } }, { type: 'turn.completed', usage: {} }].map((e) => JSON.stringify(e)).join('\n') + '\n'
+}
+
+async function pinnedTurn($, arg: string, text: string) {
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const pinned = await $.command.run({ command: 'route', args: arg })
+  await $.prompt.submit({ text })
+  await $.turn.start({ turnId: 't1' })
+  const result = await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  const done = await $.turn.complete({ turnId: 't1', answer: result.answer, durationMs: 10, isAborted: false, usage: null })
+  return { pinned, result, done }
+}
+
+test('/route claude/sonnet runs a subscription child with --model, no --bare and no gateway, even with no gateway key', async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('sonnet answer', { num_turns: 2 }), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const { pinned, result, done } = await pinnedTurn($, 'claude/sonnet', 'grep the repo for TODO comments and list the files')
+  expect(pinned.text).toContain('claude/sonnet')
+  expect(seen).toEqual([])
+  expect(result.answer).toBe('sonnet answer')
+  expect(runs[0].argv[0]).toBe('claude')
+  expect(runs[0].argv.join(' ')).toContain('--model claude-sonnet-5-5')
+  expect(runs[0].argv).not.toContain('--bare')
+  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBeUndefined()
+  expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
+  expect(done.text).toContain('claude-sonnet-5-5 (claude/sonnet)')
+})
+
+test('a claude/auto route picks haiku for a trivial prompt and never leaves the family', GW, async ($, on) => {
+  stubSession(on, { score: '1 code', config: '{"router":{"routes":{"simple":"claude/auto","coding":"claude/auto","critical":"claude/auto"}}}' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('haiku answer', { num_turns: 2 }), stderr: '' } } })
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'what does the -s flag of grep do, answer in one line')
+  expect(runs[0].argv.join(' ')).toContain('--model claude-haiku-5-5')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBeUndefined()
+  expect(result.answer).toBe('haiku answer')
+})
+
+test('claude/auto at a critical score lands on opus, the session model, so the main session answers', GW, async ($, on) => {
+  stubSession(on, { score: '9 code', config: '{"router":{"routes":{"critical":"claude/auto"},"families":{"claude":{"members":{"opus":"claude-opus-5"}}}}}' })
+  let runs = 0
+  on('process.run', () => { runs += 1; return { value: { exitCode: 0, stdout: childJson('x'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'redesign the auth service boundaries and write the ADR')
+  expect(runs).toBe(0)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('/route kimi/auto classifies and picks a kimi member: highspeed for a lookup', GW, async ($, on) => {
+  stubSession(on, { score: '2 code' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('fast answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const { done } = await pinnedTurn($, 'kimi/auto', 'grep the repo for TODO comments and list the files')
+  expect(runs[0].argv).toContain('kimi-k3.1-pro-highspeed')
+  expect(runs[0].argv).toContain('--bare')
+  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://api.palgu.ai/anthropic')
+  expect(done.text).toContain('(kimi/auto → highspeed)')
+})
+
+test('/route codex runs codex exec on Palgu /v1/responses with the key in the environment only', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: codexJsonl('codex answer'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const { result, done } = await pinnedTurn($, 'codex', 'grep the repo for TODO comments and list the files')
+  expect(seen).toEqual([])
+  expect(result.answer).toBe('codex answer')
+  expect(runs[0].argv.slice(0, 3)).toEqual(['codex', 'exec', '--json'])
+  expect(runs[0].argv.join(' ')).toContain('model_providers.palgu.base_url="https://api.palgu.ai/v1"')
+  expect(runs[0].argv.join(' ')).toContain('model_providers.palgu.wire_api="responses"')
+  expect(runs[0].argv.join(' ')).not.toContain('srt_test')
+  expect(runs[0].init.env.PALGU_API_KEY).toBe('srt_test')
+  expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
+  expect(runs[0].init.stdin).toContain('grep the repo for TODO comments')
+  expect(runs[0].init.timeoutMs).toBe(600000)
+  expect(done.text).toContain('route: codex (codex/default)')
+})
+
+test('/route codex/gpt-5.6-terra on the ChatGPT login passes -m and no Palgu provider or key', async ($, on) => {
+  stubSession(on, { config: '{"router":{"codex":{"auth":"chatgpt"}}}' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: codexJsonl('terra answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const { result } = await pinnedTurn($, 'codex/gpt-5.6-terra', 'grep the repo for TODO comments and list the files')
+  expect(result.answer).toBe('terra answer')
+  expect(runs[0].argv.join(' ')).toContain('-m gpt-5.6-terra')
+  expect(runs[0].argv.join(' ')).not.toContain('model_provider')
+  expect(runs[0].init.env.PALGU_API_KEY).toBeUndefined()
+})
+
+test('a missing codex binary says how to install it and the main model answers', GW, async ($, on) => {
+  const logs: string[] = []
+  stubSession(on, { logs })
+  on('process.run', () => ({ deny: 'failed to start: ENOENT: no such file or directory' }))
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const { result, done } = await pinnedTurn($, 'codex', 'grep the repo for TODO comments and list the files')
+  expect(seen).toEqual(['claude-opus-5'])
+  expect(result.answer).toBe('main answer')
+  expect(logs.join('\n')).toContain('npm install -g @openai/codex')
+  expect(done.text).toContain('codex not installed')
+})
+
+test('/route rejects an unknown member, and /route status lists the families', GW, async ($, on) => {
+  stubSession(on)
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const bad = await $.command.run({ command: 'route', args: 'claude/gpt' })
+  expect(bad.text).toContain('claude has no member gpt')
+  const status = await $.command.run({ command: 'route', args: 'status' })
+  expect(status.text).toContain('mode auto')
+  expect(status.text).toContain('claude: fable, opus, sonnet, haiku')
 })

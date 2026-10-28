@@ -6,6 +6,8 @@
 
 Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
 
+Routes can also name a **model family**: `claude/sonnet` runs that Claude member on your own Claude login, `kimi/auto` lets the score pick a Kimi member, and `codex` hands the turn to the Codex CLI (`codex exec`) on Palgu or on your ChatGPT login. See [Families](#families-pick-a-member-or-let-the-tier-pick) and [Codex](#codex-as-a-child).
+
 To be precise about what it is: **turn-level delegation**, not per-request model mixing. A routed turn runs in a child process with a short brief of your recent context; the child's answer lands in your transcript, tagged. Critical turns stay on Claude exactly as before.
 
 ## Install
@@ -61,6 +63,36 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **Models you can name.** Any model id your gateway serves works in `routes`, `routes.kinds` or a pin. The mod knows these Palgu gateway models, so `/route <prefix>` expands to them even when no route names them: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro` and `mercury-3`. `kimi-k3.1-pro` replaces `kimi-k3`; an old `/route kimi-k3` pin expands to it. `mercury-3` is Inception's Mercury 3, a fast diffusion model with a 1M-token context and tool calling. It is an option, not a default: no route uses it until its speed and quality on routed turns have been measured. To try it for simple work, set `"routes": { "simple": "mercury-3" }`, or pin it for a few turns with `/route mercury`.
 
+### Families: pick a member, or let the tier pick
+
+Any route, kind route or pin may be `<family>/<member>` or `<family>/auto` instead of a model id. A bare `claude` still means "the main session", exactly as before, so old configs behave the same.
+
+| Family | Members (alias = exact id) | `auto` by tier (default) | Runs on |
+| :- | :- | :- | :- |
+| `claude` | `fable` = `claude-fable-5-1`, `opus` = `claude-opus-5-5`, `sonnet` = `claude-sonnet-5-5`, `haiku` = `claude-haiku-5-5` | simple → `haiku`, coding → `sonnet`, critical → `opus`; `fable` only if you add `"criticalPlus": "fable"` (10/10 critical turns) | a headless `claude -p --model <id>` child on **your Claude login** (no gateway); a member that *is* the session model stays in the main session |
+| `kimi` | `pro` = `kimi-k3.1-pro`, `highspeed` = `kimi-k3.1-pro-highspeed` | simple → `highspeed`, coding and critical → `pro` | the gateway child |
+| `glm`, `deepseek`, `mercury` | from the gateway catalogue: `glm/5.3` = `glm-5.3`, `deepseek/v4-pro` = `deepseek-v4-pro`, `mercury/3` = `mercury-3` | the first member | the gateway child |
+| `codex` | none by default: `codex/<any model id>` passes the id to Codex | none by default: Codex's own default model | a `codex exec` child, see [Codex](#codex-as-a-child) |
+
+`auto` uses the same classifier, thresholds, borderline second sample and failure memory as the tiers, then looks up the tier in the family's `auto` map. It never leaves the family. A Claude-family tier (`"critical": "claude/opus"`) is mandatory Claude just like `"claude"`: `routes.kinds` does not override it. Override members or the tier map per family in `router.families`; a pinned `/route claude/auto` still classifies each prompt and picks the member from the score.
+
+Why a child for a Claude member, not the session's own `/model`: the main session is never renamed or re-pointed ([ADR 0001](docs/adr/0001-child-process-delegation.md)), so a member other than the session model runs in a separate headless Claude Code started with Claude Code's own `--model <id>` flag. That child runs without `--bare` (which would force API-key auth), so it uses your claude.ai login and loads your hooks and plugins; the mod stays inactive inside it via `MAGGY_ROUTER_CHILD`. Its environment clears any inherited `ANTHROPIC_BASE_URL`; an `ANTHROPIC_API_KEY` exported in your shell still wins over the login, for the child as for the main session. See [ADR 0002](docs/adr/0002-model-families-and-codex-child.md).
+
+### Codex as a child
+
+`codex`, `codex/<model>` and `codex/auto` routes, and `/route codex`, answer the turn with the Codex CLI in non-interactive mode:
+
+```
+codex exec --json --skip-git-repo-check -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox workspace-write -
+```
+
+with the same brief on stdin, the same `child.timeoutMs`, the same vetting, failure memory, route line and provenance tag as the Claude child. `router.codex.auth` picks the account:
+
+- `"palgu"` (default): Codex talks to Palgu's Responses endpoint, `/v1/responses`. The mod adds an explicit `palgu` provider with `-c model_provider="palgu"`, `-c model_providers.palgu.base_url="<gateway>/v1"`, `-c model_providers.palgu.wire_api="responses"` and `-c model_providers.palgu.env_key="PALGU_API_KEY"`, as [Palgu's Codex docs](https://www.palgu.ai) describe (Codex ignores `OPENAI_BASE_URL` under a ChatGPT login, so the provider must be explicit). The base URL is your `gateway_url` with `/anthropic` replaced by `/v1`, or `router.codex.baseUrl`. Your gateway key goes only into the child's environment as `PALGU_API_KEY`, never on the command line, never printed. Needs the gateway URL and key, like the Claude gateway child.
+- `"chatgpt"`: no provider flags and no key: Codex uses your own `codex login` and `~/.codex/config.toml`. The mod never reads or writes `~/.codex`.
+
+`router.codex.args` replaces `--sandbox workspace-write` (Codex's sandbox: it may edit files in the project, but not outside it or on the network). Codex reports no refused commands the way Claude Code does, so the permission relay does not apply: a command its sandbox blocks fails inside the run, and Codex answers with what it could do. If `codex` is not on `PATH` the mod says `codex is not installed: npm install -g @openai/codex (or brew install --cask codex) …`, the route line says `child answer discarded (codex not installed)`, and the main model answers.
+
 **Borderline scores get a second opinion.** A score on the coding cut-off or one above it is sampled a second time and the higher wins, so a 7-or-8 debugging task doesn't flip tiers on classifier noise.
 
 **It remembers failures.** Every two child failures for a kind lower that kind's coding cut-off by one (never below `simple + 1`), so work the cheap model keeps failing at drifts back to Claude. `/route reset` clears the memory.
@@ -98,7 +130,7 @@ Claude and the gateway are both visible, all the time:
 | Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  1: auto  2: glm  3: kimi  4: claude  5: off` | `… · running glm-5.3 in a child…` while it runs |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
-| Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback |
+| Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
 | Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: …` | same |
 | `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude"), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
@@ -135,7 +167,7 @@ The directory's security scan compares this section with the code. Everything th
 
 - It **fetches** `http://localhost:11434/api/chat` with `$.http.fetch`, sending the prompt text and the scoring rubric to a local Ollama, to score the prompt. No credentials, nothing leaves the machine.
 - It **calls** `$.model.classify`, which sends the same prompt text and rubric to Anthropic through Claude Code's own API client on your own account, when Ollama does not answer.
-- It **runs** one program, `claude` (Claude Code itself, headless), with `$.process.run`, for routed turns only, with the environment variables `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured, and `ANTHROPIC_CUSTOM_HEADERS` set to identify it (see [Headers the child sends](#headers-the-child-sends)). That child **sends** your prompt and a short brief of recent session text to that gateway.
+- It **runs** two programs with `$.process.run`, for routed turns only: `claude` (Claude Code itself, headless), either with `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured and `ANTHROPIC_CUSTOM_HEADERS` set to identify it (see [Headers the child sends](#headers-the-child-sends)), or, for a `claude/<member>` route, on your own Claude login with `ANTHROPIC_BASE_URL` cleared; and, only for a `codex` route, `codex exec` (the Codex CLI), with your gateway key in `PALGU_API_KEY` or on your own Codex login. Each child **sends** your prompt and a short brief of recent session text to its endpoint.
 - It **reads** `~/.claude/model-config.json`, `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS`, and **stores** the route pin, per-day counts, the last verdict, per-kind failure counts and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child time and exit code; never prompt text) in the plugin store.
 
 Full detail follows; a privacy policy is at [PRIVACY.md](PRIVACY.md).
@@ -149,13 +181,13 @@ The hooks module `hooks/register.js` registers nine hooks. What each one does wi
 | `session.start` | Reads `~/.claude/model-config.json`, takes the gateway URL and key from the plugin's options, remembers the session's model, loads the `/route` pin from the plugin store, and registers the `/route` command. Does nothing when `MAGGY_ROUTER_CHILD` is set, so the mod stays inactive inside its own child. |
 | `prompt.submit` | Passes every prompt through unchanged. On the side it decides the route: pre-rules first, then a 1-10 blast score from the classifier (see Network), then the thresholds. Never drops, rewrites or adds to a prompt. Fails open: if scoring throws, the prompt still goes through. |
 | `turn.start` | Clears the previous turn's child result. |
-| `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
+| `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process (Claude Code on the gateway or on your Claude login, or Codex) described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
 | `turn.complete` | Appends a line under the answer with the route, score, cost and where it ran, and updates per-day counts in the plugin store. |
 | `ui.render` for `AbovePrompt` | Draws the band: the current mode and last decision, plus buttons that change the `/route` pin. Keeps whatever other mods draw there. |
 | `ui.render` for `AssistantMessage` | Puts a dim provenance line above a reply the child produced. Other replies are passed through. |
 | `ui.render` for `Spinner` | Adds `via <model> (child)…` after the spinner's word during a routed turn. |
 | `ui.render` for `Pane` | Draws the "Mixture of models" stats pane (id `routing-stats`) from the decision log when `/route stats` opened it. Other panes are passed through. |
-| `command.run` for `/route` | Shows the route state or sets the pin (`auto`, `off`, a tier, or a model). |
+| `command.run` for `/route` | Shows the route state and the families (`/route`, `/route status`) or sets the pin (`auto`, `off`, a tier, a model, `<family>/<member>`, `<family>/auto` or `codex`). An unknown family or member is refused with the list of valid ones. |
 
 The mod never handles `tool.call` or `tool.check`, so it never approves, denies or changes a tool call, and it never changes permission prompts.
 
@@ -168,29 +200,35 @@ The mod itself makes exactly one kind of network call, and the child process it 
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
 | The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-4-5` by default. |
 | The child process (Claude Code itself), started in `turn.step` | Claude Code's normal API client | The `gateway_url` you set in the plugin's options (for example `https://api.palgu.ai/anthropic`), with `gateway_key` as its API key | Your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated), then whatever the child's own agent loop sends while it works | That is the point of the plugin: the turn runs on the gateway's model instead of the main session's. |
+| A Claude-member child (`claude/<member>` routes), started in `turn.step` | Claude Code's normal API client | Anthropic, on your own claude.ai login, the same as your main session | The same brief, then the child's own agent loop | Runs the turn on another Claude model without re-pointing the main session. |
+| The Codex child (`codex` routes), started in `turn.step` | The Codex CLI's own client | With `codex.auth: "palgu"`: your gateway's `/v1` (for example `https://api.palgu.ai/v1/responses`) with `gateway_key`; with `"chatgpt"`: OpenAI, on your own Codex login | The same brief, then Codex's own agent loop | Runs the turn on Codex. |
 
 The mod contacts no other host. The gateway is whatever you configure; nothing is sent to a fixed third party.
 
 ### Programs this plugin runs
 
-**Which programs:** exactly one, `claude`, which is Claude Code itself in headless mode. The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
+**Which programs:** two, `claude` (Claude Code itself in headless mode) and `codex` (the Codex CLI, `codex exec`, only for `codex` routes). The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
 
-**Why:** a mod can rename the model on a request but cannot change the endpoint or credentials of the session it runs in. The only way to run a turn on a different endpoint with Claude Code's own tools, while leaving the main session's endpoint and credentials untouched, is a second Claude Code process whose environment points at the gateway. The child exists for that reason alone, and only for turns the score routes away from the main session.
+**Why:** a mod can rename the model on a request but cannot change the endpoint or credentials of the session it runs in. The only way to run a turn on a different endpoint with Claude Code's own tools, while leaving the main session's endpoint and credentials untouched, is a second Claude Code process whose environment points at the gateway. The child exists for that reason alone, and only for turns the score routes away from the main session. The same reasoning covers a different Claude model (the main session is never renamed, so another member runs in its own process) and Codex (a different agent CLI, which only runs as its own process).
 
-**How:** one `$.process.run` call, in `turn.step`. The program name is the fixed text `claude` at the call. Its arguments:
+**How:** two `$.process.run` calls, in `turn.step`, each with its program name as fixed text at the call: `claude` and `codex`. The `claude` arguments for a gateway route:
 
 ```
 claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
-and, only after you approve a relayed command (see below), the same program again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values), `ANTHROPIC_CUSTOM_HEADERS` (below) and `MAGGY_ROUTER_CHILD=1`. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
+For a `claude/<member>` route the same program runs with `--model <member id>` and `child.subscriptionArgs` (`--permission-mode acceptEdits`) in place of `child.args`, so without `--bare`, and its environment is `MAGGY_ROUTER_CHILD=1` plus `ANTHROPIC_BASE_URL` set empty, so it runs on your Claude login.
+
+For a `codex` route the program is `codex`, with the arguments shown under [Codex as a child](#codex-as-a-child), the brief on stdin, the environment `MAGGY_ROUTER_CHILD=1` plus, on the Palgu path only, `PALGU_API_KEY`, and the same `child.timeoutMs`.
+
+For the gateway and Claude-member children, and only after you approve a relayed command (see below), the same program runs again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The gateway child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values), `ANTHROPIC_CUSTOM_HEADERS` (below) and `MAGGY_ROUTER_CHILD=1`; the Claude-member and Codex children get no identifying headers. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
 
 ### Headers the child sends
 
 Every request the child makes to the gateway carries two headers, so Palgu's dashboard can show its traffic as Mixture-of-Models, per project:
 
 ```
-x-srooter-client: mixture-of-models/0.11.0
+x-srooter-client: mixture-of-models/0.12.0
 x-srooter-project: <the session folder's name>
 ```
 
@@ -210,7 +248,7 @@ In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): the `/r
 
 ### What it never does
 
-It never writes to settings files or to `model-config.json`, never changes the main session's model, endpoint or credentials, never handles tool calls, and never sends data anywhere other than the two classifier destinations above and the gateway you configured.
+It never writes to settings files, to `model-config.json` or to `~/.codex`, never changes the main session's model, endpoint or credentials, never handles tool calls, and never sends data anywhere other than the two classifier destinations above and the gateway you configured.
 
 ## Configuration
 
@@ -228,15 +266,31 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
     "child": {
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
+      "subscriptionArgs": ["--permission-mode", "acceptEdits"],
       "maxTurns": 25,
       "timeoutMs": 600000,
       "contextMessages": 12,
       "relayRounds": 2
     },
+    "families": {
+      "claude": { "members": { "fable": "claude-fable-5-1", "opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5" },
+                  "auto":    { "simple": "haiku", "coding": "sonnet", "critical": "opus" } },
+      "kimi":   { "members": { "pro": "kimi-k3.1-pro", "highspeed": "kimi-k3.1-pro-highspeed" },
+                  "auto":    { "simple": "highspeed", "coding": "pro", "critical": "pro" } }
+    },
+    "codex":   { "auth": "palgu", "baseUrl": "", "args": ["--sandbox", "workspace-write"] },
     "ui":      { "band": true, "tags": "routed" },
     "summary": true
   }
 }
+```
+
+A config that puts every tier on a Claude member, with Fable for the hardest turns and Codex for reviews:
+
+```json
+{ "router": {
+    "routes":   { "simple": "claude/auto", "coding": "claude/auto", "critical": "claude/auto", "kinds": { "review": "codex" } },
+    "families": { "claude": { "auto": { "criticalPlus": "fable" } } } } }
 ```
 
 - `routes`: tier → model id the gateway serves, plus `routes.kinds`: kind → model for the non-critical tiers. `"claude"` means the main session.
@@ -248,19 +302,27 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.
 - `child.relayRounds`: how many times one routed turn may pause to ask you about commands the child was refused (default 2).
+- `child.subscriptionArgs`: the flags for a `claude/<member>` child, in place of `child.args`. No `--bare` by default, because `--bare` allows only API-key auth and the point is your Claude login.
+- `families`: per family, `members` (alias → exact model id) and `auto` (tier → member alias, plus optional `criticalPlus` for 10/10 critical turns). Merged over the defaults per family; a new family name adds a gateway family.
+- `codex.auth`: `palgu` (default; your gateway's `/v1/responses` with your gateway key) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not your `gateway_url` with `/anthropic` → `/v1`. `codex.args`: replaces `--sandbox workspace-write`.
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
 ## Commands
 
 | Command | Effect |
 | :- | :- |
-| `/route` | Live or observe-only, mode, current decision, today's counts |
+| `/route`, `/route status` | Live or observe-only, mode, current decision (with family and member), today's counts, the families and their members |
 | `/route auto` | Classify every prompt (default) |
 | `/route off` | Never start a child |
 | `/route simple\|coding\|critical` | Pin a tier |
 | `/route reset` | Clear the per-kind failure memory |
 | `/route stats` | Open the stats pane: models, kinds, scores, recent |
 | `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route mercury`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model) |
+| `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Pin a family member (`claude/sonnet` runs on your Claude login) |
+| `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Pin a family; each prompt is still scored and the tier picks the member |
+| `/route codex` | Pin Codex on its default model |
+
+`/status` is Claude Code's own command and a mod cannot add to it; `/route status` is the mod's equivalent, and the route line under every answer names the family and member (`route: claude-sonnet-5-5 (claude/auto → sonnet) · coding 5/10 code via ollama · child 9s`).
 
 Pins persist across sessions in the plugin's store.
 
@@ -285,7 +347,7 @@ claude plugin validate --strict .  # manifest + static analysis of the hooks mod
 claude plugin test                 # needs v2.1.287+; fires events through the hooks with no session or network
 ```
 
-`tests/classify`, `config`, `routing`, `stats`, `child` and `ui` cover the pure logic in `hooks/lib/`. `tests/mod.test.ts` drives the hooks end to end: a simple prompt is answered by a child with the gateway in its environment and the brief on stdin, a critical prompt never starts one, a failed child falls back to the main model, a missing key means observe-only, a child session disables the mod, and `/route off` and `/route kimi` behave.
+`tests/classify`, `config`, `routing`, `families`, `codex`, `stats`, `child` and `ui` cover the pure logic in `hooks/lib/`. `tests/mod.test.ts` drives the hooks end to end: a simple prompt is answered by a child with the gateway in its environment and the brief on stdin, a critical prompt never starts one, a failed child falls back to the main model, a missing key means observe-only, a child session disables the mod, and `/route off` and `/route kimi` behave.
 
 ## Layout
 
@@ -303,6 +365,8 @@ mixture-of-models-claude-mod/
 │       ├── config.js       # defaults and the model-config.json overlay
 │       ├── classify.js     # Maggy's pre-routing rules, classifier prompt, Ollama wire format
 │       ├── routing.js      # tier → model, /route grammar, summary line
+│       ├── families.js     # <family>/<member>, <family>/auto, which runner serves a route
+│       ├── codex.js        # codex exec argv, env, readiness, JSONL output
 │       ├── child.js        # child argv, scoped env and identifying headers, readiness, env-file parsing, the brief and its preamble
 │       ├── version.js      # the mod's version, for x-srooter-client
 │       ├── vet.js          # discards handbacks, requests that you act, unverified claims, narration, repeats

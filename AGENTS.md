@@ -14,7 +14,7 @@ A Claude Code **mod**: a plugin whose `hooks/register.js` registers in-process e
 - Red → green: add or change a test before the code.
 - Never pass `$` to a function outside `register.js`, never destructure it, and keep event names and `$.env.get` names as string literals, or `claude plugin validate` fails.
 - Model ids: undated aliases only.
-- The main session is never renamed or re-pointed. Routing happens only through the child process (ADR 0001).
+- The main session is never renamed or re-pointed. Routing happens only through a child process: Claude Code on the gateway or on the user's Claude login, or `codex exec` (ADR 0001, ADR 0002).
 - Update `CHANGELOG.md` in the same commit.
 
 ## Commands
