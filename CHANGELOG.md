@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-10-29
+
+### Added
+- Mercury 3 on Palgu again: Palgu serves `mercury-3` now, so `/route mercury` pins it and the band has a button for it. It is an option; no default route uses it.
+
+### Fixed
+- A routed turn on a busy provider failed in seconds instead of minutes. When Moonshot was overloaded, Palgu answered Kimi with `429`, and the child (Claude Code) retried each request ten times with backoff: about two to three minutes before the turn fell back to Claude. That was the "empty response after about two minutes" from 0.20.0, not a broken model. The child now retries at most twice (`router.child.maxRetries`, default 2). Kimi K3.1 Pro and its highspeed variant pass on Palgu again; research and review stay on DeepSeek, which was as reliable and faster in the same test.
+
 ## [0.20.0] - 2026-10-29
 
 ### Added

@@ -40,7 +40,17 @@ test('childEnv marks the child and scopes the gateway to it, the key as x-api-ke
     ANTHROPIC_BASE_URL: 'https://api.palgu.ai/anthropic',
     ANTHROPIC_API_KEY: 'srt_key',
     ANTHROPIC_AUTH_TOKEN: '',
+    CLAUDE_CODE_MAX_RETRIES: '2',
   })
+})
+
+// Claude Code retries a 429 or 5xx ten times with backoff: a pinned Kimi that Moonshot answered
+// 429 engine_overloaded took ~170 s to fail (2026-10-29). Two retries fail it in about 3 s.
+test('the gateway child retries a failed request at most child.maxRetries times, so a busy provider falls back fast', async () => {
+  expect(DEFAULTS.child.maxRetries).toBe(2)
+  expect(childEnv({ ...CHILD, maxRetries: 0 }, 'srt_key').CLAUDE_CODE_MAX_RETRIES).toBe('0')
+  expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key').CLAUDE_CODE_MAX_RETRIES).toBeUndefined()
+  expect(subscriptionEnv().CLAUDE_CODE_MAX_RETRIES).toBeUndefined()
 })
 
 test('childEnv for a bearer gateway puts the key in ANTHROPIC_AUTH_TOKEN and blanks an inherited ANTHROPIC_API_KEY', async () => {
@@ -50,6 +60,7 @@ test('childEnv for a bearer gateway puts the key in ANTHROPIC_AUTH_TOKEN and bla
     ANTHROPIC_BASE_URL: 'https://openrouter.ai/api',
     ANTHROPIC_AUTH_TOKEN: 'sk-or-key',
     ANTHROPIC_API_KEY: '',
+    CLAUDE_CODE_MAX_RETRIES: '2',
   })
 })
 

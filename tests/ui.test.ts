@@ -21,8 +21,9 @@ test('bandButtons shows the routed providers, then every gateway family, framed 
     { key: 'pin-minimax', label: 'minimax', hotkey: '5', arg: 'minimax' },
     { key: 'pin-gpt', label: 'gpt', hotkey: '6', arg: 'gpt' },
     { key: 'pin-kimi', label: 'kimi', hotkey: '7', arg: 'kimi' },
-    { key: 'pin-claude', label: 'claude', hotkey: '8', arg: 'claude' },
-    { key: 'pin-off', label: 'off', hotkey: '9', arg: 'off' },
+    { key: 'pin-mercury', label: 'mercury', hotkey: '8', arg: 'mercury' },
+    { key: 'pin-claude', label: 'claude', hotkey: '9', arg: 'claude' },
+    { key: 'pin-off', label: 'off', hotkey: undefined, arg: 'off' },
   ])
 })
 
@@ -46,8 +47,8 @@ test('bandTree draws the text, the buttons with the active one bright, and keeps
   const row = tree.children[0]
   expect(row.children[0]).toEqual({ type: 'Text', dimColor: true, children: ['mixture-of-models · auto · last: glm-5.3 (coding via ollama)  '] })
   const buttons = row.children.slice(1)
-  expect(buttons.map((b) => b.label)).toEqual(['help', 'auto', 'glm', 'deepseek', 'gemini', 'minimax', 'gpt', 'kimi', 'claude', 'off'])
-  expect(buttons.map((b) => b.dimColor)).toEqual([true, false, true, true, true, true, true, true, true, true])
+  expect(buttons.map((b) => b.label)).toEqual(['help', 'auto', 'glm', 'deepseek', 'gemini', 'minimax', 'gpt', 'kimi', 'mercury', 'claude', 'off'])
+  expect(buttons.map((b) => b.dimColor)).toEqual([true, false, true, true, true, true, true, true, true, true, true])
   expect(buttons.every((b) => b.plain === true)).toBe(true)
   buttons[7].onPress()
   expect(pressed).toEqual(['kimi'])
@@ -57,7 +58,7 @@ test('bandTree draws the text, the buttons with the active one bright, and keeps
 test('bandTree marks the pinned provider active and omits a missing "theirs"', async () => {
   const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin: { mode: 'model', model: 'kimi-k3.1-pro' }, theirs: undefined }, () => {})
   const buttons = tree.children[0].children.slice(1)
-  expect(buttons.map((b) => b.dimColor)).toEqual([true, true, true, true, true, true, true, false, true, true])
+  expect(buttons.map((b) => b.dimColor)).toEqual([true, true, true, true, true, true, true, false, true, true, true])
   expect(tree.children.length).toBe(1)
 })
 
@@ -85,7 +86,7 @@ test('tagText says where a child ran: gateway, Claude subscription or Codex', as
 
 test('bandButtons gives family routes one button per family, and Claude members none of their own', async () => {
   const routes = { simple: 'claude/haiku', coding: 'kimi/auto', critical: 'claude/opus', kinds: { review: 'codex/auto' } }
-  expect(bandButtons(routes).map((b) => b.arg)).toEqual(['help', 'auto', 'kimi', 'codex', 'glm', 'deepseek', 'gemini', 'minimax', 'gpt', 'claude', 'off'])
+  expect(bandButtons(routes).map((b) => b.arg)).toEqual(['help', 'auto', 'kimi', 'codex', 'glm', 'deepseek', 'gemini', 'minimax', 'gpt', 'mercury', 'claude', 'off'])
 })
 
 test('the band names a pinned family member, and a pinned member lights its family button', async () => {

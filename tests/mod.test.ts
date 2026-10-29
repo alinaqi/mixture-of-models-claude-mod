@@ -1081,3 +1081,18 @@ test('on Palgu the child pins the routed model, and a saved deepseek-v4-pro pin 
   expect(runs[0].argv).not.toContain('deepseek-v4-pro')
   expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: deepseek-pro')
 })
+
+test('on Palgu /route mercury pins Mercury 3, and the child gives up after two retries so a busy provider falls back fast', GW, async ($, on) => {
+  const runs: any[] = []
+  stubSession(on, { scores: ['2 code'] })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'mercury' })
+  await $.prompt.submit({ text: 'grep the repo for TODO comments and list the files' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs[0].argv).toContain('mercury-3')
+  expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: mercury-3')
+  expect(runs[0].init.env.CLAUDE_CODE_MAX_RETRIES).toBe('2')
+})

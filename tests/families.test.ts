@@ -16,7 +16,7 @@ test('gateway families come from the gateway catalogue, kimi with friendly alias
   expect(FAM.kimi.auto).toEqual({ simple: 'highspeed', coding: 'pro', critical: 'pro' })
   expect(FAM.glm.members).toEqual({ '5.3': 'glm-5.3' })
   expect(FAM.deepseek.members).toEqual({ 'v4-pro': 'deepseek-pro' })
-  expect(FAM.mercury).toBe(undefined)
+  expect(FAM.mercury.members).toEqual({ 3: 'mercury-3' })
   expect(FAM.minimax.members).toEqual({ m3: 'minimax-m3', 'm2.5': 'minimax-m2.5' })
   expect(FAM.gpt.members).toEqual({ sol: 'gpt-6-sol', luna: 'gpt-6-luna', astra: 'gpt-6-astra' })
   expect(FAM.gpt.auto).toEqual({ simple: 'luna', coding: 'sol', critical: 'astra' })
