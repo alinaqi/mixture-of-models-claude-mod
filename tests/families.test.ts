@@ -17,6 +17,7 @@ test('gateway families come from the gateway catalogue, kimi with friendly alias
   expect(FAM.glm.members).toEqual({ '5.3': 'glm-5.3' })
   expect(FAM.deepseek.members).toEqual({ 'v4-pro': 'deepseek-v4-pro' })
   expect(FAM.mercury.members).toEqual({ 3: 'mercury-3' })
+  expect(FAM.gemini.members).toEqual({ '3.8-flash': 'gemini-3.8-flash' })
   expect(FAM.codex).toEqual({ members: {}, auto: {} })
 })
 

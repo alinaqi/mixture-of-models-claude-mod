@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-10-29
+
+### Added
+- `gemini-3.8-flash`, the Palgu gateway's vision and video model, can be named in `routes`, `routes.kinds` or a pin; `/route gemini` pins it and `gemini/3.8-flash` names it as a family member. Like `mercury-3` it is an option, not a default route.
+
+### Changed
+- The band above the prompt shows a button for every gateway family (`glm`, `kimi`, `deepseek`, `mercury`, `gemini`), not only the ones your routes name, so every model you can pin can be picked there. Routed families come first.
+
 ## [0.12.1] - 2026-10-28
 
 ### Security

@@ -1,6 +1,7 @@
 // What the mod draws: the band above the prompt and the provenance tag on a
 // reply. Pure: elements come in as a parameter, trees go out as data.
 
+import { GATEWAY_MODELS } from './config.js'
 import { routeModels, summaryLine, tierText } from './routing.js'
 
 const NAME = 'mixture-of-models'
@@ -10,9 +11,11 @@ function provider(model) {
   return model.split('/')[0].split('-')[0]
 }
 
-// One button per provider in the routes, framed by auto, claude and off.
+// One button per provider in the routes, then one per gateway family no route names, framed by
+// auto, claude and off: every model you can pin has a button.
 export function bandButtons(routes) {
-  const providers = [...new Set(routeModels(routes).map(provider))].filter((p) => p !== 'claude')
+  const models = [...routeModels(routes), ...GATEWAY_MODELS]
+  const providers = [...new Set(models.map(provider))].filter((p) => p !== 'claude')
   const args = ['auto', ...providers, 'claude', 'off']
   return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: String(i + 1), arg }))
 }

@@ -11,13 +11,16 @@ const el = {
 const SESSION = 'claude-opus-5'
 const base = { disabled: false, ready: true, isWorking: false, sessionModel: SESSION, pin: { mode: 'auto' }, decision: { label: 'coding', model: 'glm-5.3', source: 'ollama' } }
 
-test('bandButtons derives one button per provider plus auto, claude and off', async () => {
+test('bandButtons shows the routed providers, then every gateway family, framed by auto, claude and off', async () => {
   expect(bandButtons(DEFAULT_ROUTES)).toEqual([
     { key: 'pin-auto', label: 'auto', hotkey: '1', arg: 'auto' },
     { key: 'pin-glm', label: 'glm', hotkey: '2', arg: 'glm' },
     { key: 'pin-kimi', label: 'kimi', hotkey: '3', arg: 'kimi' },
-    { key: 'pin-claude', label: 'claude', hotkey: '4', arg: 'claude' },
-    { key: 'pin-off', label: 'off', hotkey: '5', arg: 'off' },
+    { key: 'pin-deepseek', label: 'deepseek', hotkey: '4', arg: 'deepseek' },
+    { key: 'pin-mercury', label: 'mercury', hotkey: '5', arg: 'mercury' },
+    { key: 'pin-gemini', label: 'gemini', hotkey: '6', arg: 'gemini' },
+    { key: 'pin-claude', label: 'claude', hotkey: '7', arg: 'claude' },
+    { key: 'pin-off', label: 'off', hotkey: '8', arg: 'off' },
   ])
 })
 
@@ -41,8 +44,8 @@ test('bandTree draws the text, the buttons with the active one bright, and keeps
   const row = tree.children[0]
   expect(row.children[0]).toEqual({ type: 'Text', dimColor: true, children: ['mixture-of-models · auto · last: glm-5.3 (coding via ollama)  '] })
   const buttons = row.children.slice(1)
-  expect(buttons.map((b) => b.label)).toEqual(['auto', 'glm', 'kimi', 'claude', 'off'])
-  expect(buttons.map((b) => b.dimColor)).toEqual([false, true, true, true, true])
+  expect(buttons.map((b) => b.label)).toEqual(['auto', 'glm', 'kimi', 'deepseek', 'mercury', 'gemini', 'claude', 'off'])
+  expect(buttons.map((b) => b.dimColor)).toEqual([false, true, true, true, true, true, true, true])
   expect(buttons.every((b) => b.plain === true)).toBe(true)
   buttons[2].onPress()
   expect(pressed).toEqual(['kimi'])
@@ -52,7 +55,7 @@ test('bandTree draws the text, the buttons with the active one bright, and keeps
 test('bandTree marks the pinned provider active and omits a missing "theirs"', async () => {
   const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin: { mode: 'model', model: 'kimi-k3.1-pro' }, theirs: undefined }, () => {})
   const buttons = tree.children[0].children.slice(1)
-  expect(buttons.map((b) => b.dimColor)).toEqual([true, true, false, true, true])
+  expect(buttons.map((b) => b.dimColor)).toEqual([true, true, false, true, true, true, true, true])
   expect(tree.children.length).toBe(1)
 })
 
@@ -80,7 +83,7 @@ test('tagText says where a child ran: gateway, Claude subscription or Codex', as
 
 test('bandButtons gives family routes one button per family, and Claude members none of their own', async () => {
   const routes = { simple: 'claude/haiku', coding: 'kimi/auto', critical: 'claude/opus', kinds: { review: 'codex/auto' } }
-  expect(bandButtons(routes).map((b) => b.arg)).toEqual(['auto', 'kimi', 'codex', 'claude', 'off'])
+  expect(bandButtons(routes).map((b) => b.arg)).toEqual(['auto', 'kimi', 'codex', 'glm', 'deepseek', 'mercury', 'gemini', 'claude', 'off'])
 })
 
 test('the band names a pinned family member, and a pinned member lights its family button', async () => {
