@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-10-29
+
+### Added
+- Routing strategies. What the classifier scores, where the tiers split and which model each tier and kind takes is now a strategy: one markdown file with JSON frontmatter (`name`, `description`, `score`, `thresholds`, `routes`) and a rubric body, like a skill. Built in: `complexity` (the default, unchanged), `cost`, `speed` and `quality`. `/route strategies` lists them, `/route strategy <name>` switches (remembered across sessions), `router.strategy` sets one in `model-config.json`, and the band reads `auto (<name>)`.
+- Your own strategies in `~/.claude/mixture-of-models/strategies/<name>.md`; a file named like a built-in replaces it, a broken one is skipped with a log line, and `/route strategy` re-reads the folder without a restart.
+- The plugin ships a `routing-strategy` skill: Claude asks what you want to optimise and writes the strategy file.
+- `/route status` and the help pane name the active strategy.
+
 ## [0.17.1] - 2026-10-29
 
 ### Fixed

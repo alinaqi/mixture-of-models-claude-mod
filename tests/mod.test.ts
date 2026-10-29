@@ -5,13 +5,14 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[] } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string> } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
   on('session.cwd', () => ({ value: '/work' }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : e.name === 'MAGGY_ROUTER_CHILD' ? opts.childEnv : e.name === 'ANTHROPIC_CUSTOM_HEADERS' ? opts.customHeaders : undefined }))
-  on('fs.read', () => ({ value: opts.config ?? CONFIG }))
+  on('fs.read', ($, e) => (opts.files && e.path in opts.files ? { value: opts.files[e.path] } : { value: opts.config ?? CONFIG }))
+  on('fs.list', ($, e) => ({ value: Object.keys(opts.files ?? {}).filter((p) => p.startsWith(e.path + '/')).map((p) => ({ name: p.slice(e.path.length + 1), kind: 'file', size: 1, mtimeMs: 0, isLink: false })) }))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => { store.set(e.key, e.value); return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
@@ -974,4 +975,49 @@ test('/route help opens the same pane, and says when routing is off', GW, async 
   const ui = await $.ui.mount({ ...HELP, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /Routing is off/ })).toBeDefined()
   await ui.unmount()
+})
+
+const STRATEGIES = '/home/me/.claude/mixture-of-models/strategies'
+
+test('/route strategy cost asks the classifier about risk and sends a coding-score turn to DeepSeek', GW, async ($, on) => {
+  const calls: any[] = [], runs: any[] = []
+  const store = stubSession(on, { scores: ['6 code'], fetch: undefined, logs: [] })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const set = await $.command.run({ command: 'route', args: 'strategy cost' })
+  expect(set.text).toContain('routing strategy: cost')
+  expect(store.get('strategy')).toBe('cost')
+  await $.prompt.submit({ text: 'add pagination to the users endpoint and its tests' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs[0].argv).toContain('deepseek-v4-pro')
+  const status = await $.command.run({ command: 'route', args: 'status' })
+  expect(status.text).toContain('strategy cost')
+})
+
+test('a strategy file of your own is listed, can be chosen, and routes by its rules', GW, async ($, on) => {
+  const runs: any[] = []
+  const files = { [STRATEGIES + '/frugal.md']: '---\nname: frugal\ndescription: Kimi for everything cheap\nroutes: {"simple": "kimi/pro"}\n---\n1-3: anything small.\n4-10: the rest.' }
+  stubSession(on, { scores: ['2 code'], files })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const list = await $.command.run({ command: 'route', args: 'strategies' })
+  expect(list.text).toContain('frugal (yours) · Kimi for everything cheap')
+  expect(list.text).toContain('* complexity')
+  await $.command.run({ command: 'route', args: 'strategy frugal' })
+  await $.prompt.submit({ text: 'grep the repo for TODO comments and list the files' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs[0].argv).toContain('kimi-k3.1-pro')
+})
+
+test('a broken strategy file is skipped and named in the log; an unknown name is refused', GW, async ($, on) => {
+  const logs: string[] = []
+  stubSession(on, { logs, files: { [STRATEGIES + '/bad.md']: 'no frontmatter here' } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(logs.join(' ')).toContain('routing strategy bad.md skipped: no frontmatter')
+  const bad = await $.command.run({ command: 'route', args: 'strategy nope' })
+  expect(bad.text).toContain('no routing strategy nope; strategies: complexity, cost, speed, quality')
 })

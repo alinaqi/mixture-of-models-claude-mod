@@ -157,3 +157,9 @@ test('parseRouteArg expands a prefix from the provider\'s catalogue when one is 
   expect(parseRouteArg('glm', routes, catalogue)).toEqual({ mode: 'model', model: 'glm/5.3' })
   expect(parseRouteArg('gemini', routes, catalogue)).toEqual({ mode: 'model', model: 'gemini/3.8-flash' })
 })
+
+test('parseRouteArg reads strategies and strategy <name>', async () => {
+  expect(parseRouteArg('strategies', DEFAULT_ROUTES)).toEqual({ mode: 'strategies' })
+  expect(parseRouteArg('strategy Cost', DEFAULT_ROUTES)).toEqual({ mode: 'strategy', name: 'cost' })
+  expect(parseRouteArg('strategy', DEFAULT_ROUTES)).toEqual({ mode: 'strategies' })
+})

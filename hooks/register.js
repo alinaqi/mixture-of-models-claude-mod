@@ -2,7 +2,7 @@
 // turn with a headless child (`claude -p` on the gateway or on your Claude login, or `codex exec`);
 // the main session never leaves its model.
 import { parseConfig } from './lib/config.js'
-import { VERDICTS, classifierPrompt, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from './lib/classify.js'
+import { VERDICTS, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from './lib/classify.js'
 import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, summaryLine } from './lib/routing.js'
 import { allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText, subscriptionEnv } from './lib/child.js'
 import { checkRoute, familiesText, isAutoRoute, routeValue, targetFor } from './lib/families.js'
@@ -16,10 +16,14 @@ import { palguCommand } from './palgu.js'
 import { addTurn, savingsLine, turnNote } from './lib/savings.js'
 import { priceTurn } from './savings.js'
 import { helpTree } from './lib/help-pane.js'
+import { BUILTIN, STRATEGY_DIR, applyStrategy, strategiesText, strategyPrompt } from './lib/strategies.js'
+import { loadStrategies } from './strategy.js'
 
-let cfg = parseConfig(''), configText = '', options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
+let cfg = applyStrategy(parseConfig(''), BUILTIN.complexity), configText = '', options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
 const answered = new Map()
+// Routing strategies: built-ins plus the user's files; `chosen` is a /route strategy pick.
+let strategies = BUILTIN, chosen = '', home = ''
 
 function applyGateway() {
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
@@ -29,7 +33,8 @@ function applyGateway() {
 
 // The provider, and with it the child's auth and default routes, follows the gateway options.
 function applyConfig() {
-  cfg = parseConfig(configText, options)
+  const base = parseConfig(configText, options)
+  cfg = applyStrategy(base, strategies[chosen || base.strategyName] || BUILTIN.complexity)
   applyGateway()
 }
 
@@ -44,8 +49,10 @@ function palguContext($) {
 }
 
 async function loadConfig($) {
-  const home = (await $.env.get('HOME')) || ''
+  home = (await $.env.get('HOME')) || ''
   configText = await $.fs.read(home + '/.claude/model-config.json').catch(() => '')
+  strategies = await loadStrategies($, home)
+  chosen = (await $.store.get('strategy')) || ''
   applyConfig()
   const dropped = droppedArgs(cfg.codex)
   if (dropped.length) $.ui.log('router.codex.args: ignored ' + dropped.join(' ') + ' (set router.codex.sandbox or router.codex.allowOutsideGit instead)')
@@ -55,12 +62,12 @@ async function loadConfig($) {
 
 // The only network call the mod makes itself: a local Ollama, fixed address, no credentials.
 function askOllama($, text) {
-  return $.http.fetch('http://localhost:11434/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, classifierPrompt(text)) })
+  return $.http.fetch('http://localhost:11434/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ollamaBody(cfg.ollama.model, strategyPrompt(cfg.strategy, text)) })
     .then((r) => (r.ok ? parseVerdict(ollamaReply(r.text)) : undefined)).catch(() => undefined)
 }
 
 function askClaude($, text) {
-  return $.model.classify(classifierPrompt(text), VERDICTS, { model: cfg.classifier }).then(parseVerdict).catch(() => undefined)
+  return $.model.classify(strategyPrompt(cfg.strategy, text), VERDICTS, { model: cfg.classifier }).then(parseVerdict).catch(() => undefined)
 }
 
 async function sample($, text) {
@@ -193,7 +200,20 @@ function openHelp($) {
 
 async function helpView($) {
   const buttons = bandButtons(cfg.routes, cfg.catalogue).map((b) => b.arg).filter((a) => a !== 'help')
-  return { pin, ready, provider: cfg.provider, sessionModel, saved: savingsLine(await $.store.get('savings'), sessionModel), buttons }
+  return { pin, ready, provider: cfg.provider, sessionModel, saved: savingsLine(await $.store.get('savings'), sessionModel), buttons, strategy: cfg.strategy }
+}
+
+// Re-read the files first, so a strategy the skill just wrote can be picked at once.
+async function strategyCommand($, parsed) {
+  strategies = await loadStrategies($, home)
+  if (parsed.mode === 'strategies') return strategiesText(strategies, cfg.strategy.name, '~' + STRATEGY_DIR)
+  const s = strategies[parsed.name]
+  if (!s) return 'no routing strategy ' + parsed.name + '; strategies: ' + Object.keys(strategies).join(', ')
+  chosen = s.name
+  await $.store.set('strategy', chosen)
+  applyConfig()
+  $.ui.invalidate('ui.render')
+  return 'routing strategy: ' + s.name + ' · ' + s.description
 }
 
 async function pinFrom($, arg) {
@@ -209,7 +229,7 @@ async function pinFrom($, arg) {
 }
 
 function bandView(e, theirs) {
-  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.catalogue, isWorking: e.props.isWorking, theirs }
+  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.catalogue, strategy: cfg.strategy.name, isWorking: e.props.isWorking, theirs }
 }
 
 export function register(on, opts) {
@@ -298,6 +318,7 @@ export function register(on, opts) {
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
     if (parsed.mode === 'help') return { ...(await openHelp($) && {}) }
+    if (parsed.mode === 'strategies' || parsed.mode === 'strategy') return { text: await strategyCommand($, parsed) }
     return { text: await pinFrom($, e.args) }
   })
 }
