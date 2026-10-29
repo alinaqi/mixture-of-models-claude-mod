@@ -6,7 +6,8 @@ import { VERSION } from './version.js'
 export const CLIENT_ID = 'mixture-of-models'
 export const PALGU_ORIGIN = 'https://api.palgu.ai'
 export const PALGU_GATEWAY = PALGU_ORIGIN + '/anthropic'
-export const PALGU_BILLING = 'https://www.palgu.ai/billing'
+export const PALGU_WEB = 'https://www.palgu.ai'
+export const PALGU_BILLING = PALGU_WEB + '/billing'
 export const PLUGIN_ID = 'mixture-of-models@mixture-of-models-claude-mod'
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
@@ -80,7 +81,8 @@ export function configureValues(key) {
 
 export function startText(start) {
   const minutes = Math.round((Number(start.expires_in) || 600) / 60)
-  return 'Open ' + (start.verification_uri_complete || start.verification_uri) + ' and approve code ' + start.user_code +
+  // The link is built on palgu.ai: the gateway's own web host may still be an older domain.
+  return 'Open ' + PALGU_WEB + '/connect?code=' + encodeURIComponent(start.user_code) + ' and approve code ' + start.user_code +
     ' (new to Palgu? you can sign up there). The code expires in ' + minutes + ' minutes; this session picks up the key by itself once you approve.'
 }
 

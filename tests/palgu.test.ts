@@ -67,6 +67,12 @@ test('isPalgu holds only for a gateway on the Palgu origin, so another gateway\'
   expect(isPalgu('')).toBe(false)
 })
 
+test('startText always links to palgu.ai, whatever web host the gateway names', async () => {
+  const text = startText({ user_code: 'JKJM-PSHG', verification_uri: 'https://www.srooter.ai/connect', verification_uri_complete: 'https://www.srooter.ai/connect?code=JKJM-PSHG', expires_in: 600 })
+  expect(text).toContain('https://www.palgu.ai/connect?code=JKJM-PSHG')
+  expect(text).not.toContain('srooter')
+})
+
 test('statusText says who is signed in and on which plan, or how to sign in', async () => {
   expect(statusText(undefined)).toMatch(/not signed in.*\/palgu login/i)
   const me = { account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'team' } }
