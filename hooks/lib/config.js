@@ -13,8 +13,9 @@ export const DEFAULT_ROUTES = {
 
 // Models the gateway serves that a pin or a route may name; `/route <prefix>` expands to the
 // first one that matches when no configured route does. mercury-3 (Inception) is an option
-// only: no default route uses it until its speed and quality are measured.
-export const GATEWAY_MODELS = ['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3']
+// only: no default route uses it until its speed and quality are measured. gemini-3.8-flash is
+// the gateway's vision/video model, also an option only.
+export const GATEWAY_MODELS = ['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3', 'gemini-3.8-flash']
 
 // A gateway family per provider prefix in the catalogue, members named by what follows it.
 function gatewayFamilies(models) {

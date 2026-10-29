@@ -67,7 +67,7 @@ test('thresholds default to 3/7 and can be moved', async () => {
 })
 
 test('the gateway catalogue lists the models a pin can name, kimi-k3 retired', async () => {
-  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3'])
+  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3', 'gemini-3.8-flash'])
   expect(JSON.stringify(DEFAULTS)).not.toMatch(/kimi-k3"/)
 })
 

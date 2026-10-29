@@ -106,6 +106,7 @@ test('parseRouteArg expands a prefix to a gateway model that no route names', as
   expect(parseRouteArg('mercury', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'mercury-3' })
   expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
   expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-v4-pro' })
+  expect(parseRouteArg('gemini', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gemini-3.8-flash' })
   // a configured route still wins over the catalogue
   const routes = { ...DEFAULT_ROUTES, simple: 'mercury-2' }
   expect(parseRouteArg('mercury', routes)).toEqual({ mode: 'model', model: 'mercury-2' })
