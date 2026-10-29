@@ -5,7 +5,7 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -21,7 +21,7 @@ function stubSession(on, opts: { childEnv?: string; customHeaders?: string; scor
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', ($, e) => { opts.opened?.push(e); return { value: { isPlaced: true } } })
   on('store.delete', () => ({ value: undefined }))
   // The local classifier's replies, in order: "<score> <kind>" verdicts the test wants, or no Ollama at all.
   const replies = opts.scores ?? [opts.score ?? '2 code']
@@ -947,4 +947,31 @@ test('the Palgu child blanks an inherited bearer token so only its x-api-key rea
   await routedTurn($, 'grep the repo for TODO comments and list the files')
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
   expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('')
+})
+
+const HELP = { ...PANE, requestId: 'mom-help' } as const
+
+test('pressing 0 on the band opens the help pane and keeps the route as it was', GW, async ($, on) => {
+  const opened: any[] = []
+  const store = stubSession(on, { opened })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await band.press({ key: 'pin-help' })
+  await band.unmount()
+  expect(opened.map((o) => o.id)).toEqual(['mom-help'])
+  expect(store.get('pin')).toBe(undefined)
+  const ui = await $.ui.mount({ ...HELP, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /scored 1-10/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Gateway: Palgu/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('/route help opens the same pane, and says when routing is off', GW, async ($, on) => {
+  stubSession(on)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'off' })
+  expect(await $.command.run({ command: 'route', args: 'help' })).toEqual({})
+  const ui = await $.ui.mount({ ...HELP, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Routing is off/ })).toBeDefined()
+  await ui.unmount()
 })

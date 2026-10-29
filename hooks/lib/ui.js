@@ -12,12 +12,12 @@ function provider(model) {
 }
 
 // One button per provider in the routes, then one per family in the gateway's catalogue that no
-// route names, framed by auto, claude and off: every model you can pin has a button.
+// route names, framed by auto, claude and off: every model you can pin has a button. Key 0 is help.
 export function bandButtons(routes, catalogue) {
   const models = [...routeModels(routes), ...(catalogue || GATEWAY_MODELS)]
   const providers = [...new Set(models.map(provider))].filter((p) => p !== 'claude')
-  const args = ['auto', ...providers, 'claude', 'off']
-  return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: String(i + 1), arg }))
+  const args = ['help', 'auto', ...providers, 'claude', 'off']
+  return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: String(i), arg }))
 }
 
 function activeArg(pin) {

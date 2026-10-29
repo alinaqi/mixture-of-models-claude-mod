@@ -10,11 +10,12 @@ import { CODEX_INSTALL, codexArgs, codexAsk, codexBaseUrl, codexBrief, codexEnv,
 import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
-import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
+import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 import { PALGU_GATEWAY } from './lib/palgu.js'
 import { palguCommand } from './palgu.js'
 import { addTurn, savingsLine, turnNote } from './lib/savings.js'
 import { priceTurn } from './savings.js'
+import { helpTree } from './lib/help-pane.js'
 
 let cfg = parseConfig(''), configText = '', options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
@@ -185,8 +186,19 @@ async function runChild($) {
   return vet.ok ? out.answer : ''
 }
 
+// Help changes nothing: it opens the pane that says what is possible.
+function openHelp($) {
+  return $.ui.open({ id: 'mom-help', title: 'Mixture of models · help', focus: true, closeOnEscape: true })
+}
+
+async function helpView($) {
+  const buttons = bandButtons(cfg.routes, cfg.catalogue).map((b) => b.arg).filter((a) => a !== 'help')
+  return { pin, ready, provider: cfg.provider, sessionModel, saved: savingsLine(await $.store.get('savings'), sessionModel), buttons }
+}
+
 async function pinFrom($, arg) {
   const parsed = parseRouteArg(arg, cfg.routes, cfg.catalogue)
+  if (parsed.mode === 'help') return openHelp($).then(() => '')
   const bad = parsed.mode === 'model' ? checkRoute(parsed.model, cfg.families) : ''
   if (bad) return bad
   pin = parsed
@@ -267,6 +279,7 @@ export function register(on, opts) {
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
+    if (e.requestId === 'mom-help') return helpTree($.ui.resolve(e), await helpView($))
     if (e.requestId !== 'routing-stats') return next(e)
     const view = { summary: summarize((await $.store.get('log')) || [], sessionModel), sessionModel, thresholds: cfg.thresholds, columns: e.props.bodyColumns, tab, saved: savingsLine(await $.store.get('savings'), sessionModel) }
     return paneTree($.ui.resolve(e), view, (t) => { tab = t; $.ui.invalidate('ui.render') })
@@ -284,6 +297,7 @@ export function register(on, opts) {
     if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) + ' · ' + savingsLine(await $.store.get('savings'), sessionModel) + ' · ' + familiesText(cfg.families) }
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
+    if (parsed.mode === 'help') return { ...(await openHelp($) && {}) }
     return { text: await pinFrom($, e.args) }
   })
 }

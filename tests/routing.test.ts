@@ -102,6 +102,10 @@ test('summaryLine says when a child answer was discarded and why', async () => {
   expect(summaryLine(d, null)).toBe('route: glm-5.3 · simple via ollama · child answer discarded (unverified claim), main model answered')
 })
 
+test('parseRouteArg reads help', async () => {
+  expect(parseRouteArg('help', DEFAULT_ROUTES)).toEqual({ mode: 'help' })
+})
+
 test('parseRouteArg expands a prefix to a gateway model that no route names', async () => {
   expect(parseRouteArg('mercury', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'mercury-3' })
   expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
