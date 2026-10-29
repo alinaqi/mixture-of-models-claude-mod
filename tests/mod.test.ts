@@ -822,3 +822,53 @@ test('/palgu login reports a gateway that refuses the client instead of polling'
   await clock.advance(60000)
   expect(calls.length).toBe(1)
 })
+
+const CHILD_USAGE = { input_tokens: 100000, output_tokens: 10000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+// What all of that would have cost on claude-opus-5 ($5 / $25 per million): 0.50 + 0.25.
+const ON_CLAUDE = 0.75
+
+function routedFetch(calls: any[], quote = 0.05) {
+  return (url: string, init: any) => {
+    calls.push({ url, init })
+    if (url.includes('localhost:11434')) return { ok: true, status: 200, headers: {}, text: '{"message":{"content":"2 code"}}' }
+    if (url.endsWith('/v1/pricing/quote')) return { ok: true, status: 200, headers: {}, text: JSON.stringify({ model: 'glm-5.3', cost_usd: quote }) }
+    return { ok: false, status: 404, headers: {}, text: '{}' }
+  }
+}
+
+async function completeRouted($, on, calls: any[]) {
+  stubSession(on, { fetch: routedFetch(calls) })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('child answer', { usage: CHILD_USAGE }), stderr: '' } }))
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  return $.turn.complete({ turnId: 't1', answer: 'child answer', durationMs: 10, isAborted: false, usage: null })
+}
+
+test('a routed turn on Palgu is priced by Palgu and the route line says what it saved against Claude', GW, async ($, on) => {
+  const calls: any[] = []
+  const done = await completeRouted($, on, calls)
+  const quote = calls.find((c) => c.url === 'https://api.palgu.ai/v1/pricing/quote')
+  expect(quote.init.headers.authorization).toBe('Bearer srt_test')
+  expect(JSON.parse(quote.init.body)).toEqual({ model: 'glm-5.3', usage: CHILD_USAGE })
+  expect(done.text).toContain('saved ~$' + (ON_CLAUDE - 0.05).toFixed(2))
+  const status = await $.command.run({ command: 'route', args: 'status' })
+  expect(status.text).toContain('saved ~$0.70 (93%) vs all claude-opus-5')
+})
+
+test('another gateway is priced from router.prices, and its key never goes to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'zai_secret' } }, async ($, on) => {
+  const calls: any[] = []
+  stubSession(on, { fetch: routedFetch(calls), config: '{"router":{"prices":{"glm-5.3":{"input":1,"output":5}}}}' })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('child answer', { usage: CHILD_USAGE }), stderr: '' } }))
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'child answer', durationMs: 10, isAborted: false, usage: null })
+  expect(calls.some((c) => c.url.includes('palgu'))).toBe(false)
+  // 0.10 + 0.05 on the table
+  expect(done.text).toContain('saved ~$0.60')
+})
+
+test('an unpriced routed turn claims no saving', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'zai_secret' } }, async ($, on) => {
+  const calls: any[] = []
+  const done = await completeRouted($, on, calls)
+  expect(done.text).not.toContain('saved')
+  const status = await $.command.run({ command: 'route', args: 'status' })
+  expect(status.text).toContain('1 routed turn unpriced')
+})

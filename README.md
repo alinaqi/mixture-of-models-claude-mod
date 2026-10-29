@@ -172,10 +172,20 @@ Claude and the gateway are both visible, all the time:
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
-| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · today: …` |
-| `/route` | `mixture-of-models live · mode auto · current route: … · today: …` | same |
+| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | same |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
-| `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude"), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
+| `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
+
+### How much it saves
+
+Every routed turn is priced twice: at your session's Claude model (what the same tokens would have cost there) and at what it actually cost. On Palgu, the actual cost comes from Palgu's own `/v1/pricing/quote`, the formula it bills by; on another gateway, from `router.prices`; a `claude/<member>` child is priced at that member's Claude rate. Turns that stay in the main session count toward the all-Claude total too, so the percentage is the share of your whole Claude bill that routing took away, not just of the routed turns.
+
+- Under each routed answer: `· saved ~$0.39`.
+- `/route status`: `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`, a running total across sessions.
+- `/route stats`: the same total, in green, on the models tab.
+
+It is an estimate, and it says so. Claude prices are the API list prices (Opus 5.5 $4 / $20 per million input / output tokens, Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50, Fable 5.1 $10 / $50; cache reads and 5-minute and 1-hour cache writes at their own rates), so on a claude.ai subscription it is the API-equivalent saving, not money back. It assumes the routed turn would have used the same number of tokens on Claude. A routed turn the mod cannot price (a gateway with no `router.prices` entry for that model, or a Codex child) claims no saving; `/route status` counts it as unpriced.
 
 The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto. Turn the band off with `"ui": { "band": false }`.
 
@@ -225,7 +235,7 @@ The hooks module `hooks/register.js` registers nine hooks. What each one does wi
 | `prompt.submit` | Passes every prompt through unchanged. On the side it decides the route: pre-rules first, then a 1-10 blast score from the classifier (see Network), then the thresholds. Never drops, rewrites or adds to a prompt. Fails open: if scoring throws, the prompt still goes through. |
 | `turn.start` | Clears the previous turn's child result. |
 | `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process (Claude Code on the gateway or on your Claude login, or Codex) described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. A Codex child is asked the same way about the commands it names as refused, once per turn; on "Allow and continue" the same Codex thread resumes with edits in the project allowed (see [Sandbox and approvals](#sandbox-and-approvals)). For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
-| `turn.complete` | Appends a line under the answer with the route, score, cost and where it ran, and updates per-day counts in the plugin store. |
+| `turn.complete` | Appends a line under the answer with the route, score, cost and where it ran, and what a routed turn saved; updates per-day counts and the savings totals in the plugin store. On Palgu it asks `/v1/pricing/quote` what the routed turn cost. |
 | `ui.render` for `AbovePrompt` | Draws the band: the current mode and last decision, plus buttons that change the `/route` pin. Keeps whatever other mods draw there. |
 | `ui.render` for `AssistantMessage` | Puts a dim provenance line above a reply the child produced. Other replies are passed through. |
 | `ui.render` for `Spinner` | Adds `via <model> (child)…` after the spinner's word during a routed turn. |
@@ -242,6 +252,7 @@ The mod itself makes exactly one kind of network call, and the child process it 
 | Who | Call | Address | What is sent | Why |
 | :- | :- | :- | :- | :- |
 | The mod, in `/palgu login` | `$.http.fetch` | `https://api.palgu.ai/auth/device/code`, then `/auth/token`, fixed in the code | The client id `mixture-of-models`, the device name (`Claude Code on <HOSTNAME>`), the mod's version and a random install id it keeps in its store; then the device code Palgu gave it | Sign-in. Palgu answers with a key for this computer. |
+| The mod, in `turn.complete` after a routed turn on Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`, fixed in the code | The routed model id and the child's four token counts (input, output, cache read, cache write), and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` and `router.prices` has no entry for that model | Prices the turn for the savings estimate. No prompt or answer text. |
 | The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
 | The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-4-5` by default. |
@@ -353,6 +364,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.subscriptionArgs`: the flags for a `claude/<member>` child, in place of `child.args`. No `--bare` by default, because `--bare` allows only API-key auth and the point is your Claude login.
 - `families`: per family, `members` (alias → exact model id) and `auto` (tier → member alias, plus optional `criticalPlus` for 10/10 critical turns). Merged over the defaults per family; a new family name adds a gateway family.
 - `codex.auth`: `palgu` (default; your gateway's `/v1/responses` with your gateway key) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not your `gateway_url` with `/anthropic` → `/v1`. `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
+- `prices`: $ per million tokens for gateway models, for the [savings estimate](#how-much-it-saves), for example `{ "glm-5.3": { "input": 0.6, "output": 2.2 } }` (optional `cacheRead`, default a tenth of input, and `cacheWrite`). An entry here wins over Palgu's own quote. A model with no price on a gateway that is not Palgu is counted as unpriced.
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
 ## Commands

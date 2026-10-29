@@ -13,6 +13,8 @@ import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 import { PALGU_GATEWAY } from './lib/palgu.js'
 import { palguCommand } from './palgu.js'
+import { addTurn, savingsLine, turnNote } from './lib/savings.js'
+import { priceTurn } from './savings.js'
 
 let cfg = parseConfig(''), options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
@@ -172,7 +174,7 @@ async function runChild($) {
   const out = decision.runner === 'codex' ? await codexTurn($, brief) : await claudeTurn($, brief)
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
   const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.reason || '' }
-  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, ...(out.note || {}) } }
+  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, usage: out.usage || null, ...(out.note || {}) } }
   if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
   return vet.ok ? out.answer : ''
 }
@@ -240,7 +242,9 @@ export function register(on, opts) {
     const stats = bumpStats((await $.store.get('stats')) || {}, day, decision.model)
     await $.store.set('stats', stats)
     await $.store.set('log', appendLog(await $.store.get('log'), { day, model: decision.model, kind: decision.kind, label: decision.label, score: decision.score, source: decision.source, child: decision.child || null }, 200))
-    return { ...result, text: summaryLine(decision, e.usage) + ' · ' + statsLine(stats, day) }
+    const priced = await priceTurn($, { decision, sessionModel, cfg, key, usage: e.usage })
+    await $.store.set('savings', addTurn(await $.store.get('savings'), priced))
+    return { ...result, text: summaryLine(decision, e.usage) + (priced.routed ? turnNote(priced) : '') + ' · ' + statsLine(stats, day) }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -258,7 +262,7 @@ export function register(on, opts) {
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     if (e.requestId !== 'routing-stats') return next(e)
-    const view = { summary: summarize((await $.store.get('log')) || [], sessionModel), sessionModel, thresholds: cfg.thresholds, columns: e.props.bodyColumns, tab }
+    const view = { summary: summarize((await $.store.get('log')) || [], sessionModel), sessionModel, thresholds: cfg.thresholds, columns: e.props.bodyColumns, tab, saved: savingsLine(await $.store.get('savings'), sessionModel) }
     return paneTree($.ui.resolve(e), view, (t) => { tab = t; $.ui.invalidate('ui.render') })
   })
 
@@ -271,7 +275,7 @@ export function register(on, opts) {
 
   on('command.run', { command: 'route' }, async ($, e) => {
     const parsed = parseRouteArg(e.args, cfg.routes)
-    if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) + ' · ' + familiesText(cfg.families) }
+    if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) + ' · ' + savingsLine(await $.store.get('savings'), sessionModel) + ' · ' + familiesText(cfg.families) }
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
     return { text: await pinFrom($, e.args) }

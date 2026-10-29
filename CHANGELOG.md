@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-10-29
+
+### Added
+- How much routing saves. Every routed turn is priced at your session's Claude model and at what it actually cost (Palgu's own `/v1/pricing/quote`, the new `router.prices` table, or a Claude member's rate), and main-session turns count toward the all-Claude total. The line under a routed answer shows `· saved ~$0.39`, `/route status` shows the running total (`saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`), and the `/route stats` pane shows it on the models tab. Claude prices are the API list prices, including 1-hour cache writes, so on a subscription it is the API-equivalent saving; a turn the mod cannot price claims nothing and is counted as unpriced.
+- `router.prices`: $ per million tokens for gateway models.
+- The child's token usage is now read from its JSON result.
+
 ## [0.14.0] - 2026-10-29
 
 ### Added

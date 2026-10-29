@@ -80,6 +80,8 @@ export const DEFAULTS = {
   // The band above the prompt, and which replies get a provenance tag: 'routed', 'all' or 'off'.
   ui: { band: true, tags: 'routed' },
   summary: true,
+  // $ per million tokens for gateway models, for the savings estimate: { "<id>": { input, output } }.
+  prices: {},
 }
 
 function parseJson(text) {
@@ -121,5 +123,6 @@ export function parseConfig(text) {
     codex: { ...DEFAULTS.codex, ...(router.codex || {}) },
     ui: { ...DEFAULTS.ui, ...(router.ui || {}) },
     summary: router.summary === undefined ? DEFAULTS.summary : router.summary,
+    prices: { ...DEFAULTS.prices, ...(router.prices || {}) },
   }
 }

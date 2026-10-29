@@ -19,6 +19,7 @@ function modelsTab(el, v) {
   const max = s.byModel.length ? s.byModel[0].n : 0
   return [
     el.Text({ bold: true, children: [s.offClaude + ' of ' + s.total + ' turns off Claude (' + pct(s.offClaude, s.total) + ')'] }),
+    ...(v.saved ? [el.Text({ bold: true, color: 'green', children: [v.saved] })] : []),
     el.Text({ dimColor: true, children: ['child runs ' + s.child.runs + ' · failed ' + s.child.failed + ' · avg ' + Math.round(s.child.avgMs / 1000) + 's'] }),
     ...s.byModel.map((m, i) => row(el, m.model, bar(m.n, max, width) + ' ' + m.n + ' · ' + pct(m.n, s.total), COLORS[i % COLORS.length])),
   ]
