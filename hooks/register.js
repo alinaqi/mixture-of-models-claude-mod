@@ -11,17 +11,33 @@ import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandTree, reportText, tagText, tagTree } from './lib/ui.js'
+import { PALGU_GATEWAY } from './lib/palgu.js'
+import { palguCommand } from './palgu.js'
 
 let cfg = parseConfig(''), options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
 const answered = new Map()
 
-async function loadConfig($) {
-  const home = (await $.env.get('HOME')) || ''
-  cfg = parseConfig(await $.fs.read(home + '/.claude/model-config.json').catch(() => ''))
+function applyGateway() {
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
   ready = childReady(cfg.child, key)
   codexOk = codexReady(cfg.codex, { baseUrl: cfg.child.baseUrl, key })
+}
+
+// What /palgu reads and changes: a key from /palgu login takes over the child at once.
+function palguContext($) {
+  const useKey = (k) => {
+    options = { ...options, gateway_url: PALGU_GATEWAY, gateway_key: k }
+    applyGateway()
+    $.ui.invalidate('ui.render')
+  }
+  return { key: () => key, baseUrl: () => cfg.child.baseUrl, useKey }
+}
+
+async function loadConfig($) {
+  const home = (await $.env.get('HOME')) || ''
+  cfg = parseConfig(await $.fs.read(home + '/.claude/model-config.json').catch(() => ''))
+  applyGateway()
   const dropped = droppedArgs(cfg.codex)
   if (dropped.length) $.ui.log('router.codex.args: ignored ' + dropped.join(' ') + ' (set router.codex.sandbox or router.codex.allowOutsideGit instead)')
   sessionModel = await $.session.model()
@@ -185,6 +201,8 @@ export function register(on, opts) {
     applyPin()
     await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|auto|off|reset|label|model|family/member]', immediate: true })
       .catch(() => $.ui.log('/route is taken by another plugin'))
+    await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models: /palgu [login|status|upgrade]', argumentHint: '[login|status|upgrade]', immediate: true })
+      .catch(() => $.ui.log('/palgu is taken by another plugin'))
     return next(e)
   })
 
@@ -248,6 +266,8 @@ export function register(on, opts) {
     if (!shouldDelegate({ index: 0 })) return next(e)
     return next({ ...e, props: { ...e.props, suffix: ' · via ' + decision.model + ' (child)…' } })
   })
+
+  on('command.run', { command: 'palgu' }, async ($, e) => ({ text: await palguCommand($, e.args, palguContext($)) }))
 
   on('command.run', { command: 'route' }, async ($, e) => {
     const parsed = parseRouteArg(e.args, cfg.routes)
