@@ -18,7 +18,7 @@ No dashboard, no copying keys. After [installing the mod](#install), in Claude C
 
 1. The mod shows a sign-in link and a short code, for example `WDJB-MJHT`.
 2. Open the link, sign in to Palgu or **sign up** (new accounts start on the free plan), check the code matches and press **Allow**. The page names the app: *Allow Mixture of Models on "Claude Code on your-mac"?*
-3. Back in the terminal a toast says *Signed in to Palgu as you@example.com*. That's it: simple and coding turns now run on Palgu's models (GLM 5.3, Kimi K3.1, DeepSeek V4 Pro, Gemini 3.8 Flash, Mercury 3), and critical turns stay on Claude. No restart.
+3. Back in the terminal a toast says *Signed in to Palgu as you@example.com*. That's it: simple and coding turns now run on Palgu's models (GLM 5.3, Kimi K3.1, DeepSeek V4 Pro, Gemini 3.8 Flash, MiniMax M3, GPT-6), and critical turns stay on Claude. No restart.
 
 | Command | What it does |
 | :- | :- |
@@ -87,7 +87,7 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **The kind picks the model.** Below `critical`, `routes.kinds` maps the task kind to a model: by default `research` and `review` go to Kimi (`kimi-k3.1-pro`) for its long context, `multimodal` stays on Claude, and everything else takes the tier's model (GLM). Add `"docs": "deepseek-v4-pro"` or `"data": "..."` to the matrix as your gateway allows.
 
-**Models you can name.** Any model id your gateway serves works in `routes`, `routes.kinds` or a pin. The mod knows these Palgu gateway models, so `/route <prefix>` expands to them even when no route names them: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro`, `mercury-3` and `gemini-3.8-flash`. The band above the prompt has a button for each of these families. `kimi-k3.1-pro` replaces `kimi-k3`; an old `/route kimi-k3` pin expands to it. `mercury-3` is Inception's Mercury 3, a fast diffusion model with a 1M-token context and tool calling. It is an option, not a default: no route uses it until its speed and quality on routed turns have been measured. To try it for simple work, set `"routes": { "simple": "mercury-3" }`, or pin it for a few turns with `/route mercury`.
+**Models you can name.** Any model id your gateway serves works in `routes`, `routes.kinds` or a pin. The mod knows these Palgu gateway models, so `/route <prefix>` expands to them even when no route names them: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro`, `gemini-3.8-flash`, `minimax-m3`, `minimax-m2.5`, `gpt-6-sol`, `gpt-6-luna` and `gpt-6-astra`. The band above the prompt has a button for each of these families. `kimi-k3.1-pro` replaces `kimi-k3`; an old `/route kimi-k3` pin expands to it. Gemini, MiniMax and GPT-6 are options, not defaults: `/route minimax`, `/route gpt` (GPT-6 Sol) or `/route gpt/auto` (Luna for simple turns, Sol for coding, Astra for critical) pins them. Palgu does not serve Inception's Mercury 3; on OpenRouter it is `mercury/3`.
 
 ### Routing strategies: route by complexity, cost, speed, quality, or your own rules
 
@@ -97,7 +97,7 @@ What the classifier scores, where the tiers split and which model each tier take
 | :- | :- | :- | :- |
 | `complexity` (default) | blast radius, as above | 3 / 7 | your routes: GLM, Kimi for research and review, Claude for critical |
 | `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | GLM, DeepSeek V4 Pro for coding, Kimi for research and review, Gemini for images, Claude for critical |
-| `speed` | reasoning depth | 3 / 7 | Mercury 3, Kimi, Gemini for research and images, Sonnet rather than Opus for critical |
+| `speed` | reasoning depth | 3 / 7 | Gemini 3.8 Flash, Kimi, Sonnet rather than Opus for critical |
 | `quality` | stakes; when unsure, higher | 2 / 5 | GLM for lookups only, Sonnet for coding, Claude for critical |
 
 `/route strategies` lists them and yours, `/route strategy cost` switches (remembered across sessions; `router.strategy` in `model-config.json` sets a default), and the band then reads `auto (cost)`.
@@ -128,7 +128,8 @@ Any route, kind route or pin may be `<family>/<member>` or `<family>/auto` inste
 | :- | :- | :- | :- |
 | `claude` | `fable` = `claude-fable-5-1`, `opus` = `claude-opus-5-5`, `sonnet` = `claude-sonnet-5-5`, `haiku` = `claude-haiku-5-5` | simple → `haiku`, coding → `sonnet`, critical → `opus`; `fable` only if you add `"criticalPlus": "fable"` (10/10 critical turns) | a headless `claude -p --model <id>` child on **your Claude login** (no gateway); a member that *is* the session model stays in the main session |
 | `kimi` | `pro` = `kimi-k3.1-pro`, `highspeed` = `kimi-k3.1-pro-highspeed` | simple → `highspeed`, coding and critical → `pro` | the gateway child |
-| `glm`, `deepseek`, `mercury` | from the gateway catalogue: `glm/5.3` = `glm-5.3`, `deepseek/v4-pro` = `deepseek-v4-pro`, `mercury/3` = `mercury-3` | the first member | the gateway child |
+| `glm`, `deepseek`, `gemini`, `minimax` | from the gateway catalogue: `glm/5.3` = `glm-5.3`, `deepseek/v4-pro` = `deepseek-v4-pro`, `gemini/3.8-flash`, `minimax/m3` = `minimax-m3`, `minimax/m2.5` | the first member | the gateway child |
+| `gpt` | `sol` = `gpt-6-sol`, `luna` = `gpt-6-luna`, `astra` = `gpt-6-astra` | simple → `luna`, coding → `sol`, critical → `astra` | the gateway child |
 | `codex` | none by default: `codex/<any model id>` passes the id to Codex | none by default: Codex's own default model | a `codex exec` child, see [Codex](#codex-as-a-child) |
 
 `auto` uses the same classifier, thresholds, borderline second sample and failure memory as the tiers, then looks up the tier in the family's `auto` map. It never leaves the family. A Claude-family tier (`"critical": "claude/opus"`) is mandatory Claude just like `"claude"`: `routes.kinds` does not override it. Override members or the tier map per family in `router.families`; a pinned `/route claude/auto` still classifies each prompt and picks the member from the score.
@@ -267,7 +268,7 @@ Whichever variable carries the key, the child's environment sets the other one t
    | `gateway_provider` | `auto` (or `openrouter`) |
 
    or from the shell: `echo '{"gateway_url":"https://openrouter.ai/api","gateway_key":"sk-or-…","gateway_provider":"openrouter"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
-3. Start `claude`. Simple and coding turns run on `z-ai/glm-5.3`, research and review on `moonshotai/kimi-k3.1-pro`; the band offers `glm`, `kimi`, `deepseek` (`deepseek/deepseek-v4-pro`), `mercury` (`inception/mercury-3`) and `gemini` (`google/gemini-3.8-flash`). These are the slugs [OpenRouter's model list](https://openrouter.ai/models) served on 2026-10-29. OpenRouter has no Kimi highspeed variant, so `kimi/auto` is `pro` for every tier.
+3. Start `claude`. Simple and coding turns run on `z-ai/glm-5.3`, research and review on `moonshotai/kimi-k3.1-pro`; the band offers `glm`, `kimi`, `deepseek` (`deepseek/deepseek-v4-pro`), `gemini` (`google/gemini-3.8-flash`), `minimax` (`minimax/minimax-m3`, `minimax/minimax-m3.1-flash`), `gpt` (`openai/gpt-6-sol`, `-luna`, `-astra`) and `mercury` (`inception/mercury-3`). With eleven buttons the last has no number key; click it or Tab to it. These are the slugs [OpenRouter's model list](https://openrouter.ai/models) served on 2026-10-29. OpenRouter has no Kimi highspeed variant, so `kimi/auto` is `pro` for every tier.
 
 Routes on OpenRouter name family members (`glm/5.3`), because an OpenRouter slug has a `/` in it; a slug that a family lists (`z-ai/glm-5.3`) works too. For another OpenRouter model, add it to a family and route to it:
 
@@ -475,7 +476,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/route simple\|coding\|critical` | Pin a tier |
 | `/route reset` | Clear the per-kind failure memory |
 | `/route stats` | Open the stats pane: models, kinds, scores, recent |
-| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route mercury`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model) |
+| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Pin a family member (`claude/sonnet` runs on your Claude login) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Pin a family; each prompt is still scored and the tier picks the member |
 | `/route codex` | Pin Codex on its default model |

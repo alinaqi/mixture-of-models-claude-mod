@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-10-29
+
+### Added
+- MiniMax and GPT-6 families. On Palgu: `minimax/m3` (`minimax-m3`), `minimax/m2.5`, and `gpt/sol`, `gpt/luna`, `gpt/astra` (`gpt-6-*`); on OpenRouter: `minimax/minimax-m3`, `minimax/minimax-m3.1-flash` and `openai/gpt-6-*`. `gpt/auto` takes Luna for simple turns, Sol for coding and Astra for critical. `/route minimax` and `/route gpt` pin them, and the band has a button for each. They are options; no default route uses them.
+
+### Fixed
+- Palgu does not serve `mercury-3`, so a turn routed to it on Palgu failed and fell back to the main model, slowly. It is gone from the Palgu catalogue and band; on OpenRouter `mercury/3` stays. The `speed` strategy now sends simple turns to Gemini 3.8 Flash.
+- The band's number keys stop at 9: a tenth button and beyond is pressed by click or Tab.
+
 ## [0.19.0] - 2026-10-29
 
 ### Added

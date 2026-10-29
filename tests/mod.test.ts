@@ -1056,3 +1056,16 @@ test('/route update reports a failed update with the commands to run by hand', G
   expect(out.text).toContain('9.9.9 is out but the update failed (marketplace not found)')
   expect(out.text).toContain('claude plugin update mixture-of-models@mixture-of-models-claude-mod')
 })
+
+test('/route gpt/auto runs a simple turn on GPT-6 Luna through the gateway child', GW, async ($, on) => {
+  const runs: any[] = []
+  stubSession(on, { scores: ['2 code'] })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'gpt/auto' })
+  await $.prompt.submit({ text: 'grep the repo for TODO comments and list the files' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs[0].argv).toContain('gpt-6-luna')
+})

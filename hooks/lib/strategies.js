@@ -29,10 +29,10 @@ export const BUILTIN = {
   },
   speed: {
     name: 'speed',
-    description: 'Fastest answers: quick models for most work, Sonnet rather than Opus for the hard part.',
+    description: 'Fastest answers: Gemini Flash and Kimi for most work, Sonnet rather than Opus for the hard part.',
     score: 'reasoning depth',
     thresholds: { simple: 3, coding: 7 },
-    routes: { simple: 'mercury/3', coding: 'kimi/auto', critical: 'claude/sonnet', kinds: { research: 'gemini/3.8-flash', multimodal: 'gemini/3.8-flash' } },
+    routes: { simple: 'gemini/3.8-flash', coding: 'kimi/auto', critical: 'claude/sonnet', kinds: { research: 'gemini/3.8-flash', multimodal: 'gemini/3.8-flash' } },
     rubric: [
       'Reasoning depth: how much careful thinking the task needs. Fast models take everything they can answer well.',
       '1-3: lookups, one-liners, quick edits, short explanations.',

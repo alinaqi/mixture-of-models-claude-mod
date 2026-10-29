@@ -17,7 +17,8 @@ export function bandButtons(routes, catalogue) {
   const models = [...routeModels(routes), ...(catalogue || GATEWAY_MODELS)]
   const providers = [...new Set(models.map(provider))].filter((p) => p !== 'claude')
   const args = ['help', 'auto', ...providers, 'claude', 'off']
-  return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: String(i), arg }))
+  // Hotkeys are one digit, so a tenth button and beyond is pressed by click or Tab.
+  return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: i <= 9 ? String(i) : undefined, arg }))
 }
 
 function activeArg(pin) {

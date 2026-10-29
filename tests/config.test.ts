@@ -67,11 +67,12 @@ test('thresholds default to 3/7 and can be moved', async () => {
 })
 
 test('the gateway catalogue lists the models a pin can name, kimi-k3 retired', async () => {
-  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3', 'gemini-3.8-flash'])
+  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra'])
   expect(JSON.stringify(DEFAULTS)).not.toMatch(/kimi-k3"/)
 })
 
-test('mercury-3 is an option, never a default route', async () => {
+test('mercury-3 is no Palgu model and no default route, but a route may still name it', async () => {
+  expect(GATEWAY_MODELS).not.toContain('mercury-3')
   expect(JSON.stringify(DEFAULTS.routes)).not.toMatch(/mercury/)
   expect(parseConfig('{"router":{"routes":{"simple":"mercury-3"}}}').routes.simple).toBe('mercury-3')
 })

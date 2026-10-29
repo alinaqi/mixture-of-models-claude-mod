@@ -15,7 +15,7 @@ Before any strategy runs, fixed safety rules keep some turns on the main session
 | :- | :- | :- | :- |
 | `complexity` (default) | blast radius: how much a wrong answer could break | 3 / 7 | the config's routes (GLM for simple and coding, Kimi for research and review, Claude for critical) |
 | `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | simple `glm/5.3`, coding `deepseek/v4-pro`, research and review `kimi/pro`, images `gemini/3.8-flash`, critical Claude |
-| `speed` | reasoning depth needed | 3 / 7 | simple `mercury/3`, coding `kimi/auto`, research and images `gemini/3.8-flash`, critical `claude/sonnet` |
+| `speed` | reasoning depth needed | 3 / 7 | simple `gemini/3.8-flash`, coding `kimi/auto`, research and images `gemini/3.8-flash`, critical `claude/sonnet` |
 | `quality` | stakes; when unsure, higher | 2 / 5 | simple `glm/5.3`, coding `claude/sonnet`, critical Claude |
 
 `/route strategies` lists them with the user's own; `/route strategy <name>` switches (remembered across sessions). `router.strategy` in `~/.claude/model-config.json` sets one too; a `/route strategy` pick wins.
@@ -43,7 +43,7 @@ Rules the mod checks (a file that breaks one is skipped, and the reason is logge
 - The frontmatter is between `---` lines, one `key: value` per line. `thresholds` and `routes` are **JSON on one line**.
 - `thresholds`: whole numbers 1-9, `simple` below `coding`. A score at or below `simple` is the simple tier, at or below `coding` the coding tier, anything above is critical. Left out, the config's thresholds stay (3 / 7).
 - `routes`: any of `simple`, `coding`, `critical`, and `kinds` (`code`, `research`, `review`, `docs`, `data`, `multimodal`). Left-out keys keep the config's value; `kinds` merge key by key. Kinds apply only below `critical`, and never override a tier routed to Claude.
-- Route values: `claude` (the main session), `claude/<member>` (`fable`, `opus`, `sonnet`, `haiku`, on the user's own Claude login), a gateway family member (`glm/5.3`, `kimi/pro`, `kimi/highspeed`, `kimi/auto`, `deepseek/v4-pro`, `mercury/3`, `gemini/3.8-flash`), `codex` or `codex/<model>`, or a plain model id the gateway serves. Family members work the same on Palgu, OpenRouter and LiteLLM; prefer them to plain ids.
+- Route values: `claude` (the main session), `claude/<member>` (`fable`, `opus`, `sonnet`, `haiku`, on the user's own Claude login), a gateway family member (`glm/5.3`, `kimi/pro`, `kimi/highspeed`, `kimi/auto`, `deepseek/v4-pro`, `gemini/3.8-flash`, `minimax/m3`, `gpt/sol`, `gpt/luna`, `gpt/astra`, `gpt/auto`; `mercury/3` on OpenRouter only), `codex` or `codex/<model>`, or a plain model id the gateway serves. Family members work the same on Palgu, OpenRouter and LiteLLM; prefer them to plain ids.
 - `score`: the name of what is scored; the classifier is asked for "the <score> from 1-10".
 - The body is the rubric: what each score range means. Write it for a small model: short lines, concrete examples of work, a tie-break rule ("when unsure, score lower").
 - `critical` should stay on Claude (`claude` or `claude/<member>`) unless the user explicitly wants otherwise; say so if they ask to route it away.

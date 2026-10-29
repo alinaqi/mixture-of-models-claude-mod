@@ -68,7 +68,7 @@ test('the built-ins pick sensible routes: cost and speed route more, quality kee
   expect(BUILTIN.cost.thresholds.coding > DEFAULTS.thresholds.coding).toBe(true)
   expect(BUILTIN.quality.thresholds.coding < DEFAULTS.thresholds.coding).toBe(true)
   expect(BUILTIN.quality.routes.coding).toBe('claude/sonnet')
-  expect(BUILTIN.speed.routes.simple).toBe('mercury/3')
+  expect(BUILTIN.speed.routes.simple).toBe('gemini/3.8-flash')
   for (const s of Object.values(BUILTIN)) expect((s.routes || {}).critical || 'claude').toMatch(/^claude/)
 })
 

@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { PROVIDERS, providerDefaults, providerOf } from '../hooks/lib/providers.js'
 
-const PALGU_IDS = ['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'mercury-3', 'gemini-3.8-flash']
+const PALGU_IDS = ['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra']
 
 test('the providers are palgu, openrouter, litellm and any other anthropic-compatible gateway', async () => {
   expect(PROVIDERS).toEqual(['palgu', 'openrouter', 'litellm', 'anthropic-compatible'])
@@ -62,11 +62,18 @@ test('OpenRouter maps each family to an OpenRouter slug, and routes name familie
   expect(p.families.gemini.members).toEqual({ '3.8-flash': 'google/gemini-3.8-flash' })
   expect(p.families.mercury.members).toEqual({ 3: 'inception/mercury-3' })
   expect(p.families.kimi.auto).toEqual({ simple: 'pro', coding: 'pro', critical: 'pro' })
-  expect(p.catalogue).toEqual(['glm/5.3', 'kimi/pro', 'deepseek/v4-pro', 'mercury/3', 'gemini/3.8-flash'])
+  expect(p.catalogue).toEqual(['glm/5.3', 'kimi/pro', 'deepseek/v4-pro', 'gemini/3.8-flash', 'minimax/m3', 'gpt/sol', 'mercury/3'])
   expect(p.routes).toEqual({ simple: 'glm/5.3', coding: 'glm/5.3', critical: 'claude', kinds: { research: 'kimi/pro', review: 'kimi/pro', multimodal: 'claude' } })
   expect(p.primary).toEqual({ glm: 'glm/5.3', kimi: 'kimi/pro', deepseek: 'deepseek/v4-pro' })
 })
 
 test('an unknown provider name gets the generic defaults', async () => {
   expect(providerDefaults('nope')).toEqual(providerDefaults('anthropic-compatible'))
+})
+
+test('OpenRouter serves MiniMax and GPT-6 under their own slugs, GPT-6 picking Luna, Sol or Astra by tier', async () => {
+  const p = providerDefaults('openrouter')
+  expect(p.families.minimax.members).toEqual({ m3: 'minimax/minimax-m3', 'm3.1-flash': 'minimax/minimax-m3.1-flash' })
+  expect(p.families.gpt.members).toEqual({ sol: 'openai/gpt-6-sol', luna: 'openai/gpt-6-luna', astra: 'openai/gpt-6-astra' })
+  expect(p.families.gpt.auto).toEqual({ simple: 'luna', coding: 'sol', critical: 'astra' })
 })
