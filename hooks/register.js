@@ -18,6 +18,7 @@ import { priceTurn } from './savings.js'
 import { helpTree } from './lib/help-pane.js'
 import { BUILTIN, STRATEGY_DIR, applyStrategy, strategiesText, strategyPrompt } from './lib/strategies.js'
 import { loadStrategies } from './strategy.js'
+import { routeUpdate } from './update.js'
 
 let cfg = applyStrategy(parseConfig(''), BUILTIN.complexity), configText = '', options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
@@ -318,6 +319,7 @@ export function register(on, opts) {
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
     if (parsed.mode === 'help') return { ...(await openHelp($) && {}) }
+    if (parsed.mode === 'update') return { text: await routeUpdate($) }
     if (parsed.mode === 'strategies' || parsed.mode === 'strategy') return { text: await strategyCommand($, parsed) }
     return { text: await pinFrom($, e.args) }
   })
