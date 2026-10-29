@@ -7,8 +7,8 @@ const SESSION = 'claude-opus-5'
 test('resolveModel: the tier decides whether Claude is mandatory, the kind picks the cheaper model', async () => {
   expect(resolveModel({ label: 'simple', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
   expect(resolveModel({ label: 'coding', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
-  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3.1-pro')
-  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3.1-pro')
+  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-pro')
+  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-pro')
   expect(resolveModel({ label: 'simple', kind: 'multimodal' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
   expect(resolveModel({ label: 'critical', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
 })
@@ -107,9 +107,10 @@ test('parseRouteArg reads help', async () => {
 })
 
 test('parseRouteArg expands a prefix to a gateway model that no route names', async () => {
-  expect(parseRouteArg('mercury', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'mercury-3' })
+  expect(parseRouteArg('minimax', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'minimax-m3' })
+  expect(parseRouteArg('gpt', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gpt-6-sol' })
   expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
-  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-v4-pro' })
+  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-pro' })
   expect(parseRouteArg('gemini', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gemini-3.8-flash' })
   // a configured route still wins over the catalogue
   const routes = { ...DEFAULT_ROUTES, simple: 'mercury-2' }
@@ -152,7 +153,7 @@ test('summaryLine shows the Codex sandbox and every command it refused, named or
 
 test('parseRouteArg expands a prefix from the provider\'s catalogue when one is given', async () => {
   const routes = { simple: 'glm/5.3', coding: 'glm/5.3', critical: 'claude', kinds: { research: 'kimi/pro' } }
-  const catalogue = ['glm/5.3', 'kimi/pro', 'deepseek/v4-pro', 'mercury/3', 'gemini/3.8-flash']
+  const catalogue = ['glm/5.3', 'kimi/pro', 'deepseek/v4-pro', 'gemini/3.8-flash', 'minimax/m3', 'gpt/sol', 'mercury/3']
   expect(parseRouteArg('deepseek', routes, catalogue)).toEqual({ mode: 'model', model: 'deepseek/v4-pro' })
   expect(parseRouteArg('glm', routes, catalogue)).toEqual({ mode: 'model', model: 'glm/5.3' })
   expect(parseRouteArg('gemini', routes, catalogue)).toEqual({ mode: 'model', model: 'gemini/3.8-flash' })

@@ -271,14 +271,14 @@ test('when the classifier is unreachable the last verdict is reused', GW, async 
   expect(runs.length).toBe(1)
 })
 
-test('the kind picks the model: research at a coding score goes to Kimi', GW, async ($, on) => {
+test('the kind picks the model: research at a coding score goes to DeepSeek', GW, async ($, on) => {
   stubSession(on, { score: '5 research' })
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('findings'), stderr: '' } } })
   recordSteps(on, [])
 
   await routedTurn($, 'research how other teams do blue-green deploys on render and compare three approaches')
-  expect(runs[0].argv).toContain('kimi-k3.1-pro')
+  expect(runs[0].argv).toContain('deepseek-pro')
 })
 
 test('a borderline score is sampled twice and the higher one wins', GW, async ($, on) => {
@@ -992,7 +992,7 @@ test('/route strategy cost asks the classifier about risk and sends a coding-sco
   await $.prompt.submit({ text: 'add pagination to the users endpoint and its tests' })
   await $.turn.start({ turnId: 't1' })
   await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
-  expect(runs[0].argv).toContain('deepseek-v4-pro')
+  expect(runs[0].argv).toContain('deepseek-pro')
   const status = await $.command.run({ command: 'route', args: 'status' })
   expect(status.text).toContain('strategy cost')
 })
@@ -1055,4 +1055,29 @@ test('/route update reports a failed update with the commands to run by hand', G
   const out = await $.command.run({ command: 'route', args: 'update' })
   expect(out.text).toContain('9.9.9 is out but the update failed (marketplace not found)')
   expect(out.text).toContain('claude plugin update mixture-of-models@mixture-of-models-claude-mod')
+})
+
+test('/route gpt/auto runs a simple turn on GPT-6 Luna through the gateway child', GW, async ($, on) => {
+  const runs: any[] = []
+  stubSession(on, { scores: ['2 code'] })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'gpt/auto' })
+  await $.prompt.submit({ text: 'grep the repo for TODO comments and list the files' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs[0].argv).toContain('gpt-6-luna')
+})
+
+test('on Palgu the child pins the routed model, and a saved deepseek-v4-pro pin runs under Palgu\'s name', GW, async ($, on) => {
+  const runs: any[] = []
+  const store = stubSession(on)
+  store.set('pin', { mode: 'model', model: 'deepseek-v4-pro' })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs[0].argv).toContain('deepseek-pro')
+  expect(runs[0].argv).not.toContain('deepseek-v4-pro')
+  expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: deepseek-pro')
 })

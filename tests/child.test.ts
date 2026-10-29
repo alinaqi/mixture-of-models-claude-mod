@@ -221,3 +221,10 @@ test('the subscription child drops --bare, which would force API-key auth, and k
   expect(args).not.toContain('--bare')
   expect(args).toContain('--disallowedTools')
 })
+
+test('childHeaders pins the routed model on Palgu, so the gateway serves exactly it; a pin of your own wins', async () => {
+  expect(childHeaders('/work/app', '', true, 'glm-5.3')).toContain('x-srooter-pin: glm-5.3')
+  expect(childHeaders('/work/app', 'x-srooter-pin: gpt-6-sol', true, 'glm-5.3')).not.toContain('x-srooter-pin: glm-5.3')
+  expect(childHeaders('/work/app', '', false, 'glm-5.3')).toBe('')
+  expect(childHeaders('/work/app', '', true)).not.toContain('x-srooter-pin')
+})

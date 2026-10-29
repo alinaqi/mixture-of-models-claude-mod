@@ -19,7 +19,7 @@ export const BUILTIN = {
     description: 'Send as much as possible to the cheapest models; only risky work stays on Claude.',
     score: 'risk',
     thresholds: { simple: 4, coding: 8 },
-    routes: { simple: 'glm/5.3', coding: 'deepseek/v4-pro', critical: 'claude', kinds: { research: 'kimi/pro', review: 'kimi/pro', docs: 'glm/5.3', multimodal: 'gemini/3.8-flash' } },
+    routes: { simple: 'glm/5.3', coding: 'deepseek/v4-pro', critical: 'claude', kinds: { research: 'deepseek/v4-pro', review: 'deepseek/v4-pro', docs: 'glm/5.3', multimodal: 'gemini/3.8-flash' } },
     rubric: [
       'Risk: how bad a wrong answer from a cheaper model would be. When unsure, score lower: the cheapest capable model should take it.',
       '1-4: lookups, explanations, docs, tests, single-file edits, config, small fixes, scaffolding.',
@@ -29,10 +29,10 @@ export const BUILTIN = {
   },
   speed: {
     name: 'speed',
-    description: 'Fastest answers: quick models for most work, Sonnet rather than Opus for the hard part.',
+    description: 'Fastest answers: Gemini Flash and GPT-6 Sol for most work, Sonnet rather than Opus for the hard part.',
     score: 'reasoning depth',
     thresholds: { simple: 3, coding: 7 },
-    routes: { simple: 'mercury/3', coding: 'kimi/auto', critical: 'claude/sonnet', kinds: { research: 'gemini/3.8-flash', multimodal: 'gemini/3.8-flash' } },
+    routes: { simple: 'gemini/3.8-flash', coding: 'gpt/sol', critical: 'claude/sonnet', kinds: { research: 'gemini/3.8-flash', multimodal: 'gemini/3.8-flash' } },
     rubric: [
       'Reasoning depth: how much careful thinking the task needs. Fast models take everything they can answer well.',
       '1-3: lookups, one-liners, quick edits, short explanations.',
