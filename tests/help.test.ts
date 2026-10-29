@@ -28,7 +28,7 @@ test('help names the gateway, or how to connect one when there is none', async (
 test('help lists every band button with its hotkey, and the commands', async () => {
   const t = text(BASE)
   for (const b of ['0  help', '1  auto', '2  glm', '4  claude', '5  off']) expect(t).toContain(b)
-  for (const c of ['/route status', '/route stats', '/route reset', '/route claude/sonnet', '/palgu login', '/palgu upgrade']) expect(t).toContain(c)
+  for (const c of ['/route status', '/route stats', '/route reset', '/route claude/sonnet', '/route update', '/palgu login', '/palgu upgrade']) expect(t).toContain(c)
   expect(t).toContain(BASE.saved)
 })
 
