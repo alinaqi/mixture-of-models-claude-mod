@@ -45,7 +45,7 @@ export function parseRouteArg(arg, routes, catalogue) {
   const word = (arg || '').trim().toLowerCase()
   if (word === '' || word === 'status') return { mode: 'show' }
   if (word.includes('/')) return { mode: 'model', model: word }
-  if (['auto', 'off', 'reset', 'stats'].includes(word)) return { mode: word }
+  if (['auto', 'off', 'reset', 'stats', 'help'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
   return { mode: 'model', model: modelByPrefix(word, routes, catalogue) || word }
 }

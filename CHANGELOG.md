@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-10-29
+
+### Added
+- Help on the band: `0: help` comes first, before `1: auto`. It opens a pane (also `/route help`) that says what the mod does, where it stands now (auto, pinned or off, and that the choice is remembered across sessions; which gateway, or how to connect one; what routing has saved), what each band button and command does, and how to connect Palgu, OpenRouter or LiteLLM. It changes no setting.
+
 ## [0.16.0] - 2026-10-29
 
 ### Added

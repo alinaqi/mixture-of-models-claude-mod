@@ -168,7 +168,7 @@ Claude and the gateway are both visible, all the time:
 
 | Surface | Main-session turn | Routed turn |
 | :- | :- | :- |
-| Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  1: auto  2: glm  3: kimi  4: claude  5: off` | `… · running glm-5.3 in a child…` while it runs |
+| Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | `… · running glm-5.3 in a child…` while it runs |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
@@ -187,7 +187,7 @@ Every routed turn is priced twice: at your session's Claude model (what the same
 
 It is an estimate, and it says so. Claude prices are the API list prices (Opus 5.5 $4 / $20 per million input / output tokens, Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50, Fable 5.1 $10 / $50; cache reads and 5-minute and 1-hour cache writes at their own rates), so on a claude.ai subscription it is the API-equivalent saving, not money back. It assumes the routed turn would have used the same number of tokens on Claude. A routed turn the mod cannot price (a gateway with no `router.prices` entry for that model, or a Codex child) claims no saving; `/route status` counts it as unpriced.
 
-The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto. Turn the band off with `"ui": { "band": false }`.
+The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto, `0` for help: a pane that says what the mod does, where it stands (mode, gateway, savings), what every button and command does, and how to connect Palgu, OpenRouter or LiteLLM. `/route help` opens it too. Turn the band off with `"ui": { "band": false }`.
 
 ## Requirements
 
@@ -432,6 +432,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/palgu login` | Sign up or sign in to Palgu from the terminal: approve a code in the browser, and the mod saves its Palgu key and routes at once |
 | `/palgu status` | Who the key belongs to and the org's plan |
 | `/palgu upgrade` | The Palgu plans and billing page |
+| `/route help` (or `0` on the band) | What the mod does, where it stands now, every button and command, and how to connect a provider |
 | `/route`, `/route status` | Live or observe-only, mode, current decision (with family and member), today's counts, the families and their members |
 | `/route auto` | Classify every prompt (default) |
 | `/route off` | Never start a child |
