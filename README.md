@@ -8,6 +8,26 @@ Keep your Claude subscription for the turns that need it. Hand the rest to a che
 
 Routes can also name a **model family**: `claude/sonnet` runs that Claude member on your own Claude login, `kimi/auto` lets the score pick a Kimi member, and `codex` hands the turn to the Codex CLI (`codex exec`) on Palgu or on your ChatGPT login. See [Families](#families-pick-a-member-or-let-the-tier-pick) and [Codex](#codex-as-a-child).
 
+## Get Palgu's models in one command
+
+No dashboard, no copying keys. After [installing the mod](#install), in Claude Code:
+
+```
+/palgu login
+```
+
+1. The mod shows a link and a short code, for example `https://www.palgu.ai/connect?code=WDJB-MJHT`.
+2. Open the link, sign in to Palgu or **sign up** (new accounts start on the free plan), check the code matches and press **Allow**. The page names the app: *Allow Mixture of Models on "Claude Code on your-mac"?*
+3. Back in the terminal a toast says *Signed in to Palgu as you@example.com*. That's it: simple and coding turns now run on Palgu's models (GLM 5.3, Kimi K3.1, DeepSeek V4 Pro, Gemini 3.8 Flash, Mercury 3), and critical turns stay on Claude. No restart.
+
+| Command | What it does |
+| :- | :- |
+| `/palgu login` | Sign up or sign in, and connect this computer |
+| `/palgu status` | Who is signed in, the organisation and its plan |
+| `/palgu upgrade` | Plans and billing (paid plans are bought on the web; your key picks up the new plan by itself) |
+
+How it works: Palgu's device sign-in (the same one `srooterctl` uses) mints an API key for this computer only. You can see and revoke it on Palgu's **Devices** page. The mod saves it in Claude Code's secure storage with `claude plugin configure --values-stdin`, so it never appears on a command line or in a settings file. Already have a key, or use another gateway? See [Setup](#setup).
+
 To be precise about what it is: **turn-level delegation**, not per-request model mixing. A routed turn runs in a child process with a short brief of your recent context; the child's answer lands in your transcript, tagged. Critical turns stay on Claude exactly as before.
 
 ## Install

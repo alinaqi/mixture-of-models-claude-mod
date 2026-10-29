@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - `/palgu login`: sign up or sign in to Palgu from the terminal. It starts Palgu's device sign-in as the client `mixture-of-models`, shows a link and a code to approve in the browser (new users can sign up there), polls in the background, and once approved saves the key Palgu minted for this computer with `claude plugin configure --values-stdin` (the key on stdin, never argv). Routed turns use it at once, with no restart. Needs the Palgu gateway release that accepts the `mixture-of-models` client; until then it says sign-in could not start and how to paste a key instead.
 - `/palgu status` asks Palgu's `/me` who the key belongs to and the org's plan; `/palgu upgrade` gives the plans and billing page.
-- README and PRIVACY list the new calls to `https://api.palgu.ai` and the install id kept in the plugin store.
+- README: a "Get Palgu's models in one command" quick start near the top. README and PRIVACY list the new calls to `https://api.palgu.ai` and the install id kept in the plugin store.
 
 ## [0.13.1] - 2026-10-29
 
