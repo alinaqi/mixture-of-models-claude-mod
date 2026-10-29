@@ -7,8 +7,8 @@ const SESSION = 'claude-opus-5'
 test('resolveModel: the tier decides whether Claude is mandatory, the kind picks the cheaper model', async () => {
   expect(resolveModel({ label: 'simple', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
   expect(resolveModel({ label: 'coding', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
-  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3.1-pro')
-  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('kimi-k3.1-pro')
+  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-pro')
+  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-pro')
   expect(resolveModel({ label: 'simple', kind: 'multimodal' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
   expect(resolveModel({ label: 'critical', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
 })
@@ -110,7 +110,7 @@ test('parseRouteArg expands a prefix to a gateway model that no route names', as
   expect(parseRouteArg('minimax', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'minimax-m3' })
   expect(parseRouteArg('gpt', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gpt-6-sol' })
   expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
-  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-v4-pro' })
+  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-pro' })
   expect(parseRouteArg('gemini', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gemini-3.8-flash' })
   // a configured route still wins over the catalogue
   const routes = { ...DEFAULT_ROUTES, simple: 'mercury-2' }

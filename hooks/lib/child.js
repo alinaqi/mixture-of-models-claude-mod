@@ -46,13 +46,15 @@ export function projectSlug(cwd) {
 // ANTHROPIC_CUSTOM_HEADERS for the child: the user's own lines first, then who the child is and
 // which project it works in, each only if the user has not set that header already. Only Palgu
 // (and generic gateways, as before) get ours: `identify` false keeps them from OpenRouter or LiteLLM.
-export function childHeaders(cwd, theirs, identify = true) {
+// `model` adds x-srooter-pin: Palgu routes by intent and would otherwise serve another model.
+export function childHeaders(cwd, theirs, identify = true, model = '') {
   const lines = String(theirs || '').split('\n').map((l) => l.trim()).filter(Boolean)
   if (!identify) return lines.join('\n')
   const has = (name) => lines.some((l) => l.toLowerCase().startsWith(name + ':'))
   const project = projectSlug(cwd)
   const ours = [['x-srooter-client', 'mixture-of-models/' + VERSION]]
   if (project && !project.includes('..')) ours.push(['x-srooter-project', project])
+  if (model) ours.push(['x-srooter-pin', model])
   for (const [name, value] of ours) if (!has(name)) lines.push(name + ': ' + value)
   return lines.join('\n')
 }

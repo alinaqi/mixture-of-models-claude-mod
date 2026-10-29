@@ -16,11 +16,11 @@ test('a non-Claude primary becomes the coding route; primary claude keeps the ch
 test('routes have a tier default and a per-kind matrix, each overridable on its own', async () => {
   expect(DEFAULTS.routes).toEqual({
     simple: 'glm-5.3', coding: 'glm-5.3', critical: 'claude',
-    kinds: { research: 'kimi-k3.1-pro', review: 'kimi-k3.1-pro', multimodal: 'claude' },
+    kinds: { research: 'deepseek-pro', review: 'deepseek-pro', multimodal: 'claude' },
   })
   const cfg = parseConfig('{"router":{"routes":{"kinds":{"research":"kimi-k3-long"},"coding":"deepseek-v4-pro"}}}')
   expect(cfg.routes.kinds.research).toBe('kimi-k3-long')
-  expect(cfg.routes.kinds.review).toBe('kimi-k3.1-pro')
+  expect(cfg.routes.kinds.review).toBe('deepseek-pro')
   expect(cfg.routes.coding).toBe('deepseek-v4-pro')
   expect(cfg.routes.simple).toBe('glm-5.3')
 })
@@ -67,7 +67,7 @@ test('thresholds default to 3/7 and can be moved', async () => {
 })
 
 test('the gateway catalogue lists the models a pin can name, kimi-k3 retired', async () => {
-  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra'])
+  expect(GATEWAY_MODELS).toEqual(['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed'])
   expect(JSON.stringify(DEFAULTS)).not.toMatch(/kimi-k3"/)
 })
 

@@ -85,9 +85,11 @@ The classifier is asked one question: how much damage does a wrong answer do? It
 
 The prompt tells the classifier that length, the number of services named, or pasted API keys do not raise the score by themselves, which is what used to push ordinary integration work onto the main session. It also says that deep reasoning (algorithms with proofs, concurrency, performance tuning, cryptography) scores at least 7 whatever the blast radius, so hard-but-safe work stays on Claude. Move the cut-offs with `router.thresholds`; for example `{ "simple": 3, "coding": 8 }` keeps everything but 9-10 off Claude.
 
-**The kind picks the model.** Below `critical`, `routes.kinds` maps the task kind to a model: by default `research` and `review` go to Kimi (`kimi-k3.1-pro`) for its long context, `multimodal` stays on Claude, and everything else takes the tier's model (GLM). Add `"docs": "deepseek-v4-pro"` or `"data": "..."` to the matrix as your gateway allows.
+**The kind picks the model.** Below `critical`, `routes.kinds` maps the task kind to a model: by default `research` and `review` go to DeepSeek V4 Pro (`deepseek-pro` on Palgu, 1M-token context), `multimodal` stays on Claude, and everything else takes the tier's model (GLM). Until 0.20.0 they went to Kimi, which Palgu does not answer today (an empty response after about two minutes). Add `"docs": "gpt-6-sol"` or `"data": "..."` to the matrix as your gateway allows.
 
 **Models you can name.** Any model id your gateway serves works in `routes`, `routes.kinds` or a pin. The mod knows these Palgu gateway models, so `/route <prefix>` expands to them even when no route names them: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro`, `gemini-3.8-flash`, `minimax-m3`, `minimax-m2.5`, `gpt-6-sol`, `gpt-6-luna` and `gpt-6-astra`. The band above the prompt has a button for each of these families. `kimi-k3.1-pro` replaces `kimi-k3`; an old `/route kimi-k3` pin expands to it. Gemini, MiniMax and GPT-6 are options, not defaults: `/route minimax`, `/route gpt` (GPT-6 Sol) or `/route gpt/auto` (Luna for simple turns, Sol for coding, Astra for critical) pins them. Palgu does not serve Inception's Mercury 3; on OpenRouter it is `mercury/3`.
+
+**Which Palgu models work.** Tested on 2026-10-29 the way the mod runs a turn (a `claude -p --bare` child, pinned with `x-srooter-pin`, making one Bash tool call): `glm-5.3`, `deepseek-pro`, `gemini-3.8-flash`, `minimax-m3`, `minimax-m2.5`, `gpt-6-sol`, `gpt-6-luna` and `gpt-6-astra` all pass in about 6 s. `kimi-k3.1-pro` and `kimi-k3.1-pro-highspeed` fail (Palgu returns an empty response after about two minutes), so no default route uses Kimi on Palgu; pin it only to retry. `mercury-3` is not served by Palgu. The child always sends `x-srooter-pin: <model>` to Palgu: without it Palgu routes by intent and may answer with another model (it served every model unpinned as Gemini).
 
 ### Routing strategies: route by complexity, cost, speed, quality, or your own rules
 
@@ -95,9 +97,9 @@ What the classifier scores, where the tiers split and which model each tier take
 
 | Strategy | Scores | Tiers (simple / coding) | Goes to |
 | :- | :- | :- | :- |
-| `complexity` (default) | blast radius, as above | 3 / 7 | your routes: GLM, Kimi for research and review, Claude for critical |
-| `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | GLM, DeepSeek V4 Pro for coding, Kimi for research and review, Gemini for images, Claude for critical |
-| `speed` | reasoning depth | 3 / 7 | Gemini 3.8 Flash, Kimi, Sonnet rather than Opus for critical |
+| `complexity` (default) | blast radius, as above | 3 / 7 | your routes: GLM, DeepSeek for research and review, Claude for critical |
+| `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | GLM, DeepSeek V4 Pro for coding, research and review, Gemini for images, Claude for critical |
+| `speed` | reasoning depth | 3 / 7 | Gemini 3.8 Flash, GPT-6 Sol for coding, Sonnet rather than Opus for critical |
 | `quality` | stakes; when unsure, higher | 2 / 5 | GLM for lookups only, Sonnet for coding, Claude for critical |
 
 `/route strategies` lists them and yours, `/route strategy cost` switches (remembered across sessions; `router.strategy` in `model-config.json` sets a default), and the band then reads `auto (cost)`.
@@ -249,7 +251,7 @@ The third option, `gateway_provider`, says what kind of gateway it is: `auto` (t
 
 | Provider | Child auth | Default model ids | `x-srooter-*` headers |
 | :- | :- | :- | :- |
-| `palgu` | `ANTHROPIC_API_KEY` (`x-api-key`) | Palgu's: `glm-5.3`, `kimi-k3.1-pro`, … | yes |
+| `palgu` | `ANTHROPIC_API_KEY` (`x-api-key`) | Palgu's: `glm-5.3`, `deepseek-pro`, … | yes |
 | `openrouter` | `ANTHROPIC_AUTH_TOKEN` (`Authorization: Bearer`) | OpenRouter slugs behind the families: `glm/5.3` → `z-ai/glm-5.3`, … | no |
 | `litellm` | `ANTHROPIC_AUTH_TOKEN` (`Authorization: Bearer`) | Palgu's names; your proxy's `model_name`s decide | no |
 | `anthropic-compatible` | `ANTHROPIC_API_KEY` (`x-api-key`) | Palgu's | yes |
@@ -406,7 +408,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
   "router": {
     "provider":   "auto",
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
-                    "kinds": { "research": "kimi-k3.1-pro", "review": "kimi-k3.1-pro", "multimodal": "claude" } },
+                    "kinds": { "research": "deepseek-pro", "review": "deepseek-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-4-5",

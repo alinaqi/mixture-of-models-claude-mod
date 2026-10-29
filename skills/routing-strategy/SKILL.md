@@ -13,9 +13,9 @@ Before any strategy runs, fixed safety rules keep some turns on the main session
 
 | Name | Scores | Thresholds (simple / coding) | Routes |
 | :- | :- | :- | :- |
-| `complexity` (default) | blast radius: how much a wrong answer could break | 3 / 7 | the config's routes (GLM for simple and coding, Kimi for research and review, Claude for critical) |
-| `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | simple `glm/5.3`, coding `deepseek/v4-pro`, research and review `kimi/pro`, images `gemini/3.8-flash`, critical Claude |
-| `speed` | reasoning depth needed | 3 / 7 | simple `gemini/3.8-flash`, coding `kimi/auto`, research and images `gemini/3.8-flash`, critical `claude/sonnet` |
+| `complexity` (default) | blast radius: how much a wrong answer could break | 3 / 7 | the config's routes (GLM for simple and coding, DeepSeek for research and review, Claude for critical) |
+| `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | simple `glm/5.3`, coding, research and review `deepseek/v4-pro`, images `gemini/3.8-flash`, critical Claude |
+| `speed` | reasoning depth needed | 3 / 7 | simple `gemini/3.8-flash`, coding `gpt/sol`, research and images `gemini/3.8-flash`, critical `claude/sonnet` |
 | `quality` | stakes; when unsure, higher | 2 / 5 | simple `glm/5.3`, coding `claude/sonnet`, critical Claude |
 
 `/route strategies` lists them with the user's own; `/route strategy <name>` switches (remembered across sessions). `router.strategy` in `~/.claude/model-config.json` sets one too; a `/route strategy` pick wins.

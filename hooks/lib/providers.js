@@ -5,9 +5,17 @@ export const PROVIDERS = ['palgu', 'openrouter', 'litellm', 'anthropic-compatibl
 
 // Palgu's catalogue. LiteLLM and other gateways default to the same ids: a LiteLLM proxy serves
 // whatever `model_name`s its config defines, so name yours the same or override router.routes.
-// Checked against Palgu's model table (infra/render/srooter.cloud.yaml) on 2026-10-29. Palgu does not
-// serve mercury-3; OpenRouter does. Gemini, MiniMax and GPT-6 are options: no default route uses them.
-export const PALGU_MODELS = ['glm-5.3', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra']
+// Palgu's pin names (its policy allowlist), each tested on 2026-10-29 with a pinned `claude -p --bare`
+// child making a tool call: all pass but Kimi, which Palgu answered with an empty response after
+// ~2 minutes, so no default route uses Kimi there. Palgu does not serve mercury-3; OpenRouter does.
+export const PALGU_MODELS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed']
+
+// Older ids Palgu refuses as a pin, to the name it takes; a saved pin or route keeps working.
+const PALGU_NAMES = { 'deepseek-v4-pro': 'deepseek-pro' }
+
+export function gatewayName(provider, id) {
+  return provider === 'palgu' ? PALGU_NAMES[id] || id : id
+}
 
 // GPT-6 by tier: Luna is the small fast one, Sol the default, Astra the largest.
 const GPT_AUTO = { simple: 'luna', coding: 'sol', critical: 'astra' }
@@ -33,6 +41,7 @@ function familiesOf(models) {
     out[family].members[id.slice(family.length + 1)] = id
   }
   out.kimi = { members: { pro: 'kimi-k3.1-pro', highspeed: 'kimi-k3.1-pro-highspeed' }, auto: { simple: 'highspeed', coding: 'pro', critical: 'pro' } }
+  if (out.deepseek) out.deepseek = { members: { 'v4-pro': 'deepseek-pro' }, auto: {} }
   if (out.gpt) out.gpt = { members: { sol: 'gpt-6-sol', luna: 'gpt-6-luna', astra: 'gpt-6-astra' }, auto: GPT_AUTO }
   return out
 }
@@ -47,8 +56,8 @@ function routesOf(cheap, long) {
 const PALGU_LIKE = {
   catalogue: PALGU_MODELS,
   families: familiesOf(PALGU_MODELS),
-  routes: routesOf('glm-5.3', 'kimi-k3.1-pro'),
-  primary: { glm: 'glm-5.3', kimi: 'kimi-k3.1-pro', deepseek: 'deepseek-v4-pro' },
+  routes: routesOf('glm-5.3', 'deepseek-pro'),
+  primary: { glm: 'glm-5.3', kimi: 'kimi-k3.1-pro', deepseek: 'deepseek-pro' },
 }
 
 const OPENROUTER = {

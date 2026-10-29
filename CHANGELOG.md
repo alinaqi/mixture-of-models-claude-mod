@@ -10,6 +10,9 @@ All notable changes to this project are documented here. The format follows
 - MiniMax and GPT-6 families. On Palgu: `minimax/m3` (`minimax-m3`), `minimax/m2.5`, and `gpt/sol`, `gpt/luna`, `gpt/astra` (`gpt-6-*`); on OpenRouter: `minimax/minimax-m3`, `minimax/minimax-m3.1-flash` and `openai/gpt-6-*`. `gpt/auto` takes Luna for simple turns, Sol for coding and Astra for critical. `/route minimax` and `/route gpt` pin them, and the band has a button for each. They are options; no default route uses them.
 
 ### Fixed
+- Routed turns on Palgu ran on whatever model Palgu chose, not the one routed: Palgu routes by intent unless a request pins its model, and the child never did (unpinned, it served every model as Gemini). The child now sends `x-srooter-pin: <model>` to Palgu, so `deepseek`, `gpt`, `minimax` and the rest run as named, and the route line and savings name the model that ran.
+- DeepSeek on Palgu: Palgu takes it as `deepseek-pro` and refuses `deepseek-v4-pro` as a pin. The catalogue uses `deepseek-pro`, and a saved `deepseek-v4-pro` pin or route runs as `deepseek-pro`.
+- Research and review now go to DeepSeek by default, and the `cost` and `speed` strategies no longer use Kimi: Palgu answers Kimi K3.1 Pro and its highspeed variant with an empty response after about two minutes, so those turns failed slowly and fell back to Claude. Kimi stays pinnable.
 - Palgu does not serve `mercury-3`, so a turn routed to it on Palgu failed and fell back to the main model, slowly. It is gone from the Palgu catalogue and band; on OpenRouter `mercury/3` stays. The `speed` strategy now sends simple turns to Gemini 3.8 Flash.
 - The band's number keys stop at 9: a tenth button and beyond is pressed by click or Tab.
 

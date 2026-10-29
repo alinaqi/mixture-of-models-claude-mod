@@ -12,6 +12,7 @@ import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 import { PALGU_GATEWAY } from './lib/palgu.js'
+import { gatewayName } from './lib/providers.js'
 import { palguCommand } from './palgu.js'
 import { addTurn, savingsLine, turnNote } from './lib/savings.js'
 import { priceTurn } from './savings.js'
@@ -88,16 +89,22 @@ async function classify($, text) {
   return second && second.score > first.score ? second : first
 }
 
+// Every route resolves here, so a gateway model always goes out under the name its gateway takes.
+function routeTo(value, d) {
+  const t = targetFor(value, d, cfg.families, sessionModel)
+  return t.runner === 'gateway' ? { ...t, id: gatewayName(cfg.provider, t.id) } : t
+}
+
 // A pinned `<family>/auto` still classifies: the tier picks the member inside the pinned family.
 function setDecision(label, source, verdict) {
   decision = { label, source, ...(verdict || {}) }
   const pinned = pin.mode === 'model' && isAutoRoute(pin.model) && label !== 'main'
-  Object.assign(decision, targetFor(pinned ? pin.model : routeValue(decision, cfg.routes), decision, cfg.families, sessionModel))
+  Object.assign(decision, routeTo(pinned ? pin.model : routeValue(decision, cfg.routes), decision))
 }
 
 function applyPin() {
   if (pin.mode === 'label') setDecision(pin.label, 'pin')
-  if (pin.mode === 'model') decision = { label: 'pinned', source: 'pin', ...targetFor(pin.model, { label: 'coding' }, cfg.families, sessionModel) }
+  if (pin.mode === 'model') decision = { label: 'pinned', source: 'pin', ...routeTo(pin.model, { label: 'coding' }) }
 }
 
 // Notifications, operator commands and security turns stay on the main session, pinned or not.
@@ -116,7 +123,7 @@ async function decide($, text) {
   const thresholds = adjustThresholds(cfg.thresholds, await $.store.get('failures'), verdict.kind)
   const label = labelFor(verdict.score, thresholds)
   setDecision(label, midTaskGuard(label, ctx) ? 'mid-task guard' : verdict.source, { score: verdict.score, kind: verdict.kind })
-  if (midTaskGuard(label, ctx)) Object.assign(decision, targetFor('claude', decision, cfg.families, sessionModel))
+  if (midTaskGuard(label, ctx)) Object.assign(decision, routeTo('claude', decision))
 }
 
 // The gateway child needs the gateway, Codex its own auth; the subscription child only your login.
@@ -135,7 +142,7 @@ async function spawnChild($, extra, stdin) {
   const sub = decision.runner === 'subscription'
   const cwd = await $.session.cwd()
   const argv = ['claude', ...childArgs(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child, decision.id, cwd), ...extra]
-  const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '', cfg.child.identify)
+  const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '', cfg.child.identify, decision.id)
   const r = await $.process.run(argv, { env: sub ? subscriptionEnv() : childEnv(cfg.child, key, headers), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
   return parseChildOutput(r.stdout, r.exitCode)
 }
