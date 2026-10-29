@@ -11,10 +11,10 @@ function provider(model) {
   return model.split('/')[0].split('-')[0]
 }
 
-// One button per provider in the routes, then one per gateway family no route names, framed by
-// auto, claude and off: every model you can pin has a button.
-export function bandButtons(routes) {
-  const models = [...routeModels(routes), ...GATEWAY_MODELS]
+// One button per provider in the routes, then one per family in the gateway's catalogue that no
+// route names, framed by auto, claude and off: every model you can pin has a button.
+export function bandButtons(routes, catalogue) {
+  const models = [...routeModels(routes), ...(catalogue || GATEWAY_MODELS)]
   const providers = [...new Set(models.map(provider))].filter((p) => p !== 'claude')
   const args = ['auto', ...providers, 'claude', 'off']
   return args.map((arg, i) => ({ key: 'pin-' + arg, label: arg, hotkey: String(i + 1), arg }))
@@ -43,7 +43,7 @@ export function bandText(v) {
 
 export function bandTree(el, v, onPin) {
   const active = activeArg(v.pin)
-  const buttons = bandButtons(v.routes).map((b) =>
+  const buttons = bandButtons(v.routes, v.catalogue).map((b) =>
     el.Button({ key: b.key, label: b.label, hotkey: b.hotkey, plain: true, dimColor: b.arg !== active, onPress: () => onPin(b.arg) }),
   )
   const row = el.Box({ flexDirection: 'row', columnGap: 2, children: [el.Text({ dimColor: true, children: [bandText(v) + '  '] }), ...buttons] })

@@ -75,7 +75,7 @@ export function tokenStep(res, interval) {
 
 // What `claude plugin configure --values-stdin` reads: the key travels on stdin, never argv.
 export function configureValues(key) {
-  return JSON.stringify({ gateway_url: PALGU_GATEWAY, gateway_key: key })
+  return JSON.stringify({ gateway_url: PALGU_GATEWAY, gateway_key: key, gateway_provider: 'palgu' })
 }
 
 export function startText(start) {

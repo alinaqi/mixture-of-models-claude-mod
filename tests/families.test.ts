@@ -112,3 +112,17 @@ test('families in the config merge over the defaults per family', async () => {
   expect(cfg.families.claude.auto).toEqual({ simple: 'haiku', coding: 'opus', critical: 'opus' })
   expect(cfg.families.kimi).toEqual(FAM.kimi)
 })
+
+const OR = parseConfig('', { gateway_url: 'https://openrouter.ai/api' }).families
+
+test('on OpenRouter a family route resolves to its OpenRouter slug, on the gateway', async () => {
+  expect(targetFor('glm/5.3', coding, OR, SESSION)).toEqual({ runner: 'gateway', model: 'z-ai/glm-5.3', id: 'z-ai/glm-5.3', family: 'glm', member: '5.3', auto: false })
+  expect(targetFor('kimi/auto', coding, OR, SESSION).id).toBe('moonshotai/kimi-k3.1-pro')
+})
+
+test('a full slug that a family lists is that member, not an unknown family', async () => {
+  expect(targetFor('z-ai/glm-5.3', coding, OR, SESSION)).toEqual({ runner: 'gateway', model: 'z-ai/glm-5.3', id: 'z-ai/glm-5.3', family: 'glm', member: '5.3', auto: false })
+  expect(checkRoute('moonshotai/kimi-k3.1-pro', OR)).toBe('')
+  expect(checkRoute('z-ai/glm-9', OR)).toMatch(/unknown family z-ai/)
+  expect(targetFor('z-ai/glm-9', coding, OR, SESSION).runner).toBe('main')
+})

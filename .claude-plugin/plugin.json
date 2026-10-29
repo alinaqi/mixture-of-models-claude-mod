@@ -1,8 +1,8 @@
 {
   "name": "mixture-of-models",
   "displayName": "Mixture of Models",
-  "version": "0.15.0",
-  "description": "Routes each prompt to the cheapest capable model. Simple and coding work runs in a headless child Claude Code on an Anthropic-compatible gateway (GLM 5.3, Kimi K3.1 Pro, Mercury 3, ...); critical work stays in your main session on your subscription. Routes can name a family member (claude/sonnet on your Claude login, kimi/auto) or hand a turn to the Codex CLI. Ported from Maggy.",
+  "version": "0.16.0",
+  "description": "Routes each prompt to the cheapest capable model. Simple and coding work runs in a headless child Claude Code on an Anthropic-compatible gateway (Palgu, OpenRouter, a LiteLLM proxy; GLM 5.3, Kimi K3.1 Pro, Mercury 3, ...); critical work stays in your main session on your subscription. Routes can name a family member (claude/sonnet on your Claude login, kimi/auto) or hand a turn to the Codex CLI. Ported from Maggy.",
   "author": {
     "name": "Ali Naqi Shaheen",
     "url": "https://github.com/alinaqi"
@@ -16,6 +16,8 @@
     "glm",
     "kimi",
     "palgu",
+    "openrouter",
+    "litellm",
     "maggy",
     "cost",
     "codex"
@@ -24,13 +26,18 @@
     "gateway_url": {
       "type": "string",
       "title": "Gateway URL",
-      "description": "Anthropic-compatible endpoint the child Claude Code sends routed turns to, e.g. https://api.palgu.ai/anthropic. Leave empty to stay observe-only."
+      "description": "Anthropic-compatible endpoint the child Claude Code sends routed turns to: https://api.palgu.ai/anthropic, https://openrouter.ai/api, or your LiteLLM proxy such as http://localhost:4000. Leave empty to stay observe-only."
     },
     "gateway_key": {
       "type": "string",
       "title": "Gateway API key",
-      "description": "API key for that gateway. Used only in the child process environment.",
+      "description": "API key for that gateway: a Palgu key, an OpenRouter key, or a LiteLLM master or virtual key. Used only in the child process environment.",
       "sensitive": true
+    },
+    "gateway_provider": {
+      "type": "string",
+      "title": "Gateway provider",
+      "description": "auto (default: Palgu and OpenRouter are detected from the URL), palgu, openrouter, litellm (a LiteLLM proxy: bearer key, your proxy's model names) or anthropic-compatible."
     }
   },
   "privacyPolicyUrl": "https://github.com/alinaqi/mixture-of-models-claude-mod/blob/main/PRIVACY.md"

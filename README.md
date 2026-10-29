@@ -57,7 +57,7 @@ or, inside a session, `/plugin install mixture-of-models --marketplace alinaqi/m
 
 **Fastest start, on Palgu:** start `claude` and run `/palgu login`. It shows a link and a code; approve it in the browser (sign up there if you are new) and the mod saves its own Palgu key and routes from that moment, no copying keys. `/palgu status` says who is signed in and on which plan, `/palgu upgrade` opens plans and billing.
 
-Or give the child a gateway yourself (any Anthropic-compatible endpoint that serves your model ids; tested with [palgu](https://www.palgu.ai), and z.ai or Moonshot's Anthropic endpoints work the same way), see [Setup](#setup). Start `claude`, run `/route`. Until a gateway is configured the mod is observe-only and changes nothing.
+Or give the child a gateway yourself: [OpenRouter](#openrouter), a [LiteLLM](#litellm) proxy, or any Anthropic-compatible endpoint that serves your model ids (tested with [palgu](https://www.palgu.ai); z.ai or Moonshot's Anthropic endpoints work the same way), see [Setup](#setup). Start `claude`, run `/route`. Until a gateway is configured the mod is observe-only and changes nothing.
 
 **Design rule: the main session is never touched.** It stays on your claude.ai subscription with no `ANTHROPIC_BASE_URL`. When a prompt is routed to GLM or Kimi, the mod answers that turn itself by running a **separate, headless `claude -p` child** whose environment alone points at the gateway (palgu). The child's output becomes the turn's answer in your transcript. Nothing about the main process, its model, its auth or its requests changes.
 
@@ -114,7 +114,7 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 
 with the same brief on stdin, the same `child.timeoutMs`, the same vetting, failure memory, route line and provenance tag as the Claude child. `router.codex.auth` picks the account:
 
-- `"palgu"` (default): Codex talks to Palgu's Responses endpoint, `/v1/responses`. The mod adds an explicit `palgu` provider with `-c model_provider="palgu"`, `-c model_providers.palgu.base_url="<gateway>/v1"`, `-c model_providers.palgu.wire_api="responses"` and `-c model_providers.palgu.env_key="PALGU_API_KEY"`, as [Palgu's Codex docs](https://www.palgu.ai) describe (Codex ignores `OPENAI_BASE_URL` under a ChatGPT login, so the provider must be explicit). The base URL is your `gateway_url` with `/anthropic` replaced by `/v1`, or `router.codex.baseUrl`. Your gateway key goes only into the child's environment as `PALGU_API_KEY`, never on the command line, never printed. Needs the gateway URL and key, like the Claude gateway child.
+- `"palgu"` (default): Codex talks to your gateway's Responses endpoint, `/v1/responses`. On OpenRouter and LiteLLM the provider is named `openrouter` or `litellm`, the base URL is `<gateway_url>/v1` (`https://openrouter.ai/api/v1`, `http://localhost:4000/v1`; a LiteLLM `/anthropic` URL drops that suffix first) and the key goes in `OPENROUTER_API_KEY` or `LITELLM_API_KEY`, following [OpenRouter's](https://openrouter.ai/docs/cookbook/coding-agents/codex-cli.md) and [LiteLLM's](https://docs.litellm.ai/docs/proxy/client_setup/codex_cli.md) Codex guides. Name the model on those gateways: OpenRouter needs a full slug (`/route codex/openai/gpt-5.6-terra`), LiteLLM one of your `model_name`s; Codex's own default model id is not one of them. On Palgu the mod adds an explicit `palgu` provider with `-c model_provider="palgu"`, `-c model_providers.palgu.base_url="<gateway>/v1"`, `-c model_providers.palgu.wire_api="responses"` and `-c model_providers.palgu.env_key="PALGU_API_KEY"`, as [Palgu's Codex docs](https://www.palgu.ai) describe (Codex ignores `OPENAI_BASE_URL` under a ChatGPT login, so the provider must be explicit). The base URL is your `gateway_url` with `/anthropic` replaced by `/v1`, or `router.codex.baseUrl`. Your gateway key goes only into the child's environment as `PALGU_API_KEY`, never on the command line, never printed. Needs the gateway URL and key, like the Claude gateway child.
 - `"chatgpt"`: no provider flags and no key: Codex uses your own `codex login` and `~/.codex/config.toml`. The mod never reads or writes `~/.codex`.
 
 #### Sandbox and approvals
@@ -192,7 +192,7 @@ The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause 
 ## Requirements
 
 - Claude Code **v2.1.287 or later** (`claude --version`). Mods do not load on older builds; `claude update`.
-- A gateway the child can use: palgu's Anthropic endpoint and a key, or any Anthropic-compatible endpoint that serves the model ids in `routes`.
+- A gateway the child can use: Palgu's Anthropic endpoint, OpenRouter, a LiteLLM proxy, or any Anthropic-compatible endpoint that serves the model ids in `routes`, with its key.
 - Optional: Ollama with a small model for free classification (`ollama pull qwen2.5-coder:3b`). Without it the classifier falls back to Haiku on your plan.
 
 ## Setup
@@ -213,6 +213,61 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for the full walkthrough, or `./ins
 
 Until a gateway URL and key are present the mod is **observe-only**: it classifies and `/route` shows what it would do, but no child starts.
 
+The third option, `gateway_provider`, says what kind of gateway it is: `auto` (the default, also when empty) detects Palgu (`*.palgu.ai`) and OpenRouter (`openrouter.ai`) from the URL and treats any other host as a generic Anthropic-compatible gateway, exactly as before 0.16; `palgu`, `openrouter`, `litellm` or `anthropic-compatible` name it outright. The provider decides how the child sends the key and which model ids the default routes and the band use:
+
+| Provider | Child auth | Default model ids | `x-srooter-*` headers |
+| :- | :- | :- | :- |
+| `palgu` | `ANTHROPIC_API_KEY` (`x-api-key`) | Palgu's: `glm-5.3`, `kimi-k3.1-pro`, … | yes |
+| `openrouter` | `ANTHROPIC_AUTH_TOKEN` (`Authorization: Bearer`) | OpenRouter slugs behind the families: `glm/5.3` → `z-ai/glm-5.3`, … | no |
+| `litellm` | `ANTHROPIC_AUTH_TOKEN` (`Authorization: Bearer`) | Palgu's names; your proxy's `model_name`s decide | no |
+| `anthropic-compatible` | `ANTHROPIC_API_KEY` (`x-api-key`) | Palgu's | yes |
+
+Whichever variable carries the key, the child's environment sets the other one to empty, because the child inherits your shell and Claude Code sends both when both are set: an `ANTHROPIC_API_KEY` exported in your shell never rides along to OpenRouter, and a stray `ANTHROPIC_AUTH_TOKEN` never reaches Palgu. The key is never on a command line.
+
+### OpenRouter
+
+1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+2. `/plugin configure mixture-of-models@mixture-of-models-claude-mod` with
+
+   | Option | Value |
+   | :- | :- |
+   | `gateway_url` | `https://openrouter.ai/api` |
+   | `gateway_key` | your OpenRouter key (`sk-or-…`) |
+   | `gateway_provider` | `auto` (or `openrouter`) |
+
+   or from the shell: `echo '{"gateway_url":"https://openrouter.ai/api","gateway_key":"sk-or-…","gateway_provider":"openrouter"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
+3. Start `claude`. Simple and coding turns run on `z-ai/glm-5.3`, research and review on `moonshotai/kimi-k3.1-pro`; the band offers `glm`, `kimi`, `deepseek` (`deepseek/deepseek-v4-pro`), `mercury` (`inception/mercury-3`) and `gemini` (`google/gemini-3.8-flash`). These are the slugs [OpenRouter's model list](https://openrouter.ai/models) served on 2026-10-29. OpenRouter has no Kimi highspeed variant, so `kimi/auto` is `pro` for every tier.
+
+Routes on OpenRouter name family members (`glm/5.3`), because an OpenRouter slug has a `/` in it; a slug that a family lists (`z-ai/glm-5.3`) works too. For another OpenRouter model, add it to a family and route to it:
+
+```json
+{ "router": {
+    "families": { "glm": { "members": { "4.6": "z-ai/glm-4.6" } } },
+    "routes":   { "simple": "glm/4.6" } } }
+```
+
+As [OpenRouter's Claude Code guide](https://openrouter.ai/docs/guides/guides/claude-code-integration) says, Claude Code is only guaranteed to work with Anthropic's own models; a routed turn whose model cannot handle Claude Code's tools fails, and the main model answers it.
+
+### LiteLLM
+
+A [LiteLLM proxy](https://docs.litellm.ai/docs/tutorials/claude_responses_api) serves its Anthropic-compatible `/v1/messages` on its own address. It runs on your host, so it is never detected: name it.
+
+| Option | Value |
+| :- | :- |
+| `gateway_url` | your proxy, for example `http://localhost:4000` (or its `/anthropic` pass-through, `http://localhost:4000/anthropic`) |
+| `gateway_key` | the proxy's master key or a virtual key (`sk-…`) |
+| `gateway_provider` | `litellm` |
+
+The child sends the key as `Authorization: Bearer`. Model names are whatever `model_name`s your proxy's `config.yaml` defines. The defaults are Palgu's names (`glm-5.3`, `kimi-k3.1-pro`, …): name your proxy's models the same, or point the routes at yours:
+
+```json
+{ "router": {
+    "routes":   { "simple": "my-glm", "coding": "my-glm", "kinds": { "research": "my-kimi", "review": "my-kimi" } },
+    "families": { "glm": { "members": { "mine": "my-glm" } } } } }
+```
+
+A virtual key reaches only the models it is allowed; a 401 or an unknown model makes the child fail, and the main model answers.
+
 ## What this plugin runs, reads, sends and stores
 
 The directory's security scan compares this section with the code. Everything the mod does outside its own code is listed here. In one breath:
@@ -220,7 +275,7 @@ The directory's security scan compares this section with the code. Everything th
 - Only when you run `/palgu`, it **fetches** `https://api.palgu.ai` (`/auth/device/code`, `/auth/token`, `/me`) and **runs** `claude plugin configure … --values-stdin` once to save the key Palgu minted (see the tables below).
 - It **fetches** `http://localhost:11434/api/chat` with `$.http.fetch`, sending the prompt text and the scoring rubric to a local Ollama, to score the prompt. No credentials, nothing leaves the machine.
 - It **calls** `$.model.classify`, which sends the same prompt text and rubric to Anthropic through Claude Code's own API client on your own account, when Ollama does not answer.
-- It **runs** two programs with `$.process.run`, for routed turns only: `claude` (Claude Code itself, headless), either with `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` set to the gateway values you configured and `ANTHROPIC_CUSTOM_HEADERS` set to identify it (see [Headers the child sends](#headers-the-child-sends)), or, for a `claude/<member>` route, on your own Claude login with `ANTHROPIC_BASE_URL` cleared; and, only for a `codex` route, `codex exec` (the Codex CLI), with your gateway key in `PALGU_API_KEY` or on your own Codex login. Each child **sends** your prompt and a short brief of recent session text to its endpoint.
+- It **runs** two programs with `$.process.run`, for routed turns only: `claude` (Claude Code itself, headless), either with `ANTHROPIC_BASE_URL` and the key you configured (in `ANTHROPIC_API_KEY`, or `ANTHROPIC_AUTH_TOKEN` for OpenRouter and LiteLLM, the other one set empty) and, for Palgu and generic gateways, `ANTHROPIC_CUSTOM_HEADERS` set to identify it (see [Headers the child sends](#headers-the-child-sends)), or, for a `claude/<member>` route, on your own Claude login with `ANTHROPIC_BASE_URL` cleared; and, only for a `codex` route, `codex exec` (the Codex CLI), with your gateway key in `PALGU_API_KEY` (`OPENROUTER_API_KEY` on OpenRouter, `LITELLM_API_KEY` on LiteLLM) or on your own Codex login. Each child **sends** your prompt and a short brief of recent session text to its endpoint.
 - It **reads** `~/.claude/model-config.json`, `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS`, and **stores** the route pin, per-day counts, the last verdict, per-kind failure counts and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child time and exit code; never prompt text) in the plugin store.
 
 Full detail follows; a privacy policy is at [PRIVACY.md](PRIVACY.md).
@@ -256,9 +311,9 @@ The mod itself makes exactly one kind of network call, and the child process it 
 | The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
 | The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-4-5` by default. |
-| The child process (Claude Code itself), started in `turn.step` | Claude Code's normal API client | The `gateway_url` you set in the plugin's options (for example `https://api.palgu.ai/anthropic`), with `gateway_key` as its API key | Your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated), then whatever the child's own agent loop sends while it works | That is the point of the plugin: the turn runs on the gateway's model instead of the main session's. |
+| The child process (Claude Code itself), started in `turn.step` | Claude Code's normal API client | The `gateway_url` you set in the plugin's options (for example `https://api.palgu.ai/anthropic`, `https://openrouter.ai/api` or your LiteLLM proxy), with `gateway_key` as its `x-api-key` (Palgu, generic) or `Authorization: Bearer` (OpenRouter, LiteLLM) | Your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated), then whatever the child's own agent loop sends while it works | That is the point of the plugin: the turn runs on the gateway's model instead of the main session's. |
 | A Claude-member child (`claude/<member>` routes), started in `turn.step` | Claude Code's normal API client | Anthropic, on your own claude.ai login, the same as your main session | The same brief, then the child's own agent loop | Runs the turn on another Claude model without re-pointing the main session. |
-| The Codex child (`codex` routes), started in `turn.step` | The Codex CLI's own client | With `codex.auth: "palgu"`: your gateway's `/v1` (for example `https://api.palgu.ai/v1/responses`) with `gateway_key`; with `"chatgpt"`: OpenAI, on your own Codex login | The same brief, then Codex's own agent loop | Runs the turn on Codex. |
+| The Codex child (`codex` routes), started in `turn.step` | The Codex CLI's own client | With `codex.auth: "palgu"`: your gateway's `/v1` (for example `https://api.palgu.ai/v1/responses`, `https://openrouter.ai/api/v1/responses` or `<your LiteLLM proxy>/v1/responses`) with `gateway_key`; with `"chatgpt"`: OpenAI, on your own Codex login | The same brief, then Codex's own agent loop | Runs the turn on Codex. |
 
 The mod contacts no other host. The gateway is whatever you configure; nothing is sent to a fixed third party.
 
@@ -276,16 +331,16 @@ claude -p --model <routed model id> --output-format json --max-turns <child.maxT
 
 For a `claude/<member>` route the same program runs with `--model <member id>` and `child.subscriptionArgs` (`--permission-mode acceptEdits`) in place of `child.args`, so without `--bare`, and its environment is `MAGGY_ROUTER_CHILD=1` plus `ANTHROPIC_BASE_URL` set empty, so it runs on your Claude login.
 
-For a `codex` route the program is `codex`, with the arguments shown under [Codex as a child](#codex-as-a-child) (and, only after you approve a refused command, `exec -C <cwd> resume … <thread> -` as described there), the brief on stdin, the environment `MAGGY_ROUTER_CHILD=1` plus, on the Palgu path only, `PALGU_API_KEY`, and the same `child.timeoutMs`.
+For a `codex` route the program is `codex`, with the arguments shown under [Codex as a child](#codex-as-a-child) (and, only after you approve a refused command, `exec -C <cwd> resume … <thread> -` as described there), the brief on stdin, the environment `MAGGY_ROUTER_CHILD=1` plus, on the gateway path only, the key in `PALGU_API_KEY` (`OPENROUTER_API_KEY` on OpenRouter, `LITELLM_API_KEY` on LiteLLM), and the same `child.timeoutMs`.
 
-For the gateway and Claude-member children, and only after you approve a relayed command (see below), the same program runs again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The gateway child's environment adds `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` (the gateway values), `ANTHROPIC_CUSTOM_HEADERS` (below) and `MAGGY_ROUTER_CHILD=1`; the Claude-member and Codex children get no identifying headers. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
+For the gateway and Claude-member children, and only after you approve a relayed command (see below), the same program runs again with `--resume <that child's session id> --allowedTools <the approved patterns>` appended, so the same child continues. `--bare` keeps your hooks, plugins and keychain out of the child. `child.args` replaces the last three flags if you set it. The gateway child's environment adds `ANTHROPIC_BASE_URL`, the key in `ANTHROPIC_API_KEY` with `ANTHROPIC_AUTH_TOKEN` empty (Palgu, generic) or in `ANTHROPIC_AUTH_TOKEN` with `ANTHROPIC_API_KEY` empty (OpenRouter, LiteLLM), `ANTHROPIC_CUSTOM_HEADERS` (below) and `MAGGY_ROUTER_CHILD=1`; the Claude-member and Codex children get no identifying headers. The brief is written to its stdin. It runs in the session's working directory with Claude Code's tools under that permission mode, so it can read and edit files there and run commands the mode allows; those commands are the child's own agent decisions, governed by Claude Code's permission system, not commands this plugin issues. It is killed at `child.timeoutMs`.
 
 ### Headers the child sends
 
-Every request the child makes to the gateway carries two headers, so Palgu's dashboard can show its traffic as Mixture-of-Models, per project:
+Every request the child makes to a Palgu or generic gateway carries two headers, so Palgu's dashboard can show its traffic as Mixture-of-Models, per project. On OpenRouter and LiteLLM, which do not read them, they are left out and only your own `ANTHROPIC_CUSTOM_HEADERS` are sent:
 
 ```
-x-srooter-client: mixture-of-models/0.12.0
+x-srooter-client: mixture-of-models/0.16.0
 x-srooter-project: <the session folder's name>
 ```
 
@@ -315,6 +370,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
 {
   "primary": "glm",
   "router": {
+    "provider":   "auto",
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
                     "kinds": { "research": "kimi-k3.1-pro", "review": "kimi-k3.1-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
@@ -355,7 +411,9 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
+- `provider`: the gateway provider when the plugin's `gateway_provider` option is unset or `auto`: `palgu`, `openrouter`, `litellm` or `anthropic-compatible`. Unset, it is detected from the gateway URL (see [Setup](#setup)). It picks the default `routes`, `families`, the band's buttons and the child's auth; anything you set in `routes` or `families` still wins.
 - `child.baseUrl`: fallback for the gateway URL when the plugin's `gateway_url` option is unset. The key has no fallback; it comes only from the `gateway_key` option.
+- `child.auth`: `x-api-key` (`ANTHROPIC_API_KEY`) or `bearer` (`ANTHROPIC_AUTH_TOKEN`), set from the provider; set it yourself for a generic gateway that wants a bearer token. `child.identify`: send the `x-srooter-*` headers (on for Palgu and generic gateways).
 - `child.args`: extra flags. The default is `--bare` (no inherited hooks or plugins, API-key auth only, so the child can never fall back to your subscription) plus `acceptEdits` so it can edit files without prompting. The mod always adds `--add-dir <cwd>`, which keeps the project's `CLAUDE.md` in reach under `--bare`. Add `--dangerously-skip-permissions` only if you want the child to run commands unattended; drop `--bare` if you want your hooks and plugins inside the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.
@@ -363,7 +421,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.deny`: extra Claude Code permission deny rules for every Claude child, passed with `--disallowedTools` after `child.args`. They add to the built-in list (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `secrets/**`), which nothing removes, because `--bare` skips the hooks that would otherwise guard those files.
 - `child.subscriptionArgs`: the flags for a `claude/<member>` child, in place of `child.args`. No `--bare` by default, because `--bare` allows only API-key auth and the point is your Claude login.
 - `families`: per family, `members` (alias → exact model id) and `auto` (tier → member alias, plus optional `criticalPlus` for 10/10 critical turns). Merged over the defaults per family; a new family name adds a gateway family.
-- `codex.auth`: `palgu` (default; your gateway's `/v1/responses` with your gateway key) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not your `gateway_url` with `/anthropic` → `/v1`. `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
+- `codex.auth`: `palgu` (default; your configured gateway's `/v1/responses` with your gateway key, whichever provider it is) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not the derived one (Palgu: `/anthropic` → `/v1`; OpenRouter and LiteLLM: `<gateway_url>/v1`). `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
 - `prices`: $ per million tokens for gateway models, for the [savings estimate](#how-much-it-saves), for example `{ "glm-5.3": { "input": 0.6, "output": 2.2 } }` (optional `cacheRead`, default a tenth of input, and `cacheWrite`). An entry here wins over Palgu's own quote. A model with no price on a gateway that is not Palgu is counted as unpriced.
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
@@ -410,7 +468,7 @@ claude plugin validate --strict .  # manifest + static analysis of the hooks mod
 claude plugin test                 # needs v2.1.287+; fires events through the hooks with no session or network
 ```
 
-`tests/classify`, `config`, `routing`, `families`, `codex`, `stats`, `child` and `ui` cover the pure logic in `hooks/lib/`. `tests/mod.test.ts` drives the hooks end to end: a simple prompt is answered by a child with the gateway in its environment and the brief on stdin, a critical prompt never starts one, a failed child falls back to the main model, a missing key means observe-only, a child session disables the mod, and `/route off` and `/route kimi` behave.
+`tests/classify`, `config`, `providers`, `routing`, `families`, `codex`, `stats`, `child` and `ui` cover the pure logic in `hooks/lib/`. `tests/mod.test.ts` drives the hooks end to end: a simple prompt is answered by a child with the gateway in its environment and the brief on stdin, a critical prompt never starts one, a failed child falls back to the main model, a missing key means observe-only, a child session disables the mod, and `/route off` and `/route kimi` behave.
 
 ## Layout
 
@@ -419,13 +477,14 @@ mixture-of-models-claude-mod/
 ├── .claude-plugin/
 │   ├── plugin.json         # the plugin manifest
 │   └── marketplace.json    # lets `claude plugin install` find it in this repo
-├── docs/adr/               # architecture decisions (0001: child-process delegation)
+├── docs/adr/               # architecture decisions (0001: child-process delegation, 0002: families and Codex, 0003: gateway providers)
 ├── scripts/test-pure.mjs   # runs the pure tests under Node
 ├── hooks/
 │   ├── hooks.json          # points at register.js
 │   ├── register.js         # the 10 hooks; the only file that touches the mods API ($)
 │   └── lib/                # pure, unit-tested
 │       ├── config.js       # defaults and the model-config.json overlay
+│       ├── providers.js    # Palgu, OpenRouter, LiteLLM, generic: detection, child auth, catalogues
 │       ├── classify.js     # Maggy's pre-routing rules, classifier prompt, Ollama wire format
 │       ├── routing.js      # tier → model, /route grammar, summary line
 │       ├── families.js     # <family>/<member>, <family>/auto, which runner serves a route

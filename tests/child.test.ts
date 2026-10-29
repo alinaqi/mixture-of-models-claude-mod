@@ -34,12 +34,41 @@ test('childArgs honours custom args', async () => {
   expect(args).not.toContain('--bare')
 })
 
-test('childEnv marks the child and scopes the gateway to it', async () => {
+test('childEnv marks the child and scopes the gateway to it, the key as x-api-key with any inherited bearer token blanked', async () => {
   expect(childEnv(CHILD, 'srt_key')).toEqual({
     MAGGY_ROUTER_CHILD: '1',
     ANTHROPIC_BASE_URL: 'https://api.palgu.ai/anthropic',
     ANTHROPIC_API_KEY: 'srt_key',
+    ANTHROPIC_AUTH_TOKEN: '',
   })
+})
+
+test('childEnv for a bearer gateway puts the key in ANTHROPIC_AUTH_TOKEN and blanks an inherited ANTHROPIC_API_KEY', async () => {
+  // An inherited ANTHROPIC_API_KEY would otherwise ride along as x-api-key to OpenRouter or LiteLLM.
+  expect(childEnv({ ...CHILD, baseUrl: 'https://openrouter.ai/api', auth: 'bearer' }, 'sk-or-key')).toEqual({
+    MAGGY_ROUTER_CHILD: '1',
+    ANTHROPIC_BASE_URL: 'https://openrouter.ai/api',
+    ANTHROPIC_AUTH_TOKEN: 'sk-or-key',
+    ANTHROPIC_API_KEY: '',
+  })
+})
+
+const PROVIDER_CHILDREN = {
+  palgu: { ...CHILD, auth: 'x-api-key' },
+  openrouter: { ...CHILD, baseUrl: 'https://openrouter.ai/api', auth: 'bearer' },
+  litellm: { ...CHILD, baseUrl: 'http://localhost:4000', auth: 'bearer' },
+  'anthropic-compatible': { ...CHILD, baseUrl: 'https://llm.example.com', auth: 'x-api-key' },
+}
+
+test('for every provider the key is never on argv, and the secrets deny list is always last', async () => {
+  for (const [name, child] of Object.entries(PROVIDER_CHILDREN)) {
+    const args = childArgs(child, 'some/model', '/work')
+    expect([name, args.join(' ').includes('KEY-SENTINEL')]).toEqual([name, false])
+    expect(args.slice(args.indexOf('--disallowedTools') + 1)).toEqual(SECRET_DENY)
+    const env = childEnv(child, 'KEY-SENTINEL')
+    expect(Object.values(env).filter((v) => v === 'KEY-SENTINEL').length).toBe(1)
+    expect(env.ANTHROPIC_API_KEY !== undefined && env.ANTHROPIC_AUTH_TOKEN !== undefined).toBe(true)
+  }
 })
 
 test('childEnv without a base URL only marks the child', async () => {
@@ -50,6 +79,7 @@ test('childEnv adds the identifying headers for the gateway, only when the child
   const headers = childHeaders('/work/app', '')
   expect(childEnv(CHILD, 'srt_key', headers).ANTHROPIC_CUSTOM_HEADERS).toBe(headers)
   expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key', headers)).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+  expect(childEnv(CHILD, 'srt_key', '').ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
 })
 
 test('childHeaders names the mod and its version, and the project folder', async () => {
@@ -63,6 +93,12 @@ test('childHeaders keeps the user\'s own custom headers and appends ours once', 
   expect(merged).toBe('X-Team: platform\nX-Trace: on\nx-srooter-client: mixture-of-models/' + VERSION + '\nx-srooter-project: app')
   expect(childHeaders('/work/app', merged)).toBe(merged)
   expect(childHeaders('/work/app', 'X-Srooter-Project: mine')).toBe('X-Srooter-Project: mine\nx-srooter-client: mixture-of-models/' + VERSION)
+})
+
+test('childHeaders without identification keeps only the user\'s own headers', async () => {
+  expect(childHeaders('/work/app', 'X-Team: platform', false)).toBe('X-Team: platform')
+  expect(childHeaders('/work/app', '', false)).toBe('')
+  expect(childHeaders('/work/app', '', true)).toBe(childHeaders('/work/app', ''))
 })
 
 test('childHeaders leaves the project out when the folder name has no usable slug', async () => {

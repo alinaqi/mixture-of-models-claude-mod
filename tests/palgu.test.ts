@@ -45,7 +45,8 @@ test('tokenStep returns the key and who signed in on success', async () => {
 })
 
 test('configureValues points the child at the Palgu gateway with the new key, for --values-stdin', async () => {
-  expect(JSON.parse(configureValues('srt_x'))).toEqual({ gateway_url: PALGU_GATEWAY, gateway_key: 'srt_x' })
+  // gateway_provider too, so a LiteLLM or OpenRouter choice left over does not keep bearer auth on Palgu.
+  expect(JSON.parse(configureValues('srt_x'))).toEqual({ gateway_url: PALGU_GATEWAY, gateway_key: 'srt_x', gateway_provider: 'palgu' })
   expect(PALGU_GATEWAY).toBe('https://api.palgu.ai/anthropic')
 })
 
