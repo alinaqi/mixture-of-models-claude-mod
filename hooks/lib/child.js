@@ -2,6 +2,7 @@
 // scoped environment, readiness, env-file parsing and the context brief. Pure.
 
 import { VERSION } from './version.js'
+import { usageOf } from './savings.js'
 
 const MESSAGE_CHARS = 1200
 
@@ -111,7 +112,7 @@ export function parseChildOutput(raw, exitCode) {
   const denials = (r.permission_denials || []).map((d) => ({ tool: d.tool_name, command: d.tool_name === 'Bash' ? d.tool_input.command || '' : '' }))
     .filter((d) => !seen.has(d.tool + d.command) && seen.add(d.tool + d.command))
   const turns = typeof r.num_turns === 'number' ? r.num_turns : undefined
-  return { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [], turns }
+  return { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [], turns, usage: usageOf(r.usage) }
 }
 
 export function allowPatterns(denials) {

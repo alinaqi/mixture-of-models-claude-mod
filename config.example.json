@@ -20,6 +20,7 @@
     },
     "codex":   { "auth": "palgu", "sandbox": "read-only", "allowOutsideGit": false, "args": [] },
     "ui":      { "band": true, "tags": "routed" },
-    "summary": true
+    "summary": true,
+    "prices":  { "glm-5.3": { "input": 0.6, "output": 2.2 } }
   }
 }

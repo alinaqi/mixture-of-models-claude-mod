@@ -141,18 +141,23 @@ test('parseChildOutput reads the answer, session id and denied commands from hea
     { tool_name: 'Bash', tool_input: { command: 'git pull --ff-only', dangerouslyDisableSandbox: true } },
     { tool_name: 'WebFetch', tool_input: { url: 'https://x' } },
   ] }
-  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined })
+  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined, usage: null })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, num_turns: 3 }), 0).turns).toBe(3)
   expect(parseChildOutput(JSON.stringify([{ type: 'system' }, denied]), 0)).toEqual({
     ok: true, answer: 'I need approval', sessionId: 'sid-1',
-    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined,
+    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined, usage: null,
   })
+})
+
+test('parseChildOutput keeps the child usage, so the turn can be priced', async () => {
+  const usage = { input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: 9000, cache_creation_input_tokens: 0 }
+  expect(parseChildOutput(JSON.stringify({ ...RESULT, usage }), 0).usage).toEqual({ ...usage, cache_1h_input_tokens: 0 })
 })
 
 test('parseChildOutput treats a non-zero exit, an error result or unparsable output as a failed child', async () => {
   expect(parseChildOutput(JSON.stringify(RESULT), 1).ok).toBe(false)
   expect(parseChildOutput(JSON.stringify({ ...RESULT, is_error: true }), 0).ok).toBe(false)
-  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined })
+  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined, usage: null })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, result: '   ' }), 0).ok).toBe(false)
 })
 
