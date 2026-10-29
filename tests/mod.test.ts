@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import { VERSION } from '../hooks/lib/version.js'
 
 const CONFIG = '{"primary":"claude"}'
 // The plugin's userConfig values, as a configured install stores them.
@@ -1020,4 +1021,38 @@ test('a broken strategy file is skipped and named in the log; an unknown name is
   expect(logs.join(' ')).toContain('routing strategy bad.md skipped: no frontmatter')
   const bad = await $.command.run({ command: 'route', args: 'strategy nope' })
   expect(bad.text).toContain('no routing strategy nope; strategies: complexity, cost, speed, quality')
+})
+
+const MANIFEST = 'https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json'
+const published = (version: string) => (url: string) => (url === MANIFEST ? { ok: true, status: 200, headers: {}, text: JSON.stringify({ version }) } : { ok: false, status: 404, headers: {}, text: '' })
+
+test('/route update installs a newer published version through claude plugin commands', GW, async ($, on) => {
+  const runs: any[] = []
+  stubSession(on, { fetch: published('9.9.9') })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: 'ok', stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'route', args: 'update' })
+  expect(runs.map((r) => r.argv)).toEqual([
+    ['claude', 'plugin', 'marketplace', 'update', 'mixture-of-models-claude-mod'],
+    ['claude', 'plugin', 'update', 'mixture-of-models@mixture-of-models-claude-mod'],
+  ])
+  expect(out.text).toBe('Updated mixture-of-models ' + VERSION + ' → 9.9.9. Restart Claude Code to load it; see the CHANGELOG for what changed.')
+})
+
+test('/route update runs nothing when the mod is current, and says how to update when it fails', GW, async ($, on) => {
+  const runs: any[] = []
+  stubSession(on, { fetch: published(VERSION) })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 1, stdout: '', stderr: 'marketplace not found' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect((await $.command.run({ command: 'route', args: 'update' })).text).toBe('mixture-of-models ' + VERSION + ' is up to date.')
+  expect(runs.length).toBe(0)
+})
+
+test('/route update reports a failed update with the commands to run by hand', GW, async ($, on) => {
+  stubSession(on, { fetch: published('9.9.9') })
+  on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: 'marketplace not found' } }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'route', args: 'update' })
+  expect(out.text).toContain('9.9.9 is out but the update failed (marketplace not found)')
+  expect(out.text).toContain('claude plugin update mixture-of-models@mixture-of-models-claude-mod')
 })

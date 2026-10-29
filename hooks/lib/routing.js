@@ -48,7 +48,7 @@ export function parseRouteArg(arg, routes, catalogue) {
   if (head === 'strategies' || (head === 'strategy' && !rest.length)) return { mode: 'strategies' }
   if (head === 'strategy') return { mode: 'strategy', name: rest.join(' ') }
   if (word.includes('/')) return { mode: 'model', model: word }
-  if (['auto', 'off', 'reset', 'stats', 'help'].includes(word)) return { mode: word }
+  if (['auto', 'off', 'reset', 'stats', 'help', 'update'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
   return { mode: 'model', model: modelByPrefix(word, routes, catalogue) || word }
 }

@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-10-29
+
+### Added
+- `/route update`: checks the version published on GitHub and, when it is newer, runs `claude plugin marketplace update` and `claude plugin update` for you, then says to restart Claude Code. Up to date, it runs nothing; if GitHub is unreachable or an update step fails, it says so and gives the commands to run by hand. The help pane lists it.
+
 ## [0.18.0] - 2026-10-29
 
 ### Added

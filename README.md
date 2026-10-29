@@ -53,7 +53,7 @@ or, inside a session, `/plugin install mixture-of-models --marketplace alinaqi/m
 
 > **Your hooks do not run in the gateway child.** The child runs `claude -p --bare`, and `--bare` skips every hook from your settings and plugins, so a hook that blocks `.env` does not guard it there, and what the child reads goes to the gateway model. The mod does not rely on hooks for this: every Claude child gets Claude Code permission deny rules, which `--bare` keeps, for `.env` and `.env.*` files, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` and `secrets/` folders (Read rules also cover Grep and Glob). Add your own with `router.child.deny`, for example `["Read(**/credentials.json)"]`. Commands the child is not allowed to run still come to you as an Allow / Deny dialog. A Codex child is read-only but not covered by these rules: keep secrets out of a project you route to Codex.
 
-**Updates.** Third-party marketplaces do not auto-update by default. Turn it on once in `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update, or update by hand with `claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`. A new version takes effect when you restart Claude Code.
+**Updates.** Run `/route update`: it checks for a newer version and installs it. Third-party marketplaces do not auto-update by default. Turn it on once in `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update, or update by hand with `claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`. A new version takes effect when you restart Claude Code.
 
 **Fastest start, on Palgu:** start `claude` and run `/palgu login`. It shows a link and a code; approve it in the browser (sign up there if you are new) and the mod saves its own Palgu key and routes from that moment, no copying keys. `/palgu status` says who is signed in and on which plan, `/palgu upgrade` opens plans and billing.
 
@@ -337,6 +337,7 @@ The mod itself makes exactly one kind of network call, and the child process it 
 
 | Who | Call | Address | What is sent | Why |
 | :- | :- | :- | :- | :- |
+| The mod, in `/route update` | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`, fixed in the code | Nothing but the GET | Reads the published version to compare with yours. |
 | The mod, in `/palgu login` | `$.http.fetch` | `https://api.palgu.ai/auth/device/code`, then `/auth/token`, fixed in the code | The client id `mixture-of-models`, the device name (`Claude Code on <HOSTNAME>`), the mod's version and a random install id it keeps in its store; then the device code Palgu gave it | Sign-in. Palgu answers with a key for this computer. |
 | The mod, in `turn.complete` after a routed turn on Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`, fixed in the code | The routed model id and the child's four token counts (input, output, cache read, cache write), and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` and `router.prices` has no entry for that model | Prices the turn for the savings estimate. No prompt or answer text. |
 | The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
@@ -350,7 +351,7 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 
 ### Programs this plugin runs
 
-**Which programs:** two, `claude` (Claude Code itself in headless mode, and once after `/palgu login` as `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`, with the gateway URL and key on stdin, to save them) and `codex` (the Codex CLI, `codex exec`, only for `codex` routes). The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
+**Which programs:** two, `claude` (Claude Code itself in headless mode, and once after `/palgu login` as `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`, with the gateway URL and key on stdin, to save them; and on `/route update`, when a newer version is published, `claude plugin marketplace update mixture-of-models-claude-mod` then `claude plugin update mixture-of-models@mixture-of-models-claude-mod`) and `codex` (the Codex CLI, `codex exec`, only for `codex` routes). The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
 
 **Why:** a mod can rename the model on a request but cannot change the endpoint or credentials of the session it runs in. The only way to run a turn on a different endpoint with Claude Code's own tools, while leaving the main session's endpoint and credentials untouched, is a second Claude Code process whose environment points at the gateway. The child exists for that reason alone, and only for turns the score routes away from the main session. The same reasoning covers a different Claude model (the main session is never renamed, so another member runs in its own process) and Codex (a different agent CLI, which only runs as its own process).
 
@@ -465,6 +466,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/palgu login` | Sign up or sign in to Palgu from the terminal: approve a code in the browser, and the mod saves its Palgu key and routes at once |
 | `/palgu status` | Who the key belongs to and the org's plan |
 | `/palgu upgrade` | The Palgu plans and billing page |
+| `/route update` | Check GitHub for a newer version and, if there is one, run `claude plugin marketplace update` and `claude plugin update` for you; restart Claude Code to load it |
 | `/route strategies`, `/route strategy <name>` | List the routing strategies (complexity, cost, speed, quality and yours) or switch to one |
 | `/route help` (or `0` on the band) | What the mod does, where it stands now, every button and command, and how to connect a provider |
 | `/route`, `/route status` | Live or observe-only, mode, current decision (with family and member), today's counts, the families and their members |
