@@ -50,6 +50,8 @@ export const DEFAULTS = {
     args: ['--bare', '--permission-mode', 'acceptEdits'],
     maxTurns: 25,
     timeoutMs: 600000,
+    // Retries per failed gateway request (Claude Code's own default is 10, minutes of backoff).
+    maxRetries: 2,
     contextMessages: 12,
     // How many times a routed turn may pause to ask the user about commands the child was refused.
     relayRounds: 2,

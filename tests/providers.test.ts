@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { PROVIDERS, gatewayName, providerDefaults, providerOf } from '../hooks/lib/providers.js'
 
-const PALGU_IDS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed']
+const PALGU_IDS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
 
 test('the providers are palgu, openrouter, litellm and any other anthropic-compatible gateway', async () => {
   expect(PROVIDERS).toEqual(['palgu', 'openrouter', 'litellm', 'anthropic-compatible'])

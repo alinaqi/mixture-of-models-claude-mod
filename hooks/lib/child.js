@@ -28,9 +28,11 @@ function authEnv(child, key) {
 }
 
 // The headers ride in the same branch as the base URL, so they only ever reach the gateway.
+// CLAUDE_CODE_MAX_RETRIES: Claude Code retries a 429 or 5xx ten times with backoff, ~170 s against a
+// busy provider before the mod can fall back; child.maxRetries keeps that to seconds.
 export function childEnv(child, key, headers) {
   const env = { MAGGY_ROUTER_CHILD: '1' }
-  if (child.baseUrl) Object.assign(env, { ANTHROPIC_BASE_URL: child.baseUrl }, authEnv(child, key))
+  if (child.baseUrl) Object.assign(env, { ANTHROPIC_BASE_URL: child.baseUrl }, authEnv(child, key), { CLAUDE_CODE_MAX_RETRIES: String(child.maxRetries ?? 2) })
   if (child.baseUrl && headers) env.ANTHROPIC_CUSTOM_HEADERS = headers
   return env
 }

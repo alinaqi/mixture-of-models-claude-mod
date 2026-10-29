@@ -5,10 +5,10 @@ export const PROVIDERS = ['palgu', 'openrouter', 'litellm', 'anthropic-compatibl
 
 // Palgu's catalogue. LiteLLM and other gateways default to the same ids: a LiteLLM proxy serves
 // whatever `model_name`s its config defines, so name yours the same or override router.routes.
-// Palgu's pin names (its policy allowlist), each tested on 2026-10-29 with a pinned `claude -p --bare`
-// child making a tool call: all pass but Kimi, which Palgu answered with an empty response after
-// ~2 minutes, so no default route uses Kimi there. Palgu does not serve mercury-3; OpenRouter does.
-export const PALGU_MODELS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed']
+// Palgu's pin names (its policy allowlist), each run on 2026-10-29 as a pinned `claude -p --bare`
+// research turn. Kimi's earlier failures were Moonshot answering 429 engine_overloaded, which the
+// child retried for ~2-3 minutes (child.maxRetries now bounds that). mercury-3 is pin-only.
+export const PALGU_MODELS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
 
 // Older ids Palgu refuses as a pin, to the name it takes; a saved pin or route keeps working.
 const PALGU_NAMES = { 'deepseek-v4-pro': 'deepseek-pro' }
