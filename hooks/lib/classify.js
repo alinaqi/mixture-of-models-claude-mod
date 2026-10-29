@@ -51,22 +51,33 @@ export function preClassify(text, ctx) {
   return { kind: 'classify' }
 }
 
-// Maggy's blast score: how much damage a wrong answer does, not how long the task is.
-export function classifierPrompt(text) {
+// Maggy's blast score: how much damage a wrong answer does, not how long the task is. The
+// complexity strategy's rubric; strategies.js builds every classifier prompt from these parts.
+export const COMPLEXITY_RUBRIC = [
+  'Blast radius:',
+  '1-2: lookups, grep, shell one-liners, syntax questions, reading logs, git status or diff.',
+  '3-4: single-file edits, tests, docs, config changes, small bug fixes, scaffolding.',
+  '5-6: multi-file features, wiring services or tools together, integrations, deployments that follow a known pattern.',
+  '7-8: debugging across services, data migrations, performance work, changes that are awkward to undo.',
+  '9-10: security or auth design, architecture decisions, production incidents, anything irreversible.',
+  'Deep reasoning (algorithms with proofs, concurrency, performance tuning, cryptography) scores at least 7 whatever the blast radius.',
+  'Length, the number of services named, or pasted API keys do not raise the score by themselves.',
+].join('\n')
+
+export const KIND_LINE = 'Kind: code (write or change code, tests, config) · research (find out, compare, look things up) · review (review a diff or PR, explain existing code, summarise) · docs (prose: README, changelog, commit message, ADR) · data (SQL, logs, transforms, bulk extraction) · multimodal (images, screenshots, audio, video).'
+
+export function promptWith(scoreName, rubric, text) {
   return [
-    'Rate this coding-assistant task. Reply with two words: the blast radius from 1-10, a space, and the kind. Example: 6 code',
-    'Blast radius:',
-    '1-2: lookups, grep, shell one-liners, syntax questions, reading logs, git status or diff.',
-    '3-4: single-file edits, tests, docs, config changes, small bug fixes, scaffolding.',
-    '5-6: multi-file features, wiring services or tools together, integrations, deployments that follow a known pattern.',
-    '7-8: debugging across services, data migrations, performance work, changes that are awkward to undo.',
-    '9-10: security or auth design, architecture decisions, production incidents, anything irreversible.',
-    'Deep reasoning (algorithms with proofs, concurrency, performance tuning, cryptography) scores at least 7 whatever the blast radius.',
-    'Length, the number of services named, or pasted API keys do not raise the score by themselves.',
-    'Kind: code (write or change code, tests, config) · research (find out, compare, look things up) · review (review a diff or PR, explain existing code, summarise) · docs (prose: README, changelog, commit message, ADR) · data (SQL, logs, transforms, bulk extraction) · multimodal (images, screenshots, audio, video).',
+    'Rate this coding-assistant task. Reply with two words: the ' + scoreName + ' from 1-10, a space, and the kind. Example: 6 code',
+    rubric,
+    KIND_LINE,
     '',
     'Task: ' + text,
   ].join('\n')
+}
+
+export function classifierPrompt(text) {
+  return promptWith('blast radius', COMPLEXITY_RUBRIC, text)
 }
 
 // "6 code", "Score: 7, kind: review", or a bare number (kind defaults to code).

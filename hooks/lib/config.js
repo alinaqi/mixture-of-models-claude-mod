@@ -73,6 +73,8 @@ export const DEFAULTS = {
   summary: true,
   // $ per million tokens for gateway models, for the savings estimate: { "<id>": { input, output } }.
   prices: {},
+  // The routing strategy (router.strategy): a built-in or one of yours; '' is the default, complexity.
+  strategyName: '',
 }
 
 function parseJson(text) {
@@ -126,5 +128,6 @@ export function parseConfig(text, options) {
     ui: { ...DEFAULTS.ui, ...(router.ui || {}) },
     summary: router.summary === undefined ? DEFAULTS.summary : router.summary,
     prices: { ...DEFAULTS.prices, ...(router.prices || {}) },
+    strategyName: String(router.strategy || DEFAULTS.strategyName),
   }
 }

@@ -89,6 +89,37 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **Models you can name.** Any model id your gateway serves works in `routes`, `routes.kinds` or a pin. The mod knows these Palgu gateway models, so `/route <prefix>` expands to them even when no route names them: `glm-5.3`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, `deepseek-v4-pro`, `mercury-3` and `gemini-3.8-flash`. The band above the prompt has a button for each of these families. `kimi-k3.1-pro` replaces `kimi-k3`; an old `/route kimi-k3` pin expands to it. `mercury-3` is Inception's Mercury 3, a fast diffusion model with a 1M-token context and tool calling. It is an option, not a default: no route uses it until its speed and quality on routed turns have been measured. To try it for simple work, set `"routes": { "simple": "mercury-3" }`, or pin it for a few turns with `/route mercury`.
 
+### Routing strategies: route by complexity, cost, speed, quality, or your own rules
+
+What the classifier scores, where the tiers split and which model each tier takes is a **routing strategy**, one markdown file with a rubric, like a skill. Four come built in:
+
+| Strategy | Scores | Tiers (simple / coding) | Goes to |
+| :- | :- | :- | :- |
+| `complexity` (default) | blast radius, as above | 3 / 7 | your routes: GLM, Kimi for research and review, Claude for critical |
+| `cost` | risk of a cheaper model being wrong; when unsure, lower | 4 / 8 | GLM, DeepSeek V4 Pro for coding, Kimi for research and review, Gemini for images, Claude for critical |
+| `speed` | reasoning depth | 3 / 7 | Mercury 3, Kimi, Gemini for research and images, Sonnet rather than Opus for critical |
+| `quality` | stakes; when unsure, higher | 2 / 5 | GLM for lookups only, Sonnet for coding, Claude for critical |
+
+`/route strategies` lists them and yours, `/route strategy cost` switches (remembered across sessions; `router.strategy` in `model-config.json` sets a default), and the band then reads `auto (cost)`.
+
+**Your own.** Put a file in `~/.claude/mixture-of-models/strategies/<name>.md`, or ask Claude to use the plugin's **routing-strategy** skill, which asks what you want to optimise and writes it:
+
+```markdown
+---
+name: frugal
+description: Everything but production work goes to cheap models.
+score: risk
+thresholds: {"simple": 5, "coding": 8}
+routes: {"simple": "glm/5.3", "coding": "deepseek/v4-pro", "critical": "claude", "kinds": {"review": "kimi/pro"}}
+---
+Risk: how bad a wrong answer from a cheaper model would be. When unsure, score lower.
+1-5: lookups, docs, tests, single-file edits, small fixes.
+6-8: multi-file features, integrations, refactors that tests cover.
+9-10: security, production, data migrations, anything irreversible.
+```
+
+`thresholds` and `routes` are JSON on one line and optional (left out, your config's apply); the body is the rubric the classifier reads. The reply format stays "<score> <kind>", so tiers, families, failure memory and savings work the same. The safety rules above run first under every strategy: security work, notifications and session commands stay on Claude. A file that does not parse is skipped and named in the log; `/route strategy <name>` re-reads the folder, so a new file is picked up without a restart.
+
 ### Families: pick a member, or let the tier pick
 
 Any route, kind route or pin may be `<family>/<member>` or `<family>/auto` instead of a model id. A bare `claude` still means "the main session", exactly as before, so old configs behave the same.
@@ -351,6 +382,7 @@ They go in the child's `ANTHROPIC_CUSTOM_HEADERS` (Claude Code's newline-separat
 ### Files and environment it reads
 
 - `~/.claude/model-config.json`, through `$.fs.read`, for routes, thresholds, the classifier alias and child settings. It holds no credentials. Missing or invalid, the defaults apply.
+- `~/.claude/mixture-of-models/strategies/*.md`, through `$.fs.list` and `$.fs.read`, for your routing strategies, at session start and on `/route strategy` or `/route strategies`.
 - The environment variables `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (to keep your own custom headers in the child), through `$.env.get`.
 - Nothing else. The gateway key is never read from a file or from the environment; it comes only from the plugin's `gateway_key` option, which Claude Code keeps in secure storage.
 
@@ -422,6 +454,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.subscriptionArgs`: the flags for a `claude/<member>` child, in place of `child.args`. No `--bare` by default, because `--bare` allows only API-key auth and the point is your Claude login.
 - `families`: per family, `members` (alias → exact model id) and `auto` (tier → member alias, plus optional `criticalPlus` for 10/10 critical turns). Merged over the defaults per family; a new family name adds a gateway family.
 - `codex.auth`: `palgu` (default; your configured gateway's `/v1/responses` with your gateway key, whichever provider it is) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not the derived one (Palgu: `/anthropic` → `/v1`; OpenRouter and LiteLLM: `<gateway_url>/v1`). `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
+- `strategy`: the routing strategy to start with, a built-in (`complexity`, `cost`, `speed`, `quality`) or the name of one of your files; a `/route strategy` pick wins. See [Routing strategies](#routing-strategies-route-by-complexity-cost-speed-quality-or-your-own-rules).
 - `prices`: $ per million tokens for gateway models, for the [savings estimate](#how-much-it-saves), for example `{ "glm-5.3": { "input": 0.6, "output": 2.2 } }` (optional `cacheRead`, default a tenth of input, and `cacheWrite`). An entry here wins over Palgu's own quote. A model with no price on a gateway that is not Palgu is counted as unpriced.
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
@@ -432,6 +465,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/palgu login` | Sign up or sign in to Palgu from the terminal: approve a code in the browser, and the mod saves its Palgu key and routes at once |
 | `/palgu status` | Who the key belongs to and the org's plan |
 | `/palgu upgrade` | The Palgu plans and billing page |
+| `/route strategies`, `/route strategy <name>` | List the routing strategies (complexity, cost, speed, quality and yours) or switch to one |
 | `/route help` (or `0` on the band) | What the mod does, where it stands now, every button and command, and how to connect a provider |
 | `/route`, `/route status` | Live or observe-only, mode, current decision (with family and member), today's counts, the families and their members |
 | `/route auto` | Classify every prompt (default) |

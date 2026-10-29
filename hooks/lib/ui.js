@@ -30,6 +30,11 @@ function lastDecision(d) {
   return 'last: ' + d.model + ' (' + tierText(d) + ')'
 }
 
+// The default strategy goes unnamed, so the band reads as it always did.
+function strategyNote(name, before, after) {
+  return name && name !== 'complexity' ? before + name + after : ''
+}
+
 export function bandText(v) {
   if (v.disabled) return NAME + ' · inactive inside a child session'
   if (!v.ready) return NAME + ' · observe-only: no gateway key for the child'
@@ -38,7 +43,7 @@ export function bandText(v) {
   if (v.isWorking) return NAME + ' · running ' + (routed ? v.decision.model + ' in a child…' : v.sessionModel + ' in the main session…')
   if (v.pin.mode === 'model') return NAME + ' · pinned ' + (v.decision.family ? v.pin.model + ' → ' : '') + v.decision.model
   if (v.pin.mode === 'label') return NAME + ' · pinned ' + v.pin.label + ' → ' + v.decision.model
-  return NAME + ' · auto · ' + lastDecision(v.decision)
+  return NAME + ' · auto' + strategyNote(v.strategy, ' (', ')') + ' · ' + lastDecision(v.decision)
 }
 
 export function bandTree(el, v, onPin) {
@@ -69,5 +74,5 @@ function pinWord(pin) {
 // The /route answer.
 export function reportText(v) {
   const live = v.disabled ? 'disabled (child session)' : v.ready ? 'live' : 'observe-only (no gateway key for the child)'
-  return NAME + ' ' + live + ' · mode ' + pinWord(v.pin) + ' · current ' + summaryLine(v.decision, null)
+  return NAME + ' ' + live + ' · mode ' + pinWord(v.pin) + strategyNote(v.strategy, ' · strategy ', '') + ' · current ' + summaryLine(v.decision, null)
 }

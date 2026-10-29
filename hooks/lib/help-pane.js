@@ -39,11 +39,14 @@ const COMMANDS = [
   ['/route claude/sonnet', 'pin a Claude model on your own login; kimi/auto picks a Kimi by score'],
   ['/route simple|coding|critical', 'pin a tier'],
   ['/route reset', 'forget which kinds of task a cheap model kept failing'],
+  ['/route strategies', 'routing strategies: complexity (default), cost, speed, quality and yours'],
+  ['/route strategy <name>', 'switch strategy; ask Claude to use the routing-strategy skill to write your own'],
   ['/palgu login', 'sign up or sign in to Palgu and connect this computer'],
   ['/palgu status · /palgu upgrade', 'who is signed in and the plan · plans and billing'],
 ]
 
-// v: { pin, ready, provider, sessionModel, saved, buttons }; buttons as the band shows them, without help.
+// v: { pin, ready, provider, sessionModel, saved, buttons, strategy? }; buttons as the band shows
+// them, without help.
 export function helpLines(v) {
   return [
     head('Mixture of Models'),
@@ -52,6 +55,7 @@ export function helpLines(v) {
     head('Right now'),
     modeLine(v),
     ...gatewayLines(v),
+    ...(v.strategy ? [line('Strategy: ' + v.strategy.name + ' · ' + v.strategy.description + ' (/route strategies to see or switch)')] : []),
     { text: v.saved, color: 'green' },
     line(''),
     head('Band buttons (type the number with an empty prompt)'),

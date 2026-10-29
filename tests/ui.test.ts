@@ -107,3 +107,11 @@ test('bandTree takes the catalogue from the view', async () => {
   const tree = bandTree(el, { ...base, routes: { simple: 'glm/5.3', critical: 'claude', kinds: {} }, catalogue }, () => {})
   expect(tree.children[0].children.slice(1).map((b) => b.label)).toEqual(['help', 'auto', 'glm', 'claude', 'off'])
 })
+
+test('the band and /route name a strategy other than the default', async () => {
+  const fresh = { ...base, decision: { label: 'critical', model: '', source: 'default' } }
+  expect(bandText({ ...fresh, strategy: 'cost' })).toBe('mixture-of-models · auto (cost) · no prompt yet')
+  expect(bandText({ ...fresh, strategy: 'complexity' })).toBe('mixture-of-models · auto · no prompt yet')
+  expect(reportText({ ...base, strategy: 'speed' })).toContain(' · strategy speed')
+  expect(reportText({ ...base, strategy: 'complexity' })).not.toContain('strategy')
+})

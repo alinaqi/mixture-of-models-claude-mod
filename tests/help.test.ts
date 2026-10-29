@@ -38,3 +38,9 @@ test('helpTree draws each line as text in one column', async () => {
   expect(tree.type).toBe('Box')
   expect(tree.children.length).toBe(helpLines(BASE).length)
 })
+
+test('help names the routing strategy and how to change or write one', async () => {
+  const t = text({ ...BASE, strategy: { name: 'cost', description: 'Cheapest models first.' } })
+  expect(t).toContain('Strategy: cost · Cheapest models first.')
+  for (const c of ['/route strategies', '/route strategy <name>', 'routing-strategy skill']) expect(t).toContain(c)
+})
