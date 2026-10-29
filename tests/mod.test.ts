@@ -1,11 +1,11 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const CONFIG = '{"primary":"claude"}'
 // The plugin's userConfig values, as a configured install stores them.
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[] } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -26,7 +26,8 @@ function stubSession(on, opts: { childEnv?: string; customHeaders?: string; scor
   // The local classifier's replies, in order: "<score> <kind>" verdicts the test wants, or no Ollama at all.
   const replies = opts.scores ?? [opts.score ?? '2 code']
   let n = 0
-  if (opts.offline) on('http.fetch', () => ({ deny: 'ollama down' }))
+  if (opts.fetch) on('http.fetch', ($, e) => ({ value: opts.fetch!(e.url, e.init ?? e) }))
+  else if (opts.offline) on('http.fetch', () => ({ deny: 'ollama down' }))
   else on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + replies[Math.min(n++, replies.length - 1)] + '"}}' } }))
   return store
 }
@@ -727,4 +728,88 @@ test('a Codex answer that is only a NEEDS-APPROVAL line, denied, still answers w
   expect(seen).toEqual([])
   expect(result.answer).toContain('refused')
   expect(result.answer).toContain('touch made.txt')
+})
+
+// Palgu's sign-in endpoints as the gateway answers them: a device code, then `pending` polls, then the key.
+function palguFetch(calls: any[], pending = 1) {
+  let polls = 0
+  const res = (status: number, body: unknown) => ({ ok: status < 300, status, headers: {}, text: JSON.stringify(body) })
+  return (url: string, init: any) => {
+    calls.push({ url, init })
+    if (url.endsWith('/auth/device/code')) return res(200, { device_code: 'dc-secret', user_code: 'WDJB-MJHT', verification_uri: 'https://www.palgu.ai/connect', verification_uri_complete: 'https://www.palgu.ai/connect?code=WDJB-MJHT', expires_in: 600, interval: 5 })
+    if (url.endsWith('/auth/token')) return polls++ < pending ? res(400, { error: 'authorization_pending' }) : res(200, { access_token: 'srt_new_key', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
+    if (url.includes('localhost:11434')) return res(200, { message: { content: '2 code' } })
+    if (url.endsWith('/me')) return res(200, { account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
+    return res(404, {})
+  }
+}
+
+test('/palgu login shows the code, polls in the background and saves the key over stdin, never argv', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls: any[] = [], runs: any[] = [], toasts: string[] = []
+  stubSession(on, { fetch: palguFetch(calls) })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
+  on('ui.toast', ($, e) => { toasts.push(e.text); return { value: undefined } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+
+  const shown = await $.command.run({ command: 'palgu', args: 'login' })
+  expect(shown.text).toContain('https://www.palgu.ai/connect?code=WDJB-MJHT')
+  expect(shown.text).not.toContain('dc-secret')
+  expect(JSON.parse(calls[0].init.body).client_id).toBe('mixture-of-models')
+
+  await clock.advance(5000)
+  expect(runs.length).toBe(0)
+  await clock.advance(5000)
+  const token = calls.filter((c) => c.url.endsWith('/auth/token'))
+  expect(token.length).toBe(2)
+  expect(JSON.parse(token[1].init.body).device_code).toBe('dc-secret')
+  expect(runs.length).toBe(1)
+  expect(runs[0].argv).toEqual(['claude', 'plugin', 'configure', 'mixture-of-models@mixture-of-models-claude-mod', '--values-stdin'])
+  expect(runs[0].argv.join(' ')).not.toContain('srt_new_key')
+  expect(JSON.parse(runs[0].init.stdin)).toEqual({ gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_new_key' })
+  expect(toasts.join(' ')).toContain('dev@acme.com')
+})
+
+test('after /palgu login the next simple prompt runs on the gateway child with the new key', async ($, on) => {
+  const clock = mock.clock(on)
+  const runs: any[] = []
+  stubSession(on, { fetch: palguFetch([], 0) })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: e.argv[1] === 'plugin' ? '' : childJson('child answer'), stderr: '' } } })
+  on('ui.toast', () => ({ value: undefined }))
+  const seen: string[] = []
+  recordSteps(on, seen)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'palgu', args: 'login' })
+  await clock.advance(5000)
+  await $.prompt.submit({ text: 'grep the repo for TODO comments and list the files' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(seen).toEqual([])
+  const child = runs.find((r) => r.argv.includes('-p'))
+  expect(child.init.env.ANTHROPIC_API_KEY).toBe('srt_new_key')
+  expect(child.init.env.ANTHROPIC_BASE_URL).toBe('https://api.palgu.ai/anthropic')
+})
+
+test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the billing page', GW, async ($, on) => {
+  const calls: any[] = []
+  stubSession(on, { fetch: palguFetch(calls) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const status = await $.command.run({ command: 'palgu', args: 'status' })
+  expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade')
+  expect(calls[0].url).toBe('https://api.palgu.ai/me')
+  expect(calls[0].init.headers.authorization).toBe('Bearer srt_test')
+  const upgrade = await $.command.run({ command: 'palgu', args: 'upgrade' })
+  expect(upgrade.text).toContain('https://www.palgu.ai/billing')
+})
+
+test('/palgu login reports a gateway that refuses the client instead of polling', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls: any[] = []
+  stubSession(on, { fetch: (url: string, init: any) => { calls.push(url); return { ok: false, status: 400, headers: {}, text: '{"error":"invalid_client"}' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const shown = await $.command.run({ command: 'palgu', args: 'login' })
+  expect(shown.text).toMatch(/could not start/i)
+  expect(shown.text).toContain('/plugin configure')
+  await clock.advance(60000)
+  expect(calls.length).toBe(1)
 })
