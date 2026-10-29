@@ -1,6 +1,6 @@
 // The /palgu command: Palgu's device-code sign-in, polled in the background on the mod's clock,
 // the minted key saved through `claude plugin configure --values-stdin` and used at once.
-import { PALGU_ORIGIN, PLUGIN_ID, configureValues, deviceBody, deviceName, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText, HELP } from './lib/palgu.js'
+import { PALGU_ORIGIN, PLUGIN_ID, isPalgu, configureValues, deviceBody, deviceName, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText, HELP } from './lib/palgu.js'
 
 let polling = false
 const FAILED = { ok: false, status: 0, text: '' }
@@ -50,11 +50,12 @@ async function login($, ctx) {
 async function status($, ctx) {
   const key = ctx.key()
   if (!key) return statusText(undefined)
+  if (!isPalgu(ctx.baseUrl())) return statusText('other')
   const res = await $.http.fetch(PALGU_ORIGIN + '/me', { headers: { authorization: 'Bearer ' + key } }).catch(() => FAILED)
   return statusText(res.ok ? parseBody(res) : null)
 }
 
-// ctx: `key()` reads the child's current gateway key, `useKey(key)` switches the child to Palgu.
+// ctx: `key()` and `baseUrl()` read the child's current gateway, `useKey(key)` switches the child to Palgu.
 export async function palguCommand($, args, ctx) {
   const word = parsePalguArg(args)
   if (word === 'login') return login($, ctx)

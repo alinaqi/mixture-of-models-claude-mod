@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { CLIENT_ID, PALGU_BILLING, PALGU_GATEWAY, configureValues, deviceBody, deviceName, newInstallId, parsePalguArg, startText, statusText, tokenBody, tokenStep } from '../hooks/lib/palgu.js'
+import { CLIENT_ID, PALGU_BILLING, PALGU_GATEWAY, configureValues, isPalgu, deviceBody, deviceName, newInstallId, parsePalguArg, startText, statusText, tokenBody, tokenStep } from '../hooks/lib/palgu.js'
 import { VERSION } from '../hooks/lib/version.js'
 
 const res = (status, body) => ({ status, ok: status < 300, headers: {}, text: JSON.stringify(body) })
@@ -57,10 +57,20 @@ test('startText gives the link and the code to approve, and never the device cod
   expect(text).not.toContain('secret-dc')
 })
 
+test('isPalgu holds only for a gateway on the Palgu origin, so another gateway\'s key never goes to Palgu', async () => {
+  expect(isPalgu('https://api.palgu.ai/anthropic')).toBe(true)
+  expect(isPalgu('https://api.palgu.ai/anthropic/')).toBe(true)
+  expect(isPalgu('https://api.z.ai/api/anthropic')).toBe(false)
+  expect(isPalgu('https://api.palgu.ai.evil.com/anthropic')).toBe(false)
+  expect(isPalgu('http://api.palgu.ai/anthropic')).toBe(false)
+  expect(isPalgu('')).toBe(false)
+})
+
 test('statusText says who is signed in and on which plan, or how to sign in', async () => {
   expect(statusText(undefined)).toMatch(/not signed in.*\/palgu login/i)
   const me = { account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'team' } }
   expect(statusText(me)).toBe('Palgu: signed in as dev@acme.com (Acme, plan team) · upgrade: /palgu upgrade')
   expect(statusText(null)).toMatch(/key is set.*could not/i)
+  expect(statusText('other')).toMatch(/not Palgu.*\/palgu login/)
   expect(PALGU_BILLING).toBe('https://www.palgu.ai/billing')
 })

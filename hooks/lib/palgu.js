@@ -12,6 +12,13 @@ const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
 export const HELP = '/palgu login: sign up or sign in to Palgu and use its models for routed turns · /palgu status: who is signed in, on which plan · /palgu upgrade: plans and billing'
 
+// The key may go to Palgu only when the gateway is Palgu: an exact https origin match, so a
+// look-alike host or another provider's endpoint never receives it.
+export function isPalgu(gatewayUrl) {
+  const url = String(gatewayUrl || '')
+  return url === PALGU_ORIGIN || url.startsWith(PALGU_ORIGIN + '/')
+}
+
 export function parsePalguArg(args) {
   const word = String(args || '').trim().toLowerCase()
   return ['login', 'status', 'upgrade'].includes(word) ? word : 'help'
@@ -85,8 +92,10 @@ export function signedInText(s) {
   return 'Signed in to Palgu as ' + s.email + (s.org ? ' (' + s.org + (s.plan ? ', plan ' + s.plan : '') + ')' : '') + '. Routed turns now run on Palgu.'
 }
 
-// `undefined`: no key at all. `null`: a key Palgu would not describe. Else GET /me's answer.
+// `undefined`: no key at all. `'other'`: a key for another gateway. `null`: a key Palgu would not
+// describe. Else GET /me's answer.
 export function statusText(me) {
+  if (me === 'other') return 'Palgu: your gateway is not Palgu, so its key was not sent there. Run /palgu login to switch to Palgu.'
   if (me === undefined) return 'Palgu: not signed in. Run /palgu login to sign up or sign in from here.'
   if (me === null) return 'Palgu: a gateway key is set, but Palgu could not say whose it is (not a Palgu key, revoked, or Palgu unreachable).'
   const account = me.account || {}, org = me.org || {}

@@ -31,7 +31,7 @@ function palguContext($) {
     applyGateway()
     $.ui.invalidate('ui.render')
   }
-  return { key: () => key, useKey }
+  return { key: () => key, baseUrl: () => cfg.child.baseUrl, useKey }
 }
 
 async function loadConfig($) {

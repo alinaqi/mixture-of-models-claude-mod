@@ -802,6 +802,15 @@ test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the 
   expect(upgrade.text).toContain('https://www.palgu.ai/billing')
 })
 
+test('/palgu status never sends another gateway\'s key to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'zai_secret' } }, async ($, on) => {
+  const calls: any[] = []
+  stubSession(on, { fetch: palguFetch(calls) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const status = await $.command.run({ command: 'palgu', args: 'status' })
+  expect(status.text).toMatch(/not Palgu/)
+  expect(calls.length).toBe(0)
+})
+
 test('/palgu login reports a gateway that refuses the client instead of polling', async ($, on) => {
   const clock = mock.clock(on)
   const calls: any[] = []
