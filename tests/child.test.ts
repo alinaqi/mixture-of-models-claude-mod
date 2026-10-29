@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { CHILD_PREAMBLE, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText, subscriptionEnv } from '../hooks/lib/child.js'
+import { CHILD_PREAMBLE, SECRET_DENY, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText, subscriptionEnv } from '../hooks/lib/child.js'
 import { VERSION } from '../hooks/lib/version.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
@@ -8,8 +8,23 @@ const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
 test('childArgs are the headless flags for the routed model, with the cwd added for CLAUDE.md', async () => {
   expect(childArgs(CHILD, 'glm-5.3', '/work')).toEqual([
     '-p', '--model', 'glm-5.3', '--output-format', 'json', '--max-turns', '25', '--add-dir', '/work',
-    '--bare', '--permission-mode', 'acceptEdits',
+    '--bare', '--permission-mode', 'acceptEdits', '--disallowedTools', ...SECRET_DENY,
   ])
+})
+
+test('SECRET_DENY keeps env files, keys and secrets folders out of the child', async () => {
+  for (const rule of ['Read(**/.env)', 'Read(**/.env.*)', 'Read(**/*.pem)', 'Read(**/*.key)', 'Read(**/id_rsa*)', 'Read(**/secrets/**)']) {
+    expect(SECRET_DENY).toContain(rule)
+  }
+  expect(DEFAULTS.child.deny).toEqual([])
+})
+
+test('the deny list is passed after custom args, so child.args cannot drop it, and router.child.deny adds to it', async () => {
+  const args = childArgs({ ...CHILD, args: ['--dangerously-skip-permissions'], deny: ['Read(**/creds.json)'] }, 'glm-5.3', '/work')
+  expect(args.slice(args.indexOf('--disallowedTools') + 1)).toEqual([...SECRET_DENY, 'Read(**/creds.json)'])
+  expect(args.indexOf('--disallowedTools') > args.indexOf('--dangerously-skip-permissions')).toBe(true)
+  const noExtra = childArgs({ ...CHILD, deny: undefined }, 'glm-5.3', '/work')
+  expect(noExtra.slice(noExtra.indexOf('--disallowedTools') + 1)).toEqual(SECRET_DENY)
 })
 
 test('childArgs honours custom args', async () => {
@@ -163,4 +178,5 @@ test('the subscription child drops --bare, which would force API-key auth, and k
   const args = childArgs({ ...CHILD, args: CHILD.subscriptionArgs }, 'claude-sonnet-5-5', '/work')
   expect(args).toContain('claude-sonnet-5-5')
   expect(args).not.toContain('--bare')
+  expect(args).toContain('--disallowedTools')
 })

@@ -68,6 +68,8 @@ export const DEFAULTS = {
     relayRounds: 2,
     // A Claude-family member runs on your subscription: no --bare, which would force API-key auth.
     subscriptionArgs: ['--permission-mode', 'acceptEdits'],
+    // Extra permission deny rules for every Claude child, on top of child.js SECRET_DENY.
+    deny: [],
   },
   families: DEFAULT_FAMILIES,
   // The Codex child: `palgu` sends it to the gateway's /v1/responses with your gateway key,

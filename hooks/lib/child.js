@@ -51,10 +51,20 @@ export function subscriptionEnv() {
   return { MAGGY_ROUTER_CHILD: '1', ANTHROPIC_BASE_URL: '' }
 }
 
+// Secrets the child may never read. --bare skips your hooks, so a hook guarding .env does not
+// run in the child; these are Claude Code permission rules, which --bare keeps. Read rules also
+// cover Grep and Glob. router.child.deny adds rules; nothing removes these.
+export const SECRET_DENY = [
+  'Read(**/.env)', 'Read(**/.env.*)', 'Read(**/*.pem)', 'Read(**/*.key)',
+  'Read(**/id_rsa*)', 'Read(**/id_ed25519*)', 'Read(**/secrets/**)',
+]
+
 // The flags after the program name (`claude`, written as fixed text at the $.process.run call).
-// --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery.
+// --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery. The
+// deny list comes after child.args, so custom args cannot drop it.
 export function childArgs(child, model, cwd) {
-  return ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args]
+  const deny = [...SECRET_DENY, ...(child.deny || [])]
+  return ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args, '--disallowedTools', ...deny]
 }
 
 function describe(m) {
