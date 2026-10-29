@@ -21,6 +21,18 @@ HEAD_FILL = PatternFill('solid', start_color='DDEBF7')
 INPUT_FILL = PatternFill('solid', start_color='FFFF00')
 
 
+# Model replies, prompts and error text are untrusted: a string starting with = + - @ or a tab or
+# CR would otherwise be stored as a formula. Force each to a plain text cell.
+FORMULA_START = ('=', '+', '-', '@', '\t', '\r')
+
+
+def as_text(ws, row: int, cols: tuple[int, ...]) -> None:
+    for c in cols:
+        cell = ws.cell(row=row, column=c)
+        if isinstance(cell.value, str) and cell.value.startswith(FORMULA_START):
+            cell.data_type = 's'
+
+
 def style_header(ws, row: int, cols: int) -> None:
     for c in range(1, cols + 1):
         cell = ws.cell(row=row, column=c)
@@ -82,6 +94,7 @@ def prompts_sheet(wb: Workbook, prompts: list[dict]) -> None:
     style_header(ws, 1, len(head))
     for i, p in enumerate(prompts, 2):
         ws.append([p['id'], p['category'], p['prompt'], p['min'], p['max'], p['kind'], f'={tier_of(f"D{i}")}', f'={tier_of(f"E{i}")}'])
+        as_text(ws, i, (2, 3, 6))
         for c in (4, 5, 6):
             ws.cell(row=i, column=c).font = BLUE
             ws.cell(row=i, column=c).fill = INPUT_FILL
@@ -118,6 +131,7 @@ def results_sheet(wb: Workbook, results: list[dict]) -> int:
         values = [x['model'], x['id'], x['raw'], x['score'], x['kind'], *result_formulas(r),
                   x['seconds'], x['tokens_in'], x['tokens_out'], x['cost_usd'], x['served'], x['error']]
         ws.append(values)
+        as_text(ws, r, (1, 3, 5, 17, 18))
         for c in range(1, len(RESULT_HEAD) + 1):
             ws.cell(row=r, column=c).font = Font(name=FONT)
         ws.cell(row=r, column=16).number_format = '$0.000000'
