@@ -16,7 +16,7 @@ No dashboard, no copying keys. After [installing the mod](#install), in Claude C
 /palgu login
 ```
 
-1. The mod shows a link and a short code, for example `https://www.palgu.ai/connect?code=WDJB-MJHT`.
+1. The mod shows a sign-in link and a short code, for example `WDJB-MJHT`.
 2. Open the link, sign in to Palgu or **sign up** (new accounts start on the free plan), check the code matches and press **Allow**. The page names the app: *Allow Mixture of Models on "Claude Code on your-mac"?*
 3. Back in the terminal a toast says *Signed in to Palgu as you@example.com*. That's it: simple and coding turns now run on Palgu's models (GLM 5.3, Kimi K3.1, DeepSeek V4 Pro, Gemini 3.8 Flash, Mercury 3), and critical turns stay on Claude. No restart.
 
