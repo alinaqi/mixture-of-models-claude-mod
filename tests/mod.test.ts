@@ -76,6 +76,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
   expect(runs[0].argv).toContain('-p')
   expect(runs[0].argv).toContain('--bare')
   expect(runs[0].argv.join(' ')).toContain('--add-dir /work')
+  expect(runs[0].argv.join(' ')).toContain('--disallowedTools Read(**/.env)')
   expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://api.palgu.ai/anthropic')
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
   expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')

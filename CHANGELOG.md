@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.13.1] - 2026-10-29
+
+### Security
+- A Claude child can no longer read secret files. The gateway child runs `--bare`, which skips your hooks, so a hook guarding `.env` did not run there and the child could read it and send it to the gateway model. Every Claude child now gets `--disallowedTools` with Claude Code permission deny rules, which `--bare` keeps, for `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` and `secrets/**`. They come after `child.args`, so custom args cannot drop them.
+
+### Added
+- `router.child.deny` adds your own deny rules to that list.
+- The README says next to the install steps that hooks do not run in the gateway child, and how to turn on auto-update for the marketplace.
+
 ## [0.13.0] - 2026-10-29
 
 ### Added

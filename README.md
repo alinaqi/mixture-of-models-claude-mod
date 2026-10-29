@@ -31,6 +31,10 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 or, inside a session, `/plugin install mixture-of-models --marketplace alinaqi/mixture-of-models-claude-mod`.
 
+> **Your hooks do not run in the gateway child.** The child runs `claude -p --bare`, and `--bare` skips every hook from your settings and plugins, so a hook that blocks `.env` does not guard it there, and what the child reads goes to the gateway model. The mod does not rely on hooks for this: every Claude child gets Claude Code permission deny rules, which `--bare` keeps, for `.env` and `.env.*` files, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*` and `secrets/` folders (Read rules also cover Grep and Glob). Add your own with `router.child.deny`, for example `["Read(**/credentials.json)"]`. Commands the child is not allowed to run still come to you as an Allow / Deny dialog. A Codex child is read-only but not covered by these rules: keep secrets out of a project you route to Codex.
+
+**Updates.** Third-party marketplaces do not auto-update by default. Turn it on once in `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update, or update by hand with `claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`. A new version takes effect when you restart Claude Code.
+
 Give the child a gateway (any Anthropic-compatible endpoint that serves your model ids; tested with [palgu](https://www.palgu.ai), and z.ai or Moonshot's Anthropic endpoints work the same way), see [Setup](#setup). Start `claude`, run `/route`. Until a gateway is configured the mod is observe-only and changes nothing.
 
 **Design rule: the main session is never touched.** It stays on your claude.ai subscription with no `ANTHROPIC_BASE_URL`. When a prompt is routed to GLM or Kimi, the mod answers that turn itself by running a **separate, headless `claude -p` child** whose environment alone points at the gateway (palgu). The child's output becomes the turn's answer in your transcript. Nothing about the main process, its model, its auth or its requests changes.
@@ -282,6 +286,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
       "subscriptionArgs": ["--permission-mode", "acceptEdits"],
+      "deny":     [],
       "maxTurns": 25,
       "timeoutMs": 600000,
       "contextMessages": 12,
@@ -317,6 +322,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.contextMessages`: how many recent exchanges go into the brief.
 - `child.relayRounds`: how many times one routed turn may pause to ask you about commands the child was refused (default 2).
+- `child.deny`: extra Claude Code permission deny rules for every Claude child, passed with `--disallowedTools` after `child.args`. They add to the built-in list (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `secrets/**`), which nothing removes, because `--bare` skips the hooks that would otherwise guard those files.
 - `child.subscriptionArgs`: the flags for a `claude/<member>` child, in place of `child.args`. No `--bare` by default, because `--bare` allows only API-key auth and the point is your Claude login.
 - `families`: per family, `members` (alias → exact model id) and `auto` (tier → member alias, plus optional `criticalPlus` for 10/10 critical turns). Merged over the defaults per family; a new family name adds a gateway family.
 - `codex.auth`: `palgu` (default; your gateway's `/v1/responses` with your gateway key) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not your `gateway_url` with `/anthropic` → `/v1`. `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
@@ -346,7 +352,7 @@ Pins persist across sessions in the plugin's store.
 - It has Claude Code's tools and runs in the session's working directory, so it can read, edit and run things. Its tool calls are not shown in the main transcript, only its final text.
 - When it needs a command its permission mode doesn't allow (`git pull`, `npm install`, a deploy), it cannot ask you itself. The mod relays the request: you get Claude Code's question dialog naming the exact command, and "Allow and continue" resumes the same child with only that command allowed. Read-only commands such as `git status` or `git log` already run without asking.
 - It does not share the main session's memory. The brief carries the last `contextMessages` exchanges (12 by default, each truncated to 1,200 characters) and the task. This is why follow-ups never go to a child: see [How it decides](#how-it-decides).
-- It runs `--bare` by default, so your hooks and plugins stay out of it. The mod also detects the `MAGGY_ROUTER_CHILD` marker and does nothing inside a child.
+- It runs `--bare` by default, so your hooks and plugins stay out of it, including any hook that guards secrets. It cannot read `.env` files, keys or `secrets/` folders: the mod passes permission deny rules for them (`child.deny` adds more), and those are enforced by Claude Code itself, not by a hook. The mod also detects the `MAGGY_ROUTER_CHILD` marker and does nothing inside a child.
 - The tag and the route line name the model the mod **asked for**. A gateway that routes by intent, as palgu does, may answer with another model; Claude Code's `-p` output does not expose which, so the mod cannot show it.
 - Output arrives when the child finishes; this version uses `$.process.run`, so a routed answer is not streamed token by token.
 
