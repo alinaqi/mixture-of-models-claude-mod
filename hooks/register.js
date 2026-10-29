@@ -16,21 +16,27 @@ import { palguCommand } from './palgu.js'
 import { addTurn, savingsLine, turnNote } from './lib/savings.js'
 import { priceTurn } from './savings.js'
 
-let cfg = parseConfig(''), options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
+let cfg = parseConfig(''), configText = '', options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
 const answered = new Map()
 
 function applyGateway() {
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
   ready = childReady(cfg.child, key)
-  codexOk = codexReady(cfg.codex, { baseUrl: cfg.child.baseUrl, key })
+  codexOk = codexReady(cfg.codex, { baseUrl: cfg.child.baseUrl, key, provider: cfg.provider })
+}
+
+// The provider, and with it the child's auth and default routes, follows the gateway options.
+function applyConfig() {
+  cfg = parseConfig(configText, options)
+  applyGateway()
 }
 
 // What /palgu reads and changes: a key from /palgu login takes over the child at once.
 function palguContext($) {
   const useKey = (k) => {
-    options = { ...options, gateway_url: PALGU_GATEWAY, gateway_key: k }
-    applyGateway()
+    options = { ...options, gateway_url: PALGU_GATEWAY, gateway_key: k, gateway_provider: 'palgu' }
+    applyConfig()
     $.ui.invalidate('ui.render')
   }
   return { key: () => key, baseUrl: () => cfg.child.baseUrl, useKey }
@@ -38,8 +44,8 @@ function palguContext($) {
 
 async function loadConfig($) {
   const home = (await $.env.get('HOME')) || ''
-  cfg = parseConfig(await $.fs.read(home + '/.claude/model-config.json').catch(() => ''))
-  applyGateway()
+  configText = await $.fs.read(home + '/.claude/model-config.json').catch(() => '')
+  applyConfig()
   const dropped = droppedArgs(cfg.codex)
   if (dropped.length) $.ui.log('router.codex.args: ignored ' + dropped.join(' ') + ' (set router.codex.sandbox or router.codex.allowOutsideGit instead)')
   sessionModel = await $.session.model()
@@ -120,17 +126,17 @@ async function spawnChild($, extra, stdin) {
   const sub = decision.runner === 'subscription'
   const cwd = await $.session.cwd()
   const argv = ['claude', ...childArgs(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child, decision.id, cwd), ...extra]
-  const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '')
+  const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '', cfg.child.identify)
   const r = await $.process.run(argv, { env: sub ? subscriptionEnv() : childEnv(cfg.child, key, headers), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
   return parseChildOutput(r.stdout, r.exitCode)
 }
 
-// The Codex CLI, non-interactive, on Palgu's /v1/responses or on your own Codex login. With a
+// The Codex CLI, non-interactive, on the gateway's /v1/responses or on your own Codex login. With a
 // thread id it resumes that thread after the user approved its refused commands.
 async function spawnCodex($, stdin, thread) {
-  const where = { cwd: await $.session.cwd(), baseUrl: codexBaseUrl(cfg.codex, cfg.child.baseUrl), thread }
+  const where = { cwd: await $.session.cwd(), baseUrl: codexBaseUrl(cfg.codex, cfg.child.baseUrl, cfg.provider), provider: cfg.provider, thread }
   const argv = thread ? codexResumeArgs(cfg.codex, decision.id, where) : codexArgs(cfg.codex, decision.id, where)
-  const r = await $.process.run(['codex', ...argv], { env: codexEnv(cfg.codex, key), stdin, timeoutMs: cfg.child.timeoutMs })
+  const r = await $.process.run(['codex', ...argv], { env: codexEnv(cfg.codex, key, cfg.provider), stdin, timeoutMs: cfg.child.timeoutMs })
     .catch((err) => ({ exitCode: 1, stdout: '', missing: missingCodex(String((err && err.message) || err)) }))
   if (r.missing) $.ui.log(CODEX_INSTALL)
   const out = parseCodexOutput(r.stdout, r.exitCode, r.stderr)
@@ -180,7 +186,7 @@ async function runChild($) {
 }
 
 async function pinFrom($, arg) {
-  const parsed = parseRouteArg(arg, cfg.routes)
+  const parsed = parseRouteArg(arg, cfg.routes, cfg.catalogue)
   const bad = parsed.mode === 'model' ? checkRoute(parsed.model, cfg.families) : ''
   if (bad) return bad
   pin = parsed
@@ -191,7 +197,7 @@ async function pinFrom($, arg) {
 }
 
 function bandView(e, theirs) {
-  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, isWorking: e.props.isWorking, theirs }
+  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.catalogue, isWorking: e.props.isWorking, theirs }
 }
 
 export function register(on, opts) {
@@ -274,7 +280,7 @@ export function register(on, opts) {
   on('command.run', { command: 'palgu' }, async ($, e) => ({ text: await palguCommand($, e.args, palguContext($)) }))
 
   on('command.run', { command: 'route' }, async ($, e) => {
-    const parsed = parseRouteArg(e.args, cfg.routes)
+    const parsed = parseRouteArg(e.args, cfg.routes, cfg.catalogue)
     if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) + ' · ' + savingsLine(await $.store.get('savings'), sessionModel) + ' · ' + familiesText(cfg.families) }
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
     if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }

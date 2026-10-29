@@ -13,6 +13,21 @@ export function splitRoute(value) {
   return v === 'claude' || v === 'codex' ? { family: v, member: '' } : { family: '', member: v }
 }
 
+// A gateway id with a slash in it, such as an OpenRouter slug, is the member a family lists it as,
+// so `z-ai/glm-5.3` is glm/5.3 rather than an unknown family `z-ai`.
+function listedAs(value, families) {
+  if (!(value || '').includes('/')) return undefined
+  for (const [family, f] of Object.entries(families)) {
+    const member = Object.keys(f.members || {}).find((m) => f.members[m] === value)
+    if (member) return { family, member }
+  }
+  return undefined
+}
+
+function partsOf(value, families) {
+  return listedAs(value, families) || splitRoute(value)
+}
+
 export function isAutoRoute(value) {
   return splitRoute(value).member === 'auto'
 }
@@ -44,7 +59,7 @@ function familyTarget(parts, id, sessionModel) {
 }
 
 export function targetFor(value, decision, families, sessionModel) {
-  const { family, member } = splitRoute(value)
+  const { family, member } = partsOf(value, families)
   const main = target('main', sessionModel, { family: '', member: '' })
   if (!family) return member ? target('gateway', member, { family: '', member: '' }) : main
   if (family === 'claude' && !member) return main
@@ -69,7 +84,7 @@ function memberList(family) {
 
 // '' when a pin is usable, else why not.
 export function checkRoute(value, families) {
-  const { family, member } = splitRoute(value)
+  const { family, member } = partsOf(value, families)
   if (!family) return ''
   const fam = families[family]
   if (!fam) return 'unknown family ' + family + '; families: ' + Object.keys(families).join(', ')

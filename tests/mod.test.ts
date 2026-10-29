@@ -766,7 +766,7 @@ test('/palgu login shows the code, polls in the background and saves the key ove
   expect(runs.length).toBe(1)
   expect(runs[0].argv).toEqual(['claude', 'plugin', 'configure', 'mixture-of-models@mixture-of-models-claude-mod', '--values-stdin'])
   expect(runs[0].argv.join(' ')).not.toContain('srt_new_key')
-  expect(JSON.parse(runs[0].init.stdin)).toEqual({ gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_new_key' })
+  expect(JSON.parse(runs[0].init.stdin)).toEqual({ gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_new_key', gateway_provider: 'palgu' })
   expect(toasts.join(' ')).toContain('dev@acme.com')
 })
 
@@ -871,4 +871,80 @@ test('an unpriced routed turn claims no saving', { options: { gateway_url: 'http
   expect(done.text).not.toContain('saved')
   const status = await $.command.run({ command: 'route', args: 'status' })
   expect(status.text).toContain('1 routed turn unpriced')
+})
+
+// OpenRouter and LiteLLM as the gateway: a bearer key, their model ids, no x-srooter headers.
+const OPENROUTER = { options: { gateway_url: 'https://openrouter.ai/api', gateway_key: 'sk-or-test' } }
+const LITELLM = { options: { gateway_url: 'http://localhost:4000', gateway_key: 'sk-litellm-test', gateway_provider: 'litellm' } }
+
+test('on OpenRouter the child runs the OpenRouter slug with a bearer key, an inherited API key blanked, and no x-srooter headers', OPENROUTER, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(result.answer).toBe('child answer')
+  expect(runs[0].argv).toContain('z-ai/glm-5.3')
+  expect(runs[0].argv).toContain('--bare')
+  expect(runs[0].argv.join(' ')).toContain('--disallowedTools Read(**/.env)')
+  expect(runs[0].argv.join(' ')).not.toContain('sk-or-test')
+  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://openrouter.ai/api')
+  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-or-test')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('')
+  expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
+})
+
+test('on OpenRouter /route deepseek pins the DeepSeek family member by its OpenRouter slug', OPENROUTER, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('ds answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const { pinned } = await pinnedTurn($, 'deepseek', 'grep the repo for TODO comments and list the files')
+  expect(pinned.text).toBe('routing set to model deepseek/v4-pro')
+  expect(runs[0].argv).toContain('deepseek/deepseek-v4-pro')
+})
+
+test('on a LiteLLM proxy the child uses the proxy\'s model names and a bearer key', LITELLM, async ($, on) => {
+  stubSession(on, { customHeaders: 'X-Team: platform' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs[0].argv).toContain('glm-5.3')
+  expect(runs[0].argv.join(' ')).not.toContain('sk-litellm-test')
+  expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('http://localhost:4000')
+  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-litellm-test')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('')
+  expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Team: platform')
+})
+
+test('on OpenRouter a codex route uses OpenRouter\'s /api/v1 Responses endpoint, the key in OPENROUTER_API_KEY only', OPENROUTER, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: codexJsonl('codex answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const { result } = await pinnedTurn($, 'codex/openai/gpt-5.6-terra', 'grep the repo for TODO comments and list the files')
+  expect(result.answer).toBe('codex answer')
+  const argv = runs[0].argv.join(' ')
+  expect(argv).toContain('-m openai/gpt-5.6-terra')
+  expect(argv).toContain('model_providers.openrouter.base_url="https://openrouter.ai/api/v1"')
+  expect(argv).toContain('model_providers.openrouter.env_key="OPENROUTER_API_KEY"')
+  expect(argv).not.toContain('sk-or-test')
+  expect(runs[0].init.env.OPENROUTER_API_KEY).toBe('sk-or-test')
+  expect(runs[0].init.env.PALGU_API_KEY).toBeUndefined()
+})
+
+test('the Palgu child blanks an inherited bearer token so only its x-api-key reaches Palgu', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
+  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('')
 })

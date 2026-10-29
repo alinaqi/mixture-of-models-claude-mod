@@ -1,6 +1,7 @@
 {
   "primary": "glm",
   "router": {
+    "provider":   "auto",
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
                     "kinds": { "research": "kimi-k3.1-pro", "review": "kimi-k3.1-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },

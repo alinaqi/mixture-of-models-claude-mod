@@ -35,18 +35,19 @@ export function routeModels(routes) {
   return [...Object.values(routes).filter((m) => typeof m === 'string'), ...Object.values(routes.kinds || {})]
 }
 
-function modelByPrefix(arg, routes) {
+// The routes first, then the provider's catalogue (Palgu's ids when none is given).
+function modelByPrefix(arg, routes, catalogue) {
   const match = (m) => m.startsWith(arg)
-  return routeModels(routes).find(match) || GATEWAY_MODELS.find(match)
+  return routeModels(routes).find(match) || (catalogue || GATEWAY_MODELS).find(match)
 }
 
-export function parseRouteArg(arg, routes) {
+export function parseRouteArg(arg, routes, catalogue) {
   const word = (arg || '').trim().toLowerCase()
   if (word === '' || word === 'status') return { mode: 'show' }
   if (word.includes('/')) return { mode: 'model', model: word }
   if (['auto', 'off', 'reset', 'stats'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
-  return { mode: 'model', model: modelByPrefix(word, routes) || word }
+  return { mode: 'model', model: modelByPrefix(word, routes, catalogue) || word }
 }
 
 function fmtTokens(n) {

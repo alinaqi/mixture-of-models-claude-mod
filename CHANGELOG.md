@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-10-29
+
+### Added
+- OpenRouter and LiteLLM as first-class gateways, next to Palgu. A new plugin option, `gateway_provider` (`auto`, `palgu`, `openrouter`, `litellm`, `anthropic-compatible`; also `router.provider`), says what the gateway is; `auto` detects Palgu (`*.palgu.ai`) and OpenRouter (`openrouter.ai`) from `gateway_url`, and any other host stays a generic Anthropic-compatible gateway, as before.
+- OpenRouter (`gateway_url: https://openrouter.ai/api`): the child sends your OpenRouter key as `Authorization: Bearer` (`ANTHROPIC_AUTH_TOKEN`), and the families map to OpenRouter slugs: `glm/5.3` → `z-ai/glm-5.3`, `kimi/pro` → `moonshotai/kimi-k3.1-pro`, `deepseek/v4-pro` → `deepseek/deepseek-v4-pro`, `mercury/3` → `inception/mercury-3`, `gemini/3.8-flash` → `google/gemini-3.8-flash`. Default routes, `/route <prefix>`, `primary` and the band's buttons follow. A slug a family lists (`z-ai/glm-5.3`) works as a route too.
+- LiteLLM (`gateway_provider: litellm`, `gateway_url` your proxy, for example `http://localhost:4000`): the master or virtual key goes as `Authorization: Bearer`; the default model names stay Palgu's, so name your proxy's `model_name`s the same or set `router.routes` and `router.families`.
+- Codex routes on OpenRouter and LiteLLM: Codex gets an `openrouter` or `litellm` provider on `<gateway_url>/v1` (Responses API), the key in `OPENROUTER_API_KEY` or `LITELLM_API_KEY`, in its environment only. Name the model there (`codex/openai/gpt-5.6-terra`).
+- `router.child.auth` (`x-api-key` or `bearer`) for a generic gateway that wants a bearer token.
+- README: "OpenRouter" and "LiteLLM" setup with the exact `/plugin configure` values; PRIVACY and the Network table name the new endpoints.
+
+### Security
+- The gateway child now puts its key in exactly one of `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` and sets the other to empty. The child inherits your shell's environment and Claude Code sends both when both are set (checked against Claude Code 2.1.312 with a header-logging server): before, an `ANTHROPIC_AUTH_TOKEN` exported in your shell went to the gateway as a bearer token next to the gateway key.
+- The `x-srooter-client` and `x-srooter-project` headers go only to Palgu and generic gateways, not to OpenRouter or LiteLLM.
+
+### Changed
+- `/palgu login` also saves `gateway_provider: palgu`, so a provider chosen earlier for another gateway does not stick to Palgu.
+
 ## [0.15.0] - 2026-10-29
 
 ### Added

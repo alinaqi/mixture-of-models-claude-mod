@@ -169,3 +169,34 @@ test('joined --config=… and -c… forms cannot widen the sandbox either', asyn
   const joined = ['--config=sandbox_mode="danger-full-access"', '-capproval_policy="on-request"', '--config=model="x"']
   expect(droppedArgs({ ...CODEX, args: joined })).toEqual(joined.slice(0, 2))
 })
+
+test('codexBaseUrl: OpenRouter and LiteLLM serve the Responses API under <base>/v1', async () => {
+  expect(codexBaseUrl(CODEX, 'https://openrouter.ai/api', 'openrouter')).toBe('https://openrouter.ai/api/v1')
+  expect(codexBaseUrl(CODEX, 'https://openrouter.ai/api/', 'openrouter')).toBe('https://openrouter.ai/api/v1')
+  expect(codexBaseUrl(CODEX, 'http://localhost:4000', 'litellm')).toBe('http://localhost:4000/v1')
+  expect(codexBaseUrl(CODEX, 'http://localhost:4000/anthropic', 'litellm')).toBe('http://localhost:4000/v1')
+  expect(codexBaseUrl(CODEX, 'http://localhost:4000/v1', 'litellm')).toBe('http://localhost:4000/v1')
+  expect(codexBaseUrl(CODEX, 'https://api.palgu.ai/anthropic', 'palgu')).toBe(PALGU)
+  expect(codexBaseUrl({ ...CODEX, baseUrl: 'https://edge.example/v1' }, 'https://openrouter.ai/api', 'openrouter')).toBe('https://edge.example/v1')
+})
+
+test('codexArgs names the provider and its key variable per gateway, and never the key', async () => {
+  const or = codexArgs(CODEX, 'openai/gpt-5.6-terra', { cwd: '/work', baseUrl: 'https://openrouter.ai/api/v1', provider: 'openrouter' })
+  expect(or).toContain('model_provider="openrouter"')
+  expect(or).toContain('model_providers.openrouter.base_url="https://openrouter.ai/api/v1"')
+  expect(or).toContain('model_providers.openrouter.env_key="OPENROUTER_API_KEY"')
+  expect(or).toContain('model_providers.openrouter.wire_api="responses"')
+  const lite = codexArgs(CODEX, 'gpt-5.5', { cwd: '/work', baseUrl: 'http://localhost:4000/v1', provider: 'litellm' })
+  expect(lite).toContain('model_providers.litellm.env_key="LITELLM_API_KEY"')
+  const generic = codexArgs(CODEX, 'glm-5.3', { cwd: '/work', baseUrl: 'https://llm.example.com/v1', provider: 'anthropic-compatible' })
+  expect(generic).toContain('model_providers.palgu.env_key="PALGU_API_KEY"')
+  for (const args of [or, lite, generic]) expect(args.join(' ')).not.toContain('KEY-SENTINEL')
+})
+
+test('codexEnv puts the key under the provider\'s variable only, and none on the ChatGPT login', async () => {
+  expect(codexEnv(CODEX, 'KEY-SENTINEL', 'openrouter')).toEqual({ MAGGY_ROUTER_CHILD: '1', OPENROUTER_API_KEY: 'KEY-SENTINEL' })
+  expect(codexEnv(CODEX, 'KEY-SENTINEL', 'litellm')).toEqual({ MAGGY_ROUTER_CHILD: '1', LITELLM_API_KEY: 'KEY-SENTINEL' })
+  expect(codexEnv(CODEX, 'KEY-SENTINEL', 'palgu')).toEqual({ MAGGY_ROUTER_CHILD: '1', PALGU_API_KEY: 'KEY-SENTINEL' })
+  expect(codexEnv(CODEX, 'KEY-SENTINEL')).toEqual({ MAGGY_ROUTER_CHILD: '1', PALGU_API_KEY: 'KEY-SENTINEL' })
+  expect(codexEnv({ ...CODEX, auth: 'chatgpt' }, 'KEY-SENTINEL', 'openrouter')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+})

@@ -94,3 +94,15 @@ test('the band names a pinned family member, and a pinned member lights its fami
   const lit = tree.children[0].children.slice(1).filter((b) => !b.dimColor).map((b) => b.label)
   expect(lit).toEqual(['claude'])
 })
+
+test('bandButtons on OpenRouter shows its families, named by family not by vendor slug', async () => {
+  const routes = { simple: 'glm/5.3', coding: 'glm/5.3', critical: 'claude', kinds: { research: 'kimi/pro', review: 'kimi/pro', multimodal: 'claude' } }
+  const catalogue = ['glm/5.3', 'kimi/pro', 'deepseek/v4-pro', 'mercury/3', 'gemini/3.8-flash']
+  expect(bandButtons(routes, catalogue).map((b) => b.arg)).toEqual(['auto', 'glm', 'kimi', 'deepseek', 'mercury', 'gemini', 'claude', 'off'])
+})
+
+test('bandTree takes the catalogue from the view', async () => {
+  const catalogue = ['glm/5.3']
+  const tree = bandTree(el, { ...base, routes: { simple: 'glm/5.3', critical: 'claude', kinds: {} }, catalogue }, () => {})
+  expect(tree.children[0].children.slice(1).map((b) => b.label)).toEqual(['auto', 'glm', 'claude', 'off'])
+})

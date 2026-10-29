@@ -18,10 +18,19 @@ export function childReady(child, key) {
   return Boolean(child.baseUrl && key)
 }
 
+// The key goes in exactly one variable and the other is blanked, because the child inherits the
+// parent's environment and Claude Code sends both when both are set: an ANTHROPIC_API_KEY from
+// your shell would reach OpenRouter as x-api-key, a stray ANTHROPIC_AUTH_TOKEN Palgu as a bearer.
+// ANTHROPIC_AUTH_TOKEN is sent as `Authorization: Bearer`, under --bare too (checked on 2.1.312).
+function authEnv(child, key) {
+  if (child.auth === 'bearer') return { ANTHROPIC_AUTH_TOKEN: key, ANTHROPIC_API_KEY: '' }
+  return { ANTHROPIC_API_KEY: key, ANTHROPIC_AUTH_TOKEN: '' }
+}
+
 // The headers ride in the same branch as the base URL, so they only ever reach the gateway.
 export function childEnv(child, key, headers) {
   const env = { MAGGY_ROUTER_CHILD: '1' }
-  if (child.baseUrl) Object.assign(env, { ANTHROPIC_BASE_URL: child.baseUrl, ANTHROPIC_API_KEY: key })
+  if (child.baseUrl) Object.assign(env, { ANTHROPIC_BASE_URL: child.baseUrl }, authEnv(child, key))
   if (child.baseUrl && headers) env.ANTHROPIC_CUSTOM_HEADERS = headers
   return env
 }
@@ -35,9 +44,11 @@ export function projectSlug(cwd) {
 }
 
 // ANTHROPIC_CUSTOM_HEADERS for the child: the user's own lines first, then who the child is and
-// which project it works in, each only if the user has not set that header already.
-export function childHeaders(cwd, theirs) {
+// which project it works in, each only if the user has not set that header already. Only Palgu
+// (and generic gateways, as before) get ours: `identify` false keeps them from OpenRouter or LiteLLM.
+export function childHeaders(cwd, theirs, identify = true) {
   const lines = String(theirs || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!identify) return lines.join('\n')
   const has = (name) => lines.some((l) => l.toLowerCase().startsWith(name + ':'))
   const project = projectSlug(cwd)
   const ours = [['x-srooter-client', 'mixture-of-models/' + VERSION]]

@@ -3,26 +3,47 @@
 
 export const CODEX_INSTALL = 'codex is not installed: npm install -g @openai/codex (or brew install --cask codex), then codex login or a Palgu gateway key'
 
-// The key's variable name in the child's environment; the key itself never goes on argv.
-const KEY_ENV = 'PALGU_API_KEY'
 const TOOL_ITEMS = new Set(['command_execution', 'file_change', 'mcp_tool_call', 'web_search'])
 
-// Palgu serves the Responses API under /v1, next to /anthropic.
-export function codexBaseUrl(codex, gatewayUrl) {
-  return codex.baseUrl || (gatewayUrl || '').replace(/\/anthropic\/?$/, '/v1')
+// The Codex provider each gateway is named as, and the variable its key rides in: only the
+// variable's name goes on argv, the key itself never does. Generic gateways keep Palgu's names.
+const CODEX_PROVIDERS = {
+  openrouter: { name: 'openrouter', keyEnv: 'OPENROUTER_API_KEY' },
+  litellm: { name: 'litellm', keyEnv: 'LITELLM_API_KEY' },
+}
+const PALGU = { name: 'palgu', keyEnv: 'PALGU_API_KEY' }
+
+function codexProvider(provider) {
+  return CODEX_PROVIDERS[provider] || PALGU
+}
+
+// OpenRouter (https://openrouter.ai/api) and LiteLLM serve the Responses API under <base>/v1;
+// a LiteLLM URL on its /anthropic pass-through drops that first. Palgu serves it under /v1, next
+// to /anthropic.
+function v1Of(url) {
+  const base = url.replace(/\/+$/, '').replace(/\/anthropic$/, '')
+  return /\/v1$/.test(base) ? base : base + '/v1'
+}
+
+export function codexBaseUrl(codex, gatewayUrl, provider) {
+  if (codex.baseUrl || !gatewayUrl) return codex.baseUrl || ''
+  if (CODEX_PROVIDERS[provider]) return v1Of(gatewayUrl)
+  return gatewayUrl.replace(/\/anthropic\/?$/, '/v1')
 }
 
 export function codexReady(codex, gateway) {
-  return codex.auth === 'chatgpt' || Boolean(codexBaseUrl(codex, gateway.baseUrl) && gateway.key)
+  return codex.auth === 'chatgpt' || Boolean(codexBaseUrl(codex, gateway.baseUrl, gateway.provider) && gateway.key)
 }
 
-// Palgu as an explicit provider: Codex ignores OPENAI_BASE_URL under a ChatGPT login.
-function providerArgs(baseUrl) {
+// The gateway as an explicit provider: Codex ignores OPENAI_BASE_URL under a ChatGPT login.
+function providerArgs(where) {
+  const p = codexProvider(where.provider)
   const set = (k, v) => ['-c', k + '=' + JSON.stringify(v)]
+  const key = 'model_providers.' + p.name
   return [
-    ...set('model_provider', 'palgu'), ...set('model_providers.palgu.name', 'palgu'),
-    ...set('model_providers.palgu.base_url', baseUrl), ...set('model_providers.palgu.env_key', KEY_ENV),
-    ...set('model_providers.palgu.wire_api', 'responses'),
+    ...set('model_provider', p.name), ...set(key + '.name', p.name),
+    ...set(key + '.base_url', where.baseUrl), ...set(key + '.env_key', p.keyEnv),
+    ...set(key + '.wire_api', 'responses'),
   ]
 }
 
@@ -77,7 +98,7 @@ function gitArgs(codex) {
 }
 
 function modelArgs(codex, model, where) {
-  return [...(model ? ['-m', model] : []), ...(codex.auth === 'chatgpt' ? [] : providerArgs(where.baseUrl))]
+  return [...(model ? ['-m', model] : []), ...(codex.auth === 'chatgpt' ? [] : providerArgs(where))]
 }
 
 // The flags after the program name (`codex`, written as fixed text at the $.process.run call).
@@ -94,9 +115,9 @@ export function codexResumeArgs(codex, model, where) {
   return ['exec', '-C', where.cwd, 'resume', '--json', ...gitArgs(codex), ...modelArgs(codex, model, where), ...widened, where.thread, '-']
 }
 
-export function codexEnv(codex, key) {
+export function codexEnv(codex, key, provider) {
   const env = { MAGGY_ROUTER_CHILD: '1' }
-  if (codex.auth !== 'chatgpt') env[KEY_ENV] = key
+  if (codex.auth !== 'chatgpt') env[codexProvider(provider).keyEnv] = key
   return env
 }
 

@@ -145,3 +145,11 @@ test('summaryLine shows the Codex sandbox and every command it refused, named or
   const discarded = { ...refused, exitCode: 1, rejected: 'narration' }
   expect(summaryLine({ ...codex, child: discarded }, null)).toContain('main model answered · sandbox read-only · refused: touch made.txt')
 })
+
+test('parseRouteArg expands a prefix from the provider\'s catalogue when one is given', async () => {
+  const routes = { simple: 'glm/5.3', coding: 'glm/5.3', critical: 'claude', kinds: { research: 'kimi/pro' } }
+  const catalogue = ['glm/5.3', 'kimi/pro', 'deepseek/v4-pro', 'mercury/3', 'gemini/3.8-flash']
+  expect(parseRouteArg('deepseek', routes, catalogue)).toEqual({ mode: 'model', model: 'deepseek/v4-pro' })
+  expect(parseRouteArg('glm', routes, catalogue)).toEqual({ mode: 'model', model: 'glm/5.3' })
+  expect(parseRouteArg('gemini', routes, catalogue)).toEqual({ mode: 'model', model: 'gemini/3.8-flash' })
+})
