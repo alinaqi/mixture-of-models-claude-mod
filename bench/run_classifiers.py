@@ -62,16 +62,25 @@ def ask_palgu(model, item, key):
         return row(model, item, '', time.time() - t, 0, 0, None, '', str(e)[:200])
 
 
+# Claude runs use the claimed Claude login: drop inherited gateway settings and API credentials.
+def claude_env():
+    env = {k: v for k, v in os.environ.items() if k not in ('ANTHROPIC_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN')}
+    return {**env, 'MAGGY_ROUTER_CHILD': '1'}
+
+
 def ask_claude(model, item):
     t = time.time()
     argv = ['claude', '-p', '--model', model, '--system-prompt', 'You are a classifier. Reply with exactly what is asked.',
             '--tools', '', '--strict-mcp-config', '--no-session-persistence', '--output-format', 'json']
     try:
-        p = subprocess.run(argv, input=item['q'], capture_output=True, text=True, timeout=180,
-                           env={**os.environ, 'MAGGY_ROUTER_CHILD': '1'})
+        p = subprocess.run(argv, input=item['q'], capture_output=True, text=True, timeout=180, env=claude_env())
         secs = time.time() - t
+        if p.returncode != 0 and not p.stdout.strip():
+            return row(model, item, '', secs, 0, 0, None, '', f'claude exited {p.returncode}: {p.stderr.strip()[:180]}')
         d = json.loads(p.stdout)
         d = d[-1] if isinstance(d, list) else d
+        if p.returncode != 0 or d.get('is_error'):
+            return row(model, item, '', secs, 0, 0, None, '', f"claude error: {str(d.get('result') or d.get('subtype') or p.returncode)[:180]}")
         out = d.get('usage', {}).get('output_tokens', 0)
         tokens_in = round(len(item['q']) / 4)  # the mod sends only the question; ~4 characters a token
         price_in, price_out = CLAUDE[model]

@@ -242,7 +242,7 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for the full walkthrough, or `./ins
    /plugin configure mixture-of-models@mixture-of-models-claude-mod
    ```
 
-   or from the shell at install time: `claude plugin install mixture-of-models@mixture-of-models-claude-mod --config gateway_url=https://api.palgu.ai/anthropic --config gateway_key=<your-key>`, or afterwards: `echo '{"gateway_url":"https://api.palgu.ai/anthropic","gateway_key":"<your key>"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
+   or from the shell: run `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`, type `{"gateway_url":"https://api.palgu.ai/anthropic","gateway_key":"<your key>"}` on its input and press Ctrl-D, so the key stays out of your shell history and process list.
 
 2. Optionally tune routes, thresholds and the child in `~/.claude/model-config.json`; `config.example.json` in the repo is a complete starting point (also shown below).
 
@@ -272,7 +272,7 @@ Whichever variable carries the key, the child's environment sets the other one t
    | `gateway_key` | your OpenRouter key (`sk-or-…`) |
    | `gateway_provider` | `auto` (or `openrouter`) |
 
-   or from the shell: `echo '{"gateway_url":"https://openrouter.ai/api","gateway_key":"<your key>","gateway_provider":"openrouter"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
+   or from the shell: run `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`, type `{"gateway_url":"https://openrouter.ai/api","gateway_key":"<your key>","gateway_provider":"openrouter"}` on its input and press Ctrl-D, so the key stays out of your shell history.
 3. Start `claude`. Simple and coding turns run on `z-ai/glm-5.3`, research and review on `moonshotai/kimi-k3.1-pro`; the band offers `glm`, `kimi`, `deepseek` (`deepseek/deepseek-v4-pro`), `gemini` (`google/gemini-3.8-flash`), `minimax` (`minimax/minimax-m3`, `minimax/minimax-m3.1-flash`), `gpt` (`openai/gpt-6-sol`, `-luna`, `-astra`) and `mercury` (`inception/mercury-3`). With eleven buttons the last has no number key; click it or Tab to it. These are the slugs [OpenRouter's model list](https://openrouter.ai/models) served on 2026-10-29. OpenRouter has no Kimi highspeed variant, so `kimi/auto` is `pro` for every tier.
 
 Routes on OpenRouter name family members (`glm/5.3`), because an OpenRouter slug has a `/` in it; a slug that a family lists (`z-ai/glm-5.3`) works too. For another OpenRouter model, add it to a family and route to it:
@@ -317,7 +317,7 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 
 ### Data the plugin sends
 
-- Conversation messages (`session.messages`): the prompt plus the last `router.child.contextMessages` messages (default 12) that have text, each cut to 1,200 characters, with the names of the tools they used. They are written to the child's stdin, and the child sends them to the gateway URL above (or to Anthropic or Codex for those routes) to get the model's answer. Sent only on a routed turn: one the score, or your `/route` pin, sends away from the main session. Critical, security, notification and operator turns never leave the main session. While it works, the child's own agent loop also sends what its tools read in the project, under the deny rules in [What a child may not do](#what-a-child-may-not-do).
+- Conversation messages (`session.messages`): the prompt plus the last `router.child.contextMessages` messages (default 12) that have text, each cut to 1,200 characters, with the names of the tools they used. They are written to the child's stdin, and the child sends them to the gateway URL above (or to Anthropic or Codex for those routes) to get the model's answer. Sent only on a routed turn: one the score, or your `/route` pin, sends away from the main session. Critical, security, notification and operator turns are never routed themselves, but a later routed turn's context can include their recent text, because the context is the last messages with text whatever their route. While it works, the child's own agent loop also sends what its tools read in the project, under the deny rules in [What a child may not do](#what-a-child-may-not-do).
 - The prompt text and the scoring rubric: to the local Ollama, or to Anthropic through `$.model.classify`, for every prompt that reaches classification.
 - Local file contents (`fs.read`): `~/.claude/model-config.json` (your settings; never sent) and `~/.claude/mixture-of-models/strategies/*.md` (your routing strategies; the rubric of the active strategy is part of the scoring prompt, so it goes to Ollama or Anthropic as above). The mod reads no project files itself.
 - To Palgu: on `/palgu login` the client id `mixture-of-models`, the device name `Claude Code on <HOSTNAME>`, the mod's version, a random install id and the device code; on `/palgu status` the gateway key as a Bearer header; for a price quote the model id, four token counts and the key. No prompt or answer text.
@@ -352,7 +352,7 @@ Each `$.process.run` call has its program and fixed flags written as literal tex
 
 - API keys are entered by the user through plugin settings (`user_config`, stored as sensitive): one key, `gateway_key`, for the gateway you configure (Palgu, OpenRouter, LiteLLM or another Anthropic-compatible endpoint). `/palgu login` fills the same setting for you.
 - The plugin does not read keys from environment variables or files on the user's machine. The environment variables it reads are `HOME`, `HOSTNAME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (your own extra headers, passed on to the gateway child only).
-- Each key is sent only to its own provider's host: `gateway_key` reaches the gateway you configured, by the child process, from the child's environment (never its argv), and reaches `https://api.palgu.ai` from the mod only when that gateway is Palgu.
+- Each key is sent only to its own provider's host: `gateway_key` reaches the gateway you configured (or, on a Codex route, the `router.codex.baseUrl` you set in `model-config.json`), by the child process, from the child's environment (never its argv), and reaches `https://api.palgu.ai` from the mod only when that gateway is Palgu.
 
 ## What this plugin runs, reads, sends and stores
 

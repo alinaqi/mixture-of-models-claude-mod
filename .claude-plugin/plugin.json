@@ -31,7 +31,7 @@
     "gateway_key": {
       "type": "string",
       "title": "Gateway API key",
-      "description": "API key for that gateway: a Palgu key, an OpenRouter key, or a LiteLLM master or virtual key. Stored securely by Claude Code. Sent only to the gateway URL above (by the child process it starts), and to Palgu itself only when that URL is Palgu.",
+      "description": "API key for that gateway: a Palgu key, an OpenRouter key, or a LiteLLM master or virtual key. Stored securely by Claude Code. Sent only to the gateway URL above by the child process it starts (or, for a Codex route, to the router.codex.baseUrl you set in model-config.json), and to Palgu itself only when that URL is Palgu.",
       "sensitive": true
     },
     "gateway_provider": {

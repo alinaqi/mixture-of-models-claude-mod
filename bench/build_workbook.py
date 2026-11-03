@@ -50,6 +50,11 @@ def tier_of(ref: str) -> str:
     return f'IF({ref}<=Settings!$B$3,"simple",IF({ref}<=Settings!$B$4,"coding","critical"))'
 
 
+# The tier's order (1 simple, 2 coding, 3 critical), so "between two tiers" is a range test.
+def tier_rank(ref: str) -> str:
+    return f'IF({ref}<=Settings!$B$3,1,IF({ref}<=Settings!$B$4,2,3))'
+
+
 def settings_sheet(wb: Workbook) -> None:
     ws = wb.active
     ws.title = 'Settings'
@@ -116,7 +121,7 @@ def result_formulas(r: int) -> list[str]:
         f'=IF(D{r}="","none",{tier_of(f"D{r}")})',
         f'={look("D")}',
         f'={look("E")}',
-        f'=IF(D{r}="",0,IF(OR(F{r}={tier_of(f"G{r}")},F{r}={tier_of(f"H{r}")}),1,0))',
+        f'=IF(D{r}="",0,IF(AND({tier_rank(f"D{r}")}>={tier_rank(f"G{r}")},{tier_rank(f"D{r}")}<={tier_rank(f"H{r}")}),1,0))',
         f'=IF(D{r}="",0,IF(AND(D{r}>=G{r},D{r}<=H{r}),1,0))',
         f'=IF(E{r}={look("F")},1,0)',
         f'=IF(AND(G{r}>Settings!$B$4,OR(D{r}="",D{r}<=Settings!$B$4)),1,0)',
