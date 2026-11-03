@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS } from '../hooks/lib/config.js'
-import { CHILD_PREAMBLE, SECRET_DENY, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText, subscriptionEnv } from '../hooks/lib/child.js'
+import { CHILD_PREAMBLE, SECRET_DENY, allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, projectSlug, relayText, safeArgs, safeModelId, subscriptionEnv } from '../hooks/lib/child.js'
 import { VERSION } from '../hooks/lib/version.js'
 
 const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
@@ -35,10 +35,10 @@ test('childArgs honours custom args', async () => {
 })
 
 test('childEnv marks the child and scopes the gateway to it, the key as x-api-key with any inherited bearer token blanked', async () => {
-  expect(childEnv(CHILD, 'srt_key')).toEqual({
+  expect(childEnv(CHILD, 'test-key')).toEqual({
     MAGGY_ROUTER_CHILD: '1',
     ANTHROPIC_BASE_URL: 'https://api.palgu.ai/anthropic',
-    ANTHROPIC_API_KEY: 'srt_key',
+    ANTHROPIC_API_KEY: 'test-key',
     ANTHROPIC_AUTH_TOKEN: '',
     CLAUDE_CODE_MAX_RETRIES: '2',
   })
@@ -48,17 +48,17 @@ test('childEnv marks the child and scopes the gateway to it, the key as x-api-ke
 // 429 engine_overloaded took ~170 s to fail (2026-10-29). Two retries fail it in about 3 s.
 test('the gateway child retries a failed request at most child.maxRetries times, so a busy provider falls back fast', async () => {
   expect(DEFAULTS.child.maxRetries).toBe(2)
-  expect(childEnv({ ...CHILD, maxRetries: 0 }, 'srt_key').CLAUDE_CODE_MAX_RETRIES).toBe('0')
-  expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key').CLAUDE_CODE_MAX_RETRIES).toBeUndefined()
+  expect(childEnv({ ...CHILD, maxRetries: 0 }, 'test-key').CLAUDE_CODE_MAX_RETRIES).toBe('0')
+  expect(childEnv({ ...CHILD, baseUrl: '' }, 'test-key').CLAUDE_CODE_MAX_RETRIES).toBeUndefined()
   expect(subscriptionEnv().CLAUDE_CODE_MAX_RETRIES).toBeUndefined()
 })
 
 test('childEnv for a bearer gateway puts the key in ANTHROPIC_AUTH_TOKEN and blanks an inherited ANTHROPIC_API_KEY', async () => {
   // An inherited ANTHROPIC_API_KEY would otherwise ride along as x-api-key to OpenRouter or LiteLLM.
-  expect(childEnv({ ...CHILD, baseUrl: 'https://openrouter.ai/api', auth: 'bearer' }, 'sk-or-key')).toEqual({
+  expect(childEnv({ ...CHILD, baseUrl: 'https://openrouter.ai/api', auth: 'bearer' }, 'test-key-openrouter')).toEqual({
     MAGGY_ROUTER_CHILD: '1',
     ANTHROPIC_BASE_URL: 'https://openrouter.ai/api',
-    ANTHROPIC_AUTH_TOKEN: 'sk-or-key',
+    ANTHROPIC_AUTH_TOKEN: 'test-key-openrouter',
     ANTHROPIC_API_KEY: '',
     CLAUDE_CODE_MAX_RETRIES: '2',
   })
@@ -83,14 +83,14 @@ test('for every provider the key is never on argv, and the secrets deny list is 
 })
 
 test('childEnv without a base URL only marks the child', async () => {
-  expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+  expect(childEnv({ ...CHILD, baseUrl: '' }, 'test-key')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
 })
 
 test('childEnv adds the identifying headers for the gateway, only when the child has one', async () => {
   const headers = childHeaders('/work/app', '')
-  expect(childEnv(CHILD, 'srt_key', headers).ANTHROPIC_CUSTOM_HEADERS).toBe(headers)
-  expect(childEnv({ ...CHILD, baseUrl: '' }, 'srt_key', headers)).toEqual({ MAGGY_ROUTER_CHILD: '1' })
-  expect(childEnv(CHILD, 'srt_key', '').ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
+  expect(childEnv(CHILD, 'test-key', headers).ANTHROPIC_CUSTOM_HEADERS).toBe(headers)
+  expect(childEnv({ ...CHILD, baseUrl: '' }, 'test-key', headers)).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+  expect(childEnv(CHILD, 'test-key', '').ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
 })
 
 test('childHeaders names the mod and its version, and the project folder', async () => {
@@ -128,9 +128,9 @@ test('projectSlug follows the gateway\'s project_detect rule: lowercase, [a-z0-9
 })
 
 test('childReady needs a base URL plus a key', async () => {
-  expect(childReady(CHILD, 'srt_key')).toBe(true)
+  expect(childReady(CHILD, 'test-key')).toBe(true)
   expect(childReady(CHILD, '')).toBe(false)
-  expect(childReady({ ...CHILD, baseUrl: '' }, 'srt_key')).toBe(false)
+  expect(childReady({ ...CHILD, baseUrl: '' }, 'test-key')).toBe(false)
 })
 
 test('buildBrief hands the child recent context and the task', async () => {
@@ -173,9 +173,9 @@ test('buildBrief keeps only the last N messages and truncates long ones', async 
 
 test('gatewayFrom takes the URL from the options or the config, and the key from the options only', async () => {
   const child = { ...DEFAULTS.child, baseUrl: 'https://cfg.example/anthropic' }
-  expect(gatewayFrom({ gateway_url: 'https://opt.example/anthropic', gateway_key: 'srt_from_options' }, child))
-    .toEqual({ baseUrl: 'https://opt.example/anthropic', key: 'srt_from_options' })
-  expect(gatewayFrom({ gateway_key: 'srt_from_options' }, child)).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: 'srt_from_options' })
+  expect(gatewayFrom({ gateway_url: 'https://opt.example/anthropic', gateway_key: 'test-key-options' }, child))
+    .toEqual({ baseUrl: 'https://opt.example/anthropic', key: 'test-key-options' })
+  expect(gatewayFrom({ gateway_key: 'test-key-options' }, child)).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: 'test-key-options' })
   expect(gatewayFrom({}, child)).toEqual({ baseUrl: 'https://cfg.example/anthropic', key: '' })
   expect(gatewayFrom(undefined, { ...child, baseUrl: '' })).toEqual({ baseUrl: '', key: '' })
 })
@@ -238,4 +238,18 @@ test('childHeaders pins the routed model on Palgu, so the gateway serves exactly
   expect(childHeaders('/work/app', 'x-srooter-pin: gpt-6-sol', true, 'glm-5.3')).not.toContain('x-srooter-pin: glm-5.3')
   expect(childHeaders('/work/app', '', false, 'glm-5.3')).toBe('')
   expect(childHeaders('/work/app', '', true)).not.toContain('x-srooter-pin')
+})
+
+// What reaches $.process.run besides fixed text is checked first: one model id, and plain strings.
+test('safeModelId takes one model id and refuses anything that could read as a flag or two words', async () => {
+  for (const id of ['glm-5.3', 'z-ai/glm-5.3', 'claude-opus-5-5[1m]', 'openai/gpt-6:free', 'deepseek/deepseek-v4-pro@latest']) expect(safeModelId(id)).toBe(true)
+  for (const id of ['', '-p', '--model', 'glm 5.3', 'glm;rm', 'glm\n', 'x'.repeat(201), undefined]) expect(safeModelId(id)).toBe(false)
+})
+
+test('safeArgs takes plain strings and refuses a NUL, a non-string or an overlong value', async () => {
+  expect(safeArgs(['--bare', 'Bash(git pull --ff-only)', 'line one\nline two'])).toBe(true)
+  expect(safeArgs([])).toBe(true)
+  expect(safeArgs(['ok', 'bad\u0000'])).toBe(false)
+  expect(safeArgs(['ok', 7])).toBe(false)
+  expect(safeArgs(['x'.repeat(40000)])).toBe(false)
 })

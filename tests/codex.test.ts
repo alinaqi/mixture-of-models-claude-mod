@@ -18,9 +18,9 @@ test('codexBaseUrl derives Palgu /v1 from the gateway /anthropic URL unless set'
 })
 
 test('codexReady: the Palgu path needs a URL and key, the ChatGPT login needs neither', async () => {
-  expect(codexReady(CODEX, { baseUrl: 'https://api.palgu.ai/anthropic', key: 'srt_k' })).toBe(true)
+  expect(codexReady(CODEX, { baseUrl: 'https://api.palgu.ai/anthropic', key: 'test-key-k' })).toBe(true)
   expect(codexReady(CODEX, { baseUrl: 'https://api.palgu.ai/anthropic', key: '' })).toBe(false)
-  expect(codexReady(CODEX, { baseUrl: '', key: 'srt_k' })).toBe(false)
+  expect(codexReady(CODEX, { baseUrl: '', key: 'test-key-k' })).toBe(false)
   expect(codexReady({ ...CODEX, auth: 'chatgpt' }, { baseUrl: '', key: '' })).toBe(true)
 })
 
@@ -35,7 +35,7 @@ test('codexArgs on Palgu: non-interactive exec, JSON events, a palgu provider on
     '-c', 'model_providers.palgu.wire_api="responses"',
     '--sandbox', 'read-only', '-c', 'approval_policy="never"', '-',
   ])
-  expect(args.join(' ')).not.toContain('srt_')
+  expect(args.join(' ')).not.toContain('test-key')
 })
 
 test('codexArgs on the ChatGPT login: no provider override, and no -m for the default model', async () => {
@@ -100,8 +100,8 @@ test('codexAsk names the commands and says what approving allows; codexRelayText
 })
 
 test('codexEnv marks the child and passes the Palgu key in the environment, never for the ChatGPT login', async () => {
-  expect(codexEnv(CODEX, 'srt_k')).toEqual({ MAGGY_ROUTER_CHILD: '1', PALGU_API_KEY: 'srt_k' })
-  expect(codexEnv({ ...CODEX, auth: 'chatgpt' }, 'srt_k')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
+  expect(codexEnv(CODEX, 'test-key-k')).toEqual({ MAGGY_ROUTER_CHILD: '1', PALGU_API_KEY: 'test-key-k' })
+  expect(codexEnv({ ...CODEX, auth: 'chatgpt' }, 'test-key-k')).toEqual({ MAGGY_ROUTER_CHILD: '1' })
 })
 
 // What `codex exec --json` printed in a live run through Palgu (thread id shortened).

@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { CLIENT_ID, PALGU_BILLING, PALGU_GATEWAY, configureValues, isPalgu, deviceBody, deviceName, newInstallId, parsePalguArg, startText, statusText, tokenBody, tokenStep } from '../hooks/lib/palgu.js'
+import { CLIENT_ID, PALGU_BILLING, PALGU_GATEWAY, configureValues, isPalgu, isPalguKey, deviceBody, deviceName, newInstallId, parsePalguArg, startText, statusText, tokenBody, tokenStep } from '../hooks/lib/palgu.js'
 import { VERSION } from '../hooks/lib/version.js'
 
 const res = (status, body) => ({ status, ok: status < 300, headers: {}, text: JSON.stringify(body) })
@@ -39,14 +39,14 @@ test('tokenStep keeps polling while pending, slows down when told, and stops on 
 })
 
 test('tokenStep returns the key and who signed in on success', async () => {
-  const ok = res(200, { access_token: 'srt_ab_cd', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'team' } })
-  expect(tokenStep(ok, 5)).toEqual({ state: 'ok', key: 'srt_ab_cd', email: 'dev@acme.com', org: 'Acme', plan: 'team' })
+  const ok = res(200, { access_token: 'test-key-abcd', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'team' } })
+  expect(tokenStep(ok, 5)).toEqual({ state: 'ok', key: 'test-key-abcd', email: 'dev@acme.com', org: 'Acme', plan: 'team' })
   expect(tokenStep(res(200, { token_type: 'Bearer' }), 5).state).toBe('stop')
 })
 
 test('configureValues points the child at the Palgu gateway with the new key, for --values-stdin', async () => {
   // gateway_provider too, so a LiteLLM or OpenRouter choice left over does not keep bearer auth on Palgu.
-  expect(JSON.parse(configureValues('srt_x'))).toEqual({ gateway_url: PALGU_GATEWAY, gateway_key: 'srt_x', gateway_provider: 'palgu' })
+  expect(JSON.parse(configureValues('test-key-x'))).toEqual({ gateway_url: PALGU_GATEWAY, gateway_key: 'test-key-x', gateway_provider: 'palgu' })
   expect(PALGU_GATEWAY).toBe('https://api.palgu.ai/anthropic')
 })
 
@@ -80,4 +80,17 @@ test('statusText says who is signed in and on which plan, or how to sign in', as
   expect(statusText(null)).toMatch(/key is set.*could not/i)
   expect(statusText('other')).toMatch(/not Palgu.*\/palgu login/)
   expect(PALGU_BILLING).toBe('https://www.palgu.ai/billing')
+})
+
+// The minted key is the only fetched value that reaches $.process.run (as stdin, never argv), so
+// it must be one plain token before it is used or saved.
+test('isPalguKey takes one plain token and nothing else', async () => {
+  expect(isPalguKey('test-key-minted')).toBe(true)
+  expect(isPalguKey('abc.DEF_123-xyz')).toBe(true)
+  for (const bad of ['', 'short', 'a b c d e f', 'key\nmore', 'key";x', 'x'.repeat(600), 42, undefined]) expect(isPalguKey(bad)).toBe(false)
+})
+
+test('tokenStep stops on a key that is not one plain token', async () => {
+  expect(tokenStep(res(200, { access_token: 'two words here' }), 5)).toEqual({ state: 'stop', reason: 'Palgu answered without a usable key' })
+  expect(tokenStep(res(200, { access_token: 'test-key-minted' }), 5).state).toBe('ok')
 })

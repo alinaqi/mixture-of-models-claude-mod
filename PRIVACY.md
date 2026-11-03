@@ -22,7 +22,7 @@ In Claude Code's plugin store on your machine: a random install id used for Palg
 
 ## What the plugin reads
 
-`~/.claude/model-config.json` (routing settings, no credentials) and the environment variables `HOME`, `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (only so that custom headers you set yourself are kept in the child's requests to the gateway).
+`~/.claude/model-config.json` (routing settings, no credentials) and the environment variables `HOME`, `HOSTNAME` (for the Palgu device name), `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (only so that custom headers you set yourself are kept in the child's requests to the gateway).
 
 ## Children
 

@@ -75,12 +75,30 @@ export const SECRET_DENY = [
   'Read(**/id_rsa*)', 'Read(**/id_ed25519*)', 'Read(**/secrets/**)',
 ]
 
-// The flags after the program name (`claude`, written as fixed text at the $.process.run call).
+// The flags after the program name. register.js writes `claude` and the fixed flags as literal
+// text at its $.process.run call and spreads childFlags after them, in this same order.
 // --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery. The
 // deny list comes after child.args, so custom args cannot drop it.
 export function childArgs(child, model, cwd) {
-  const deny = [...SECRET_DENY, ...(child.deny || [])]
-  return ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...child.args, '--disallowedTools', ...deny]
+  return ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...childFlags(child)]
+}
+
+// The part of childArgs after `--add-dir <cwd>`: the user's child.args, then the deny list.
+export function childFlags(child) {
+  return [...child.args, '--disallowedTools', ...SECRET_DENY, ...(child.deny || [])]
+}
+
+// What may stand on a child's argv besides fixed text: no shell runs it, so these only keep a
+// value from reading as a flag or as two words (a model id) and keep NUL and runaway sizes out.
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@[\]-]{0,199}$/
+const ARG_CHARS = 32768
+
+export function safeModelId(id) {
+  return typeof id === 'string' && MODEL_ID.test(id)
+}
+
+export function safeArgs(list) {
+  return list.every((a) => typeof a === 'string' && a.length <= ARG_CHARS && !a.includes('\u0000'))
 }
 
 function describe(m) {

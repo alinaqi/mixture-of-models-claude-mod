@@ -23,6 +23,16 @@ export function isNewer(a, b) {
   return i >= 0 && x[i] > y[i]
 }
 
+// What a failed or missing `claude` turns into, and the line of its output worth showing.
+export function failedRun(err) {
+  return { exitCode: 1, stderr: String((err && err.message) || err) }
+}
+
+export function lastLine(r) {
+  return String(r.stderr || r.stdout || '').trim().split('\n').pop() || 'exit ' + r.exitCode
+}
+
+// The two commands /route update runs, as register.js writes them literally at its calls.
 export function updateCommands() {
   return [['claude', 'plugin', 'marketplace', 'update', MARKETPLACE], ['claude', 'plugin', 'update', PLUGIN_ID]]
 }

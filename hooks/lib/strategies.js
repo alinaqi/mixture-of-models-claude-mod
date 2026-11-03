@@ -83,6 +83,11 @@ function checkThresholds(t) {
 }
 
 // A strategy file, or { error } saying what to fix. `fallbackName` is the file's name.
+// The strategy files in a `$.fs.list` answer: plain files ending in .md, in listing order.
+export function strategyFiles(entries) {
+  return (entries || []).filter((x) => x.kind === 'file' && x.name.endsWith('.md')).map((x) => x.name)
+}
+
 export function parseStrategy(text, fallbackName) {
   const m = String(text || '').match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
   if (!m) return { error: 'no frontmatter: start the file with a --- block' }

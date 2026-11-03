@@ -4,28 +4,33 @@
 import { parseConfig } from './lib/config.js'
 import { VERDICTS, labelFor, ollamaBody, ollamaReply, parseVerdict, preClassify, sessionTurn } from './lib/classify.js'
 import { adjustThresholds, bumpFailures, isBorderline, midTaskGuard, parseRouteArg, summaryLine } from './lib/routing.js'
-import { allowPatterns, buildBrief, childArgs, childEnv, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText, subscriptionEnv } from './lib/child.js'
+import { allowPatterns, buildBrief, childEnv, childFlags, childHeaders, childReady, gatewayFrom, parseChildOutput, relayText, safeArgs, safeModelId, subscriptionEnv } from './lib/child.js'
 import { checkRoute, familiesText, isAutoRoute, routeValue, targetFor } from './lib/families.js'
-import { CODEX_INSTALL, codexArgs, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexReady, codexRelayText, codexResumeArgs, droppedArgs, missingCodex, parseCodexOutput, refusalNote, sandboxOf } from './lib/codex.js'
+import { CODEX_INSTALL, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexFlags, codexReady, codexRelayText, codexResumeFlags, droppedArgs, missingCodex, parseCodexOutput, refusalNote, sandboxOf } from './lib/codex.js'
 import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
-import { PALGU_GATEWAY } from './lib/palgu.js'
+import { HELP, PALGU_GATEWAY, configureValues, deviceBody, deviceName, isPalgu, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText } from './lib/palgu.js'
 import { gatewayName } from './lib/providers.js'
-import { palguCommand } from './palgu.js'
-import { addTurn, savingsLine, turnNote } from './lib/savings.js'
-import { priceTurn } from './savings.js'
+import { addTurn, claudeCost, quoteBody, quotedCost, savingsLine, tableCost, turnNote } from './lib/savings.js'
 import { helpTree } from './lib/help-pane.js'
-import { BUILTIN, STRATEGY_DIR, applyStrategy, strategiesText, strategyPrompt } from './lib/strategies.js'
-import { loadStrategies } from './strategy.js'
-import { routeUpdate } from './update.js'
+import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, strategyFiles, strategyPrompt } from './lib/strategies.js'
+import { failedRun, isNewer, lastLine, latestVersion, updateText } from './lib/update.js'
+import { VERSION } from './lib/version.js'
+
+// Every capability call in this module is written `$.noun.method(...)`, and `$` is handed only,
+// whole, to this file's own top-level functions. Network hosts are fixed https:// URLs written at
+// each $.http.fetch call, except the local Ollama classifier. No value from a network answer is
+// ever on a $.process.run argv; see each call.
 
 let cfg = applyStrategy(parseConfig(''), BUILTIN.complexity), configText = '', options = {}, disabled = false, ready = false, codexOk = false, key = '', sessionModel = ''
 let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: 'default' }, lastPrompt = '', tab = 'models', lastWasChild = false
 const answered = new Map()
 // Routing strategies: built-ins plus the user's files; `chosen` is a /route strategy pick.
-let strategies = BUILTIN, chosen = '', home = ''
+let strategies = BUILTIN, chosen = '', home = '', polling = false
+const FAILED = { ok: false, status: 0, text: '' }
+const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
 
 function applyGateway() {
   ;({ baseUrl: cfg.child.baseUrl, key } = gatewayFrom(options, cfg.child))
@@ -40,20 +45,22 @@ function applyConfig() {
   applyGateway()
 }
 
-// What /palgu reads and changes: a key from /palgu login takes over the child at once.
-function palguContext($) {
-  const useKey = (k) => {
-    options = { ...options, gateway_url: PALGU_GATEWAY, gateway_key: k, gateway_provider: 'palgu' }
-    applyConfig()
-    $.ui.invalidate('ui.render')
+// The user's routing strategies from ~/.claude/mixture-of-models/strategies/*.md. A file that will
+// not parse is named in the log and skipped; a file named like a built-in replaces it.
+async function readStrategies($, dir) {
+  const all = { ...BUILTIN }
+  for (const name of strategyFiles(await $.fs.list(dir).catch(() => []))) {
+    const s = parseStrategy(await $.fs.read(dir + '/' + name).catch(() => ''), name.slice(0, -3))
+    if (s.error) $.ui.log('routing strategy ' + name + ' skipped: ' + s.error)
+    else all[s.name] = s
   }
-  return { key: () => key, baseUrl: () => cfg.child.baseUrl, useKey }
+  return all
 }
 
-async function loadConfig($) {
-  home = (await $.env.get('HOME')) || ''
-  configText = await $.fs.read(home + '/.claude/model-config.json').catch(() => '')
-  strategies = await loadStrategies($, home)
+// The only local files read: ~/.claude/model-config.json and the strategy files. Neither is sent anywhere.
+async function loadConfig($, homeDir) {
+  configText = await $.fs.read(homeDir + '/.claude/model-config.json').catch(() => '')
+  strategies = await readStrategies($, homeDir + STRATEGY_DIR)
   chosen = (await $.store.get('strategy')) || ''
   applyConfig()
   const dropped = droppedArgs(cfg.codex)
@@ -138,25 +145,48 @@ function shouldDelegate(e) {
 
 // Claude Code itself, headless, on the routed model: on the gateway, or on your Claude login.
 // The gateway child's env names the mod and the project to the gateway, after any custom headers the user set.
-async function spawnChild($, extra, stdin) {
+// Nothing from $.http.fetch reaches the argv: the model id and child.args/deny come from the user's
+// settings, cwd from the session, and on --resume the session id and the commands the user approved
+// in $.ui.ask from the child's own last run. All are checked (safeModelId, safeArgs); no shell runs it.
+async function spawnChild($, resume, stdin) {
   const sub = decision.runner === 'subscription'
   const cwd = await $.session.cwd()
-  const argv = ['claude', ...childArgs(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child, decision.id, cwd), ...extra]
   const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '', cfg.child.identify, decision.id)
-  const r = await $.process.run(argv, { env: sub ? subscriptionEnv() : childEnv(cfg.child, key, headers), stdin, timeoutMs: cfg.child.timeoutMs }).catch(() => ({ exitCode: 1, stdout: '' }))
+  const a = { cwd, turns: String(cfg.child.maxTurns), tail: childFlags(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child), env: sub ? subscriptionEnv() : childEnv(cfg.child, key, headers), stdin }
+  const resumed = resume ? [resume.sessionId, ...resume.patterns] : []
+  if (!safeModelId(decision.id) || !safeArgs([cwd, ...a.tail, ...resumed])) return { ...parseChildOutput('', 1), reason: 'argument refused' }
+  const r = await (resume ? resumeClaude($, a, resume) : startClaude($, a)).catch(() => ({ exitCode: 1, stdout: '' }))
   return parseChildOutput(r.stdout, r.exitCode)
 }
 
+function startClaude($, a) {
+  return $.process.run(['claude', '-p', '--model', decision.id, '--output-format', 'json', '--max-turns', a.turns, '--add-dir', a.cwd, ...a.tail], { env: a.env, stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
+}
+
+function resumeClaude($, a, resume) {
+  return $.process.run(['claude', '-p', '--model', decision.id, '--output-format', 'json', '--max-turns', a.turns, '--add-dir', a.cwd, ...a.tail, '--resume', resume.sessionId, '--allowedTools', ...resume.patterns], { env: a.env, stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
+}
+
 // The Codex CLI, non-interactive, on the gateway's /v1/responses or on your own Codex login. With a
-// thread id it resumes that thread after the user approved its refused commands.
+// thread id it resumes that thread after the user approved its refused commands. As with the
+// claude child, nothing from $.http.fetch reaches the argv, every dynamic value is checked, no shell.
 async function spawnCodex($, stdin, thread) {
   const where = { cwd: await $.session.cwd(), baseUrl: codexBaseUrl(cfg.codex, cfg.child.baseUrl, cfg.provider), provider: cfg.provider, thread }
-  const argv = thread ? codexResumeArgs(cfg.codex, decision.id, where) : codexArgs(cfg.codex, decision.id, where)
-  const r = await $.process.run(['codex', ...argv], { env: codexEnv(cfg.codex, key, cfg.provider), stdin, timeoutMs: cfg.child.timeoutMs })
+  const a = { cwd: where.cwd, thread, stdin, flags: thread ? codexResumeFlags(cfg.codex, decision.id, where) : codexFlags(cfg.codex, decision.id, where) }
+  if (![decision.id, thread].filter(Boolean).every(safeModelId) || !safeArgs([a.cwd, ...a.flags])) return { ...parseCodexOutput('', 1, ''), reason: 'argument refused' }
+  const r = await (thread ? resumeCodex($, a) : startCodex($, a))
     .catch((err) => ({ exitCode: 1, stdout: '', missing: missingCodex(String((err && err.message) || err)) }))
   if (r.missing) $.ui.log(CODEX_INSTALL)
   const out = parseCodexOutput(r.stdout, r.exitCode, r.stderr)
   return { ...out, reason: r.missing ? 'codex not installed' : out.reason }
+}
+
+function startCodex($, a) {
+  return $.process.run(['codex', 'exec', '--json', ...a.flags, '-'], { env: codexEnv(cfg.codex, key, cfg.provider), stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
+}
+
+function resumeCodex($, a) {
+  return $.process.run(['codex', 'exec', '-C', a.cwd, 'resume', '--json', ...a.flags, a.thread, '-'], { env: codexEnv(cfg.codex, key, cfg.provider), stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
 }
 
 // A command the child was refused becomes a real question here; nobody to ask counts as no.
@@ -165,11 +195,11 @@ function askAllow($, question) {
 }
 
 async function claudeTurn($, brief) {
-  let out = await spawnChild($, [], brief)
+  let out = await spawnChild($, null, brief)
   for (let round = 0; out.ok && out.denials.length && round < cfg.child.relayRounds; round += 1) {
     const patterns = allowPatterns(out.denials)
     if (!(await askAllow($, 'Child on ' + decision.model + ' wants to run: ' + patterns.join(' · ')))) break
-    out = await spawnChild($, ['--resume', out.sessionId, '--allowedTools', ...patterns], relayText(patterns))
+    out = await spawnChild($, { sessionId: out.sessionId, patterns }, relayText(patterns))
   }
   return out
 }
@@ -190,9 +220,11 @@ async function codexTurn($, brief) {
   return { ...out, answer: out.ok ? (out.answer + refusalNote(refused)).trim() : '', note }
 }
 
-async function runChild($) {
+// The child's stdin: the prompt and the last few messages of this session (buildBrief). That
+// is what leaves the machine, to the routed model's gateway, and only on a routed turn.
+async function runChild($, prompt) {
   const started = Date.now()
-  const brief = buildBrief(await $.session.messages(), lastPrompt, cfg.child.contextMessages)
+  const brief = buildBrief(await $.session.messages(), prompt, cfg.child.contextMessages)
   const out = decision.runner === 'codex' ? await codexTurn($, brief) : await claudeTurn($, brief)
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
   const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.reason || '' }
@@ -201,19 +233,19 @@ async function runChild($) {
   return vet.ok ? out.answer : ''
 }
 
-// Help changes nothing: it opens the pane that says what is possible.
-function openHelp($) {
-  return $.ui.open({ id: 'mom-help', title: 'Mixture of models · help', focus: true, closeOnEscape: true })
+// Help changes nothing: it opens the pane that says what is possible. Stats opens the chart pane.
+function openPane($, id) {
+  return $.ui.open({ id, title: PANES[id], focus: true, closeOnEscape: true })
 }
 
-async function helpView($) {
-  const buttons = bandButtons(cfg.routes, cfg.catalogue).map((b) => b.arg).filter((a) => a !== 'help')
-  return { pin, ready, provider: cfg.provider, sessionModel, saved: savingsLine(await $.store.get('savings'), sessionModel), buttons, strategy: cfg.strategy }
+async function helpView($, c) {
+  const buttons = bandButtons(c.routes, c.catalogue).map((b) => b.arg).filter((a) => a !== 'help')
+  return { pin, ready, provider: c.provider, sessionModel, saved: savingsLine(await $.store.get('savings'), sessionModel), buttons, strategy: c.strategy }
 }
 
 // Re-read the files first, so a strategy the skill just wrote can be picked at once.
 async function strategyCommand($, parsed) {
-  strategies = await loadStrategies($, home)
+  strategies = await readStrategies($, home + STRATEGY_DIR)
   if (parsed.mode === 'strategies') return strategiesText(strategies, cfg.strategy.name, '~' + STRATEGY_DIR)
   const s = strategies[parsed.name]
   if (!s) return 'no routing strategy ' + parsed.name + '; strategies: ' + Object.keys(strategies).join(', ')
@@ -226,7 +258,7 @@ async function strategyCommand($, parsed) {
 
 async function pinFrom($, arg) {
   const parsed = parseRouteArg(arg, cfg.routes, cfg.catalogue)
-  if (parsed.mode === 'help') return openHelp($).then(() => '')
+  if (parsed.mode === 'help') return openPane($, 'mom-help').then(() => '')
   const bad = parsed.mode === 'model' ? checkRoute(parsed.model, cfg.families) : ''
   if (bad) return bad
   pin = parsed
@@ -234,6 +266,119 @@ async function pinFrom($, arg) {
   applyPin()
   $.ui.invalidate('ui.render')
   return 'routing set to ' + pin.mode + (pin.model ? ' ' + pin.model : pin.label ? ' ' + pin.label : '')
+}
+
+// Palgu: each request goes to a fixed https://api.palgu.ai URL written whole at its call. A key
+// goes there only when the gateway is Palgu (isPalgu, checked by the callers).
+function palguDeviceCode($, body) {
+  return $.http.fetch('https://api.palgu.ai/auth/device/code', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => FAILED)
+}
+
+function palguToken($, body) {
+  return $.http.fetch('https://api.palgu.ai/auth/token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => FAILED)
+}
+
+function palguMe($, k) {
+  return $.http.fetch('https://api.palgu.ai/me', { method: 'GET', headers: { authorization: 'Bearer ' + k } }).catch(() => FAILED)
+}
+
+// Palgu prices the child's usage with the formula it bills by: model id and token counts, no text.
+function palguQuote($, model, usage) {
+  return $.http.fetch('https://api.palgu.ai/v1/pricing/quote', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key }, body: JSON.stringify(quoteBody(model, usage)) })
+    .then(quotedCost).catch(() => null)
+}
+
+async function installId($, storeKey) {
+  const saved = await $.store.get(storeKey)
+  if (saved) return saved
+  const id = newInstallId()
+  await $.store.set(storeKey, id)
+  return id
+}
+
+// A key from /palgu login takes over the child at once; saving it is for the next session.
+function registered() { return true }
+
+function refused() { return false }
+
+function usePalguKey($, k) {
+  options = { ...options, gateway_url: PALGU_GATEWAY, gateway_key: k, gateway_provider: 'palgu' }
+  applyConfig()
+  $.ui.invalidate('ui.render')
+}
+
+// Program and arguments are fixed text. The one fetched value near here, the key Palgu minted, is
+// never on argv: it travels on stdin, and only after tokenStep checked it is one plain token (isPalguKey).
+async function savePalguKey($, signed) {
+  usePalguKey($, signed.key)
+  const r = await $.process.run(['claude', 'plugin', 'configure', 'mixture-of-models@mixture-of-models-claude-mod', '--values-stdin'], { stdin: configureValues(signed.key) }).catch(() => ({ exitCode: 1 }))
+  const note = r.exitCode === 0 ? '' : ' The key could not be saved for later sessions: run /palgu login there again.'
+  $.ui.toast(signedInText(signed) + note, { timeoutMs: 10000 })
+}
+
+function pollPalgu($, start, interval) {
+  $.clock.after(interval * 1000, () => palguStep($, start, interval))
+}
+
+async function palguStep($, start, interval) {
+  const step = tokenStep(await palguToken($, tokenBody(start.device_code)), interval)
+  if (step.state === 'wait') return pollPalgu($, start, step.interval)
+  polling = false
+  if (step.state === 'ok') return savePalguKey($, step)
+  $.ui.toast('Palgu sign-in stopped: ' + step.reason, { timeoutMs: 10000 })
+}
+
+async function palguLogin($, name) {
+  if (polling) return 'A Palgu sign-in is already waiting for your approval.'
+  const res = await palguDeviceCode($, deviceBody(name, await installId($, 'palgu-install-id')))
+  const start = res.ok ? parseBody(res) : {}
+  if (!start.device_code) return startFailedText(res.status || 'unreachable')
+  polling = true
+  pollPalgu($, start, Number(start.interval) || 5)
+  return startText(start)
+}
+
+async function palguStatus($, k) {
+  if (!k) return statusText(undefined)
+  if (!isPalgu(cfg.child.baseUrl)) return statusText('other')
+  const res = await palguMe($, k)
+  return statusText(res.ok ? parseBody(res) : null)
+}
+
+// /palgu: device-code sign-in polled in the background on the mod's clock, status, upgrade.
+async function palguCommand($, args) {
+  const word = parsePalguArg(args)
+  if (word === 'login') return palguLogin($, deviceName((await $.env.get('HOSTNAME')) || ''))
+  if (word === 'status') return palguStatus($, key)
+  return word === 'upgrade' ? upgradeText() : HELP
+}
+
+// What a routed turn cost: Palgu's own quote, router.prices, or Claude rates for a Claude member.
+async function actualCost($, d) {
+  if (d.runner === 'subscription') return claudeCost(d.child.usage, d.id)
+  if (d.runner !== 'gateway') return null
+  const listed = tableCost(d.child.usage, d.id, cfg.prices)
+  if (listed !== null || !isPalgu(cfg.child.baseUrl) || !key) return listed
+  return palguQuote($, d.id, d.child.usage)
+}
+
+// A routed turn at the session's Claude model and at what it cost; a main-session turn at the session's model.
+async function priceTurn($, usage) {
+  const child = decision.child
+  if (!child || child.exitCode !== 0) return { routed: false, baseline: claudeCost(usage, sessionModel) }
+  const baseline = claudeCost(child.usage, sessionModel)
+  return { routed: true, baseline, actual: baseline === null ? null : await actualCost($, decision) }
+}
+
+// /route update: GitHub's answer only says whether a newer version exists. Nothing in it reaches
+// $.process.run: both update commands are fixed text. The new code loads on restart.
+async function routeUpdate($, current) {
+  const latest = latestVersion(await $.http.fetch('https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json', { method: 'GET' }).catch(() => null))
+  if (!latest || !isNewer(latest, current)) return updateText({ current, latest })
+  const market = await $.process.run(['claude', 'plugin', 'marketplace', 'update', 'mixture-of-models-claude-mod'], { timeoutMs: 120000 }).catch(failedRun)
+  if (market.exitCode !== 0) return updateText({ current, latest, updated: false, error: lastLine(market) })
+  const plugin = await $.process.run(['claude', 'plugin', 'update', 'mixture-of-models@mixture-of-models-claude-mod'], { timeoutMs: 120000 }).catch(failedRun)
+  return updateText({ current, latest, updated: plugin.exitCode === 0, error: lastLine(plugin) })
 }
 
 function bandView(e, theirs) {
@@ -245,12 +390,14 @@ export function register(on, opts) {
   on('session.start', async ($, e, next) => {
     disabled = Boolean(await $.env.get('MAGGY_ROUTER_CHILD'))
     if (disabled) return next(e)
-    await loadConfig($)
+    home = (await $.env.get('HOME')) || ''
+    await loadConfig($, home)
     applyPin()
-    await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|auto|off|reset|label|model|family/member]', immediate: true })
-      .catch(() => $.ui.log('/route is taken by another plugin'))
-    await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models: /palgu [login|status|upgrade]', argumentHint: '[login|status|upgrade]', immediate: true })
-      .catch(() => $.ui.log('/palgu is taken by another plugin'))
+    // A failed registration resolves to false (no closure over $), and the log call stays plain.
+    const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
+    if (!routeOk) $.ui.log('/route is taken by another plugin')
+    const palguOk = await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models: /palgu [login|status|upgrade]', argumentHint: '[login|status|upgrade]', immediate: true }).then(registered, refused)
+    if (!palguOk) $.ui.log('/palgu is taken by another plugin')
     return next(e)
   })
 
@@ -269,7 +416,7 @@ export function register(on, opts) {
   on('turn.step', async function* ($, e, next) {
     if (!e.agentId) lastWasChild = false
     if (!shouldDelegate(e)) return yield* next(e)
-    const answer = await runChild($)
+    const answer = await runChild($, lastPrompt)
     if (!answer) {
       $.ui.log('child on ' + decision.model + (decision.child.rejected ? ' answer discarded (' + decision.child.rejected + ')' : ' failed') + ', main model takes this turn')
       return yield* next(e)
@@ -288,7 +435,7 @@ export function register(on, opts) {
     const stats = bumpStats((await $.store.get('stats')) || {}, day, decision.model)
     await $.store.set('stats', stats)
     await $.store.set('log', appendLog(await $.store.get('log'), { day, model: decision.model, kind: decision.kind, label: decision.label, score: decision.score, source: decision.source, child: decision.child || null }, 200))
-    const priced = await priceTurn($, { decision, sessionModel, cfg, key, usage: e.usage })
+    const priced = await priceTurn($, e.usage)
     await $.store.set('savings', addTurn(await $.store.get('savings'), priced))
     return { ...result, text: summaryLine(decision, e.usage) + (priced.routed ? turnNote(priced) : '') + ' · ' + statsLine(stats, day) }
   })
@@ -296,21 +443,24 @@ export function register(on, opts) {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!cfg.ui.band || e.props.hasSurvey) return next(e)
     const theirs = await next(e)
-    return bandTree($.ui.resolve(e), bandView(e, theirs), (arg) => pinFrom($, arg))
+    const ui = $.ui.resolve(e)
+    return bandTree(ui, bandView(e, theirs), (arg) => pinFrom($, arg))
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     const tagged = cfg.ui.tags !== 'off' && e.props.isFirstOfReply
     const hit = tagged ? answered.get(e.props.text.trim()) || (cfg.ui.tags === 'all' ? { model: sessionModel } : undefined) : undefined
     if (!hit) return next(e)
-    return tagTree($.ui.resolve(e), tagText(hit.model, sessionModel, hit.runner), await next(e))
+    const ui = $.ui.resolve(e)
+    return tagTree(ui, tagText(hit.model, sessionModel, hit.runner), await next(e))
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
-    if (e.requestId === 'mom-help') return helpTree($.ui.resolve(e), await helpView($))
-    if (e.requestId !== 'routing-stats') return next(e)
+    if (e.requestId !== 'mom-help' && e.requestId !== 'routing-stats') return next(e)
+    const ui = $.ui.resolve(e)
+    if (e.requestId === 'mom-help') return helpTree(ui, await helpView($, cfg))
     const view = { summary: summarize((await $.store.get('log')) || [], sessionModel), sessionModel, thresholds: cfg.thresholds, columns: e.props.bodyColumns, tab, saved: savingsLine(await $.store.get('savings'), sessionModel) }
-    return paneTree($.ui.resolve(e), view, (t) => { tab = t; $.ui.invalidate('ui.render') })
+    return paneTree(ui, view, (t) => { tab = t; $.ui.invalidate('ui.render') })
   })
 
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
@@ -318,15 +468,15 @@ export function register(on, opts) {
     return next({ ...e, props: { ...e.props, suffix: ' · via ' + decision.model + ' (child)…' } })
   })
 
-  on('command.run', { command: 'palgu' }, async ($, e) => ({ text: await palguCommand($, e.args, palguContext($)) }))
+  on('command.run', { command: 'palgu' }, async ($, e) => ({ text: await palguCommand($, e.args) }))
 
   on('command.run', { command: 'route' }, async ($, e) => {
     const parsed = parseRouteArg(e.args, cfg.routes, cfg.catalogue)
     if (parsed.mode === 'show') return { text: reportText(bandView({ props: {} })) + ' · ' + statsLine((await $.store.get('stats')) || {}, new Date().toISOString().slice(0, 10)) + ' · ' + savingsLine(await $.store.get('savings'), sessionModel) + ' · ' + familiesText(cfg.families) }
     if (parsed.mode === 'reset') return { text: 'failure memory cleared', ...(await $.store.set('failures', {}) || {}) }
-    if (parsed.mode === 'stats') return { ...(await $.ui.open({ id: 'routing-stats', title: 'Mixture of models', focus: true, closeOnEscape: true }) && {}) }
-    if (parsed.mode === 'help') return { ...(await openHelp($) && {}) }
-    if (parsed.mode === 'update') return { text: await routeUpdate($) }
+    if (parsed.mode === 'stats') return { ...(await openPane($, 'routing-stats') && {}) }
+    if (parsed.mode === 'help') return { ...(await openPane($, 'mom-help') && {}) }
+    if (parsed.mode === 'update') return { text: await routeUpdate($, VERSION) }
     if (parsed.mode === 'strategies' || parsed.mode === 'strategy') return { text: await strategyCommand($, parsed) }
     return { text: await pinFrom($, e.args) }
   })

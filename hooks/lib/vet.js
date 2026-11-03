@@ -3,8 +3,32 @@
 // narration of intent, and not a repeat. Anything else goes back to the main model. Pure.
 
 const HANDBACK = /^\s*HANDBACK\b/
-const ASKS_USER = /\b(blocked by (the )?permission|permission (system|prompt|denied)|(need|needs|require|requires) (your )?approval|approve (it|this|them) in the ui|you (must|need to|will need to|'ll need to) (approve|run|execute|allow|grant|merge|push)|please (approve|run|execute|allow)|yourself|sandboxed)\b/i
-const CLAIM = /\b(I('ve| have)? (added|created|updated|fixed|changed|wrote|written|modified|implemented|committed|pushed|merged|opened|ran|deleted|removed|refactored|installed)|pr\s*#\d+|\d+ commits? (behind|ahead)|no [\w-]+ (runs?|prs?|builds?) exists?)\b/i
+// Each alternative is its own string, joined into one case-insensitive whole-word pattern, so no
+// single token in this file runs long.
+function anyOf(parts) {
+  return new RegExp('\\b(' + parts.join('|') + ')\\b', 'i')
+}
+
+const ASKS_USER = anyOf([
+  'blocked by (the )?permission',
+  'permission (system|prompt|denied)',
+  '(need|needs|require|requires) (your )?approval',
+  'approve (it|this|them) in the ui',
+  "you (must|need to|will need to|'ll need to) (approve|run|execute|allow|grant|merge|push)",
+  'please (approve|run|execute|allow)',
+  'yourself',
+  'sandboxed',
+])
+const CLAIMED = [
+  'added', 'created', 'updated', 'fixed', 'changed', 'wrote', 'written', 'modified', 'implemented',
+  'committed', 'pushed', 'merged', 'opened', 'ran', 'deleted', 'removed', 'refactored', 'installed',
+].join('|')
+const CLAIM = anyOf([
+  "I('ve| have)? (" + CLAIMED + ')',
+  'pr\\s*#\\d+',
+  '\\d+ commits? (behind|ahead)',
+  'no [\\w-]+ (runs?|prs?|builds?) exists?',
+])
 const INTENT = /^(I'll|I will|let me|I'm going to|I am going to|next,? I|then,? I|first,? I|now,? I'll)\b/i
 
 function sentences(text) {

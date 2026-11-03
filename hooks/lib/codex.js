@@ -101,18 +101,29 @@ function modelArgs(codex, model, where) {
   return [...(model ? ['-m', model] : []), ...(codex.auth === 'chatgpt' ? [] : providerArgs(where))]
 }
 
-// The flags after the program name (`codex`, written as fixed text at the $.process.run call).
+// The flags after the program name (`codex`, written as fixed text at the $.process.run call,
+// with `exec --json` and the final `-`).
 // No -m means Codex's own default model. `-` reads the brief from stdin.
 export function codexArgs(codex, model, where) {
+  return ['exec', '--json', ...codexFlags(codex, model, where), '-']
+}
+
+// What register.js spreads between its literal `codex exec --json` and the final `-`.
+export function codexFlags(codex, model, where) {
   const extra = splitArgs(codex.args || [])[0]
-  return ['exec', '--json', ...gitArgs(codex), '-C', where.cwd, ...modelArgs(codex, model, where), ...safetyArgs(codex), ...extra, '-']
+  return [...gitArgs(codex), '-C', where.cwd, ...modelArgs(codex, model, where), ...safetyArgs(codex), ...extra]
 }
 
 // After the user approved refused commands: the same thread, in the project, with edits allowed
 // for this turn and the network still off. `exec resume` has no --sandbox or -C of its own.
 export function codexResumeArgs(codex, model, where) {
+  return ['exec', '-C', where.cwd, 'resume', '--json', ...codexResumeFlags(codex, model, where), where.thread, '-']
+}
+
+// What register.js spreads between its literal `codex exec -C <cwd> resume --json` and the thread id.
+export function codexResumeFlags(codex, model, where) {
   const widened = ['-c', 'sandbox_mode="workspace-write"', ...NEVER, ...NO_NETWORK]
-  return ['exec', '-C', where.cwd, 'resume', '--json', ...gitArgs(codex), ...modelArgs(codex, model, where), ...widened, where.thread, '-']
+  return [...gitArgs(codex), ...modelArgs(codex, model, where), ...widened]
 }
 
 export function codexEnv(codex, key, provider) {

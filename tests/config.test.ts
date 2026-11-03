@@ -78,7 +78,7 @@ test('mercury-3 is a Palgu model again, pin-only: no default route uses it', asy
   expect(parseConfig('{"router":{"routes":{"simple":"mercury-3"}}}').routes.simple).toBe('mercury-3')
 })
 
-const OPENROUTER = { gateway_url: 'https://openrouter.ai/api', gateway_key: 'sk-or-test' }
+const OPENROUTER = { gateway_url: 'https://openrouter.ai/api', gateway_key: 'test-key-openrouter' }
 
 test('with no gateway the provider is generic and every default is as before', async () => {
   expect(DEFAULTS.provider).toBe('anthropic-compatible')
