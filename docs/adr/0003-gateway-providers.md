@@ -15,14 +15,16 @@ The gateway child (ADR 0001) took any Anthropic-compatible URL but assumed Palgu
 
 The child runs `--bare`, whose help says "Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings". Checked against Claude Code 2.1.312 with a local server that logs request headers, with dummy keys and an empty `HOME`:
 
+In the table, "API-key variable" is `ANTHROPIC_API_KEY` and "auth-token variable" is `ANTHROPIC_AUTH_TOKEN`; the letters are dummy placeholder values, not keys.
+
 | Child environment (`--bare`) | Headers received |
 | :- | :- |
-| `ANTHROPIC_API_KEY=A` | `x-api-key: A` |
-| `ANTHROPIC_AUTH_TOKEN=B` | `Authorization: Bearer B` |
-| `ANTHROPIC_API_KEY=` and `ANTHROPIC_AUTH_TOKEN=C` | `Authorization: Bearer C` |
-| `ANTHROPIC_API_KEY=X` and `ANTHROPIC_AUTH_TOKEN=F` | **both** `x-api-key: X` and `Authorization: Bearer F` |
-| `ANTHROPIC_API_KEY=K` and `ANTHROPIC_AUTH_TOKEN=` | `x-api-key: K` |
-| `--settings '{"apiKeyHelper":"printenv V"}'`, `V=D` | `x-api-key: D` and `Authorization: Bearer D` |
+| API-key variable holds `<A>` | `x-api-key: <A>` |
+| auth-token variable holds `<B>` | `Authorization: Bearer <B>` |
+| API-key variable empty, auth-token variable holds `<C>` | `Authorization: Bearer <C>` |
+| API-key variable holds `<X>`, auth-token variable holds `<F>` | **both** `x-api-key: <X>` and `Authorization: Bearer <F>` |
+| API-key variable holds `<K>`, auth-token variable empty | `x-api-key: <K>` |
+| an `apiKeyHelper` in `--settings` that prints `<D>` | `x-api-key: <D>` and `Authorization: Bearer <D>` |
 
 So `ANTHROPIC_AUTH_TOKEN` works under `--bare` on this build despite the help text, and the child's environment, which `$.process.run` merges over the parent's, leaks an inherited credential unless it blanks it.
 
@@ -30,9 +32,9 @@ So `ANTHROPIC_AUTH_TOKEN` works under `--bare` on this build despite the help te
 
 1. A **provider** (`hooks/lib/providers.js`): `palgu`, `openrouter`, `litellm` or `anthropic-compatible`, from the `gateway_provider` option, else `router.provider`, else detected by host (`*.palgu.ai`, `openrouter.ai`); anything else is `anthropic-compatible`, which behaves exactly as before. LiteLLM is never detected; it is named.
 2. Per provider: `auth` (`x-api-key` or `bearer`), `identify` (send `x-srooter-*`, Palgu and generic only), a `catalogue` of route values for the band and `/route <prefix>`, gateway `families`, default `routes` and the `primary` map. They are defaults: `router.routes`, `router.families` and `router.child.auth` still win.
-3. The child's key goes in **exactly one** variable and the other is set empty: `ANTHROPIC_API_KEY` + empty `ANTHROPIC_AUTH_TOKEN`, or `ANTHROPIC_AUTH_TOKEN` + empty `ANTHROPIC_API_KEY`. Nothing new on argv.
+3. The child's key is the plugin's sensitive `gateway_key` option (`${user_config.gateway_key}`, kept in Claude Code's secure storage; never read from the user's environment or files). It goes in **exactly one** variable and the other is set empty: `ANTHROPIC_API_KEY` + empty `ANTHROPIC_AUTH_TOKEN`, or `ANTHROPIC_AUTH_TOKEN` + empty `ANTHROPIC_API_KEY`. Nothing new on argv.
 4. OpenRouter routes name families (`glm/5.3`), whose members map to slugs checked against `https://openrouter.ai/api/v1/models`. A full slug that a family lists resolves to that member, so `z-ai/glm-5.3` works as a route; an unlisted slug is still an unknown family, refused by `/route`.
-5. Codex keeps one code path: on OpenRouter and LiteLLM the provider is named `openrouter` or `litellm`, the base URL is `<gateway_url>/v1`, and the key travels in `OPENROUTER_API_KEY` or `LITELLM_API_KEY`, only in the child's environment.
+5. Codex keeps one code path: on OpenRouter and LiteLLM the provider is named `openrouter` or `litellm`, the base URL is `<gateway_url>/v1`, and the key (again `${user_config.gateway_key}`) travels in `OPENROUTER_API_KEY` or `LITELLM_API_KEY`, set only in the child's environment.
 
 ## Consequences
 

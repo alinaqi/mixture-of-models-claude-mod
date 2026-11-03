@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { classifierPrompt } from '../hooks/lib/classify.js'
 import { DEFAULTS, parseConfig } from '../hooks/lib/config.js'
-import { BUILTIN, applyStrategy, parseStrategy, strategiesText, strategyPrompt } from '../hooks/lib/strategies.js'
+import { BUILTIN, applyStrategy, parseStrategy, strategiesText, strategyFiles, strategyPrompt } from '../hooks/lib/strategies.js'
 
 const FILE = [
   '---',
@@ -78,4 +78,10 @@ test('strategiesText lists every strategy, marks the current one and says where 
   expect(t).toContain('frugal (yours)')
   expect(t).toContain('/route strategy <name>')
   expect(t).toContain('~/.claude/mixture-of-models/strategies')
+})
+
+test('strategyFiles keeps the .md files of a folder listing, in order', async () => {
+  const entries = [{ name: 'a.md', kind: 'file' }, { name: 'notes.txt', kind: 'file' }, { name: 'sub.md', kind: 'directory' }, { name: 'b.md', kind: 'file' }]
+  expect(strategyFiles(entries)).toEqual(['a.md', 'b.md'])
+  expect(strategyFiles(undefined)).toEqual([])
 })

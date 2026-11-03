@@ -6,15 +6,19 @@
 claude --version     # needs 2.1.287 or later
 # too old? one of:
 brew install --cask claude-code@latest            # Homebrew (the stable cask is behind)
-npm install -g @anthropic-ai/claude-code@latest   # npm
+npm install -g @anthropic-ai/claude-code@<version>   # npm: a version from 2.1.287 on
 claude update                                     # native installer
 ```
 
 ## 2. Install
 
+Download first, read the script, then run it (it only calls `claude plugin` and copies `config.example.json`):
+
 ```bash
 git clone https://github.com/alinaqi/mixture-of-models-claude-mod
-cd mixture-of-models-claude-mod && ./install.sh
+cd mixture-of-models-claude-mod
+less install.sh     # review it
+./install.sh
 ```
 
 Or by hand:
@@ -38,7 +42,7 @@ The child Claude Code needs an Anthropic-compatible endpoint that serves the mod
 
 and enter `https://api.palgu.ai/anthropic` and your key. The key is masked and kept in secure storage.
 
-From the shell instead: `echo '{"gateway_url":"https://api.palgu.ai/anthropic","gateway_key":"srt_…"}' | claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`
+From the shell instead: run `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` and type `{"gateway_url":"https://api.palgu.ai/anthropic","gateway_key":"<your key>"}` on its input, then press Ctrl-D, so the key stays out of your shell history.
 
 Your main session needs **no** `ANTHROPIC_BASE_URL`. It stays on your subscription.
 
@@ -50,7 +54,7 @@ One caution: an exported `ANTHROPIC_API_KEY` in your shell overrides the claude.
 
 ## 5. Optional: Codex
 
-For `codex` routes install the Codex CLI: `npm install -g @openai/codex` (or `brew install --cask codex`). By default it runs on your Palgu gateway's `/v1/responses` with the key from step 3. To use your own ChatGPT login instead, run `codex login` and set `"router": { "codex": { "auth": "chatgpt" } }` in `~/.claude/model-config.json`.
+For `codex` routes install the Codex CLI: `brew install --cask codex` (or `npm install -g @openai/codex@<version>`). By default it runs on your Palgu gateway's `/v1/responses` with the key from step 3. To use your own ChatGPT login instead, run `codex login` and set `"router": { "codex": { "auth": "chatgpt" } }` in `~/.claude/model-config.json`.
 
 ## 6. Optional: free classification
 

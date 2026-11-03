@@ -91,3 +91,13 @@ export function turnNote(entry) {
   const saved = entry.baseline - entry.actual
   return saved >= 0 ? ' · saved ~' + usd(saved) : ' · cost ~' + usd(-saved) + ' more than Claude'
 }
+
+// Palgu's answer to POST /v1/pricing/quote: its cost_usd, or null when it gave none.
+export function quotedCost(res) {
+  try {
+    const cost = res && res.ok ? JSON.parse(res.text || '{}').cost_usd : undefined
+    return typeof cost === 'number' ? cost : null
+  } catch {
+    return null
+  }
+}

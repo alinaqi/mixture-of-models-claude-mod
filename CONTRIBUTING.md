@@ -5,13 +5,15 @@ Thanks for helping. This mod follows the same philosophy as [Maggy](https://gith
 ## Ground rules
 
 1. **Tests first.** Write the failing test, then the code. `npm test` runs the pure tests under Node; `claude plugin test` runs the hook tests (Claude Code 2.1.287+).
-2. **Keep `$` in `hooks/register.js`.** Claude Code's static analysis only follows the mods API (`$`) into top-level functions of the hooks module. Everything that can be pure goes in `hooks/lib/` and gets a unit test.
+2. **Keep `$` in `hooks/register.js`, plain.** Claude Code's static analysis, and the plugin directory's, only follow the mods API (`$`) into top-level `function` declarations of the hooks module. Write every call as `$.noun.method(...)`: no `?.`, `!`, brackets, casts or parentheses around `$`, never destructure `$` or store it or `$.noun` in a variable, and pass `$` only whole, as the first argument of a top-level function in `register.js`. Write each `$.http.fetch` URL as one literal `https://` string with a literal options object, and each `$.process.run` with its program and fixed flags as literal text. Everything that can be pure goes in `hooks/lib/` and gets a unit test.
 3. **Quality gates.** Functions under 20 lines, at most 3 parameters, nesting depth 2, files under 200 lines. `register.js` is allowed more functions than usual because of rule 2.
 4. **Model names.** Undated aliases only (`claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`). Never a dated snapshot id.
 5. **Changelog in the same commit.** Every behaviour, config or docs change ships an entry in `CHANGELOG.md`.
 6. **Architecture changes need an ADR** in `docs/adr/`. Copy the format of `0001-child-process-delegation.md`.
 
 ## Workflow
+
+Clone, read what you are about to run (`package.json` scripts, `scripts/`), then run it:
 
 ```bash
 git clone https://github.com/alinaqi/mixture-of-models-claude-mod

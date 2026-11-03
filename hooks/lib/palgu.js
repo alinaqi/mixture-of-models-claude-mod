@@ -60,6 +60,12 @@ const STOPS = {
   invalid_grant: 'the code is unknown or was already used: run /palgu login again',
 }
 
+// A Palgu key is one plain token. It is the only value from a network answer that reaches
+// $.process.run, on stdin and never on argv, so anything else is refused before use.
+export function isPalguKey(key) {
+  return typeof key === 'string' && /^[A-Za-z0-9._-]{8,512}$/.test(key)
+}
+
 function signedIn(body) {
   const account = body.account || {}, org = body.org || {}
   return { state: 'ok', key: body.access_token, email: account.email || '', org: org.name || '', plan: org.plan || '' }
@@ -68,7 +74,8 @@ function signedIn(body) {
 // One answer from POST /auth/token: keep waiting (slow_down adds 5 s), stop with a reason, or the key.
 export function tokenStep(res, interval) {
   const body = parseBody(res)
-  if (res.ok) return typeof body.access_token === 'string' && body.access_token ? signedIn(body) : { state: 'stop', reason: 'Palgu answered without a key' }
+  if (res.ok && !body.access_token) return { state: 'stop', reason: 'Palgu answered without a key' }
+  if (res.ok) return isPalguKey(body.access_token) ? signedIn(body) : { state: 'stop', reason: 'Palgu answered without a usable key' }
   if (body.error === 'authorization_pending') return { state: 'wait', interval }
   if (body.error === 'slow_down') return { state: 'wait', interval: interval + 5 }
   return { state: 'stop', reason: STOPS[body.error] || 'Palgu answered ' + res.status }

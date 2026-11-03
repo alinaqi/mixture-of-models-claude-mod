@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.22.0] - 2026-11-03
+
+Directory compliance: plain capability calls, fixed hosts and commands, user_config credentials, README security section.
+
+### Changed
+- Every capability call in the hooks module is a plain `$.noun.method(...)`, and `$` is passed only, whole, to top-level functions of `hooks/register.js`. The `/palgu`, savings pricing, strategy loading and `/route update` code that took `$` in their own files (`hooks/palgu.js`, `hooks/savings.js`, `hooks/strategy.js`, `hooks/update.js`) now lives in `register.js`; their pure parts stay in `hooks/lib/`.
+- Each network request is written with its fixed `https://` URL and a literal options object at the call: `https://api.palgu.ai/auth/device/code`, `/auth/token`, `/me` and `/v1/pricing/quote`, and the GitHub manifest URL for `/route update`.
+- Each `$.process.run` call writes its program and fixed flags as literal text. The dynamic values are checked first: a routed model id must be one plain id, every other argument a plain string with no NUL. A value that fails the check never starts a process; the route line says `child answer discarded (argument refused)` and the main model answers that turn.
+- `/palgu login` uses or saves a minted key only when it is one plain token. Anything else stops the sign-in with "Palgu answered without a usable key".
+- Credentials: the only key the plugin uses is the sensitive `gateway_key` plugin setting (`user_config`), as before. Nothing reads a key from the environment or a file. If you already entered your key in plugin settings, or signed in with `/palgu login`, there is nothing to do. Otherwise enter it with `/plugin configure mixture-of-models@mixture-of-models-claude-mod`. Tests and the gateway-providers ADR use placeholder keys only.
+- Docs: install steps download first and run after review, npm installs name a version, and key examples use `<your key>` placeholders. The two longest patterns in `hooks/lib/vet.js` are built from short parts, and the README badges use reference links.
+
+### Added
+- README: a "Security and data use" section listing every host contacted, what is sent and when, every program run and its arguments, the hooks, the commands and skill added, and how the key is kept.
+- `tests/compliance.test.ts`: the literal argv, a refused model id, the two fixed update commands and a refused Palgu key, through the real hooks.
+
 ## [0.21.0] - 2026-10-29
 
 ### Added
@@ -205,7 +221,7 @@ All notable changes to this project are documented here. The format follows
 - README: the disclosure section now lists every hook and what it does, every host contacted, the exact child command, the files and variables read, and what is stored.
 
 ### Added
-- Listing icon at `.claude-plugin/icon.png`.
+- A listing icon for the plugin.
 - The gateway in docs, examples and tests is [palgu](https://www.palgu.ai) (`https://api.palgu.ai/anthropic`), srooter's successor; the same key works.
 
 ## [0.5.0] - 2026-10-09

@@ -3,7 +3,7 @@ import { VERSION } from '../hooks/lib/version.js'
 
 const CONFIG = '{"primary":"claude"}'
 // The plugin's userConfig values, as a configured install stores them.
-const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_test' } }
+const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'test-key' } }
 
 // Everything a session.start needs answered in Claude Code's place.
 function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string> } = {}) {
@@ -81,7 +81,7 @@ test('a simple prompt is answered by a child claude on the gateway, not the main
   expect(runs[0].argv.join(' ')).toContain('--add-dir /work')
   expect(runs[0].argv.join(' ')).toContain('--disallowedTools Read(**/.env)')
   expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://api.palgu.ai/anthropic')
-  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('test-key')
   expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
   expect(runs[0].init.stdin).toContain('grep the repo for TODO comments')
 })
@@ -579,8 +579,8 @@ test('/route codex runs codex exec on Palgu /v1/responses with the key in the en
   expect(runs[0].argv.slice(0, 3)).toEqual(['codex', 'exec', '--json'])
   expect(runs[0].argv.join(' ')).toContain('model_providers.palgu.base_url="https://api.palgu.ai/v1"')
   expect(runs[0].argv.join(' ')).toContain('model_providers.palgu.wire_api="responses"')
-  expect(runs[0].argv.join(' ')).not.toContain('srt_test')
-  expect(runs[0].init.env.PALGU_API_KEY).toBe('srt_test')
+  expect(runs[0].argv.join(' ')).not.toContain('test-key')
+  expect(runs[0].init.env.PALGU_API_KEY).toBe('test-key')
   expect(runs[0].init.env.MAGGY_ROUTER_CHILD).toBe('1')
   expect(runs[0].init.stdin).toContain('grep the repo for TODO comments')
   expect(runs[0].init.timeoutMs).toBe(600000)
@@ -739,7 +739,7 @@ function palguFetch(calls: any[], pending = 1) {
   return (url: string, init: any) => {
     calls.push({ url, init })
     if (url.endsWith('/auth/device/code')) return res(200, { device_code: 'dc-secret', user_code: 'WDJB-MJHT', verification_uri: 'https://www.palgu.ai/connect', verification_uri_complete: 'https://www.palgu.ai/connect?code=WDJB-MJHT', expires_in: 600, interval: 5 })
-    if (url.endsWith('/auth/token')) return polls++ < pending ? res(400, { error: 'authorization_pending' }) : res(200, { access_token: 'srt_new_key', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
+    if (url.endsWith('/auth/token')) return polls++ < pending ? res(400, { error: 'authorization_pending' }) : res(200, { access_token: 'test-key-minted', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
     if (url.includes('localhost:11434')) return res(200, { message: { content: '2 code' } })
     if (url.endsWith('/me')) return res(200, { account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
     return res(404, {})
@@ -767,8 +767,8 @@ test('/palgu login shows the code, polls in the background and saves the key ove
   expect(JSON.parse(token[1].init.body).device_code).toBe('dc-secret')
   expect(runs.length).toBe(1)
   expect(runs[0].argv).toEqual(['claude', 'plugin', 'configure', 'mixture-of-models@mixture-of-models-claude-mod', '--values-stdin'])
-  expect(runs[0].argv.join(' ')).not.toContain('srt_new_key')
-  expect(JSON.parse(runs[0].init.stdin)).toEqual({ gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'srt_new_key', gateway_provider: 'palgu' })
+  expect(runs[0].argv.join(' ')).not.toContain('test-key-minted')
+  expect(JSON.parse(runs[0].init.stdin)).toEqual({ gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'test-key-minted', gateway_provider: 'palgu' })
   expect(toasts.join(' ')).toContain('dev@acme.com')
 })
 
@@ -788,7 +788,7 @@ test('after /palgu login the next simple prompt runs on the gateway child with t
   await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
   expect(seen).toEqual([])
   const child = runs.find((r) => r.argv.includes('-p'))
-  expect(child.init.env.ANTHROPIC_API_KEY).toBe('srt_new_key')
+  expect(child.init.env.ANTHROPIC_API_KEY).toBe('test-key-minted')
   expect(child.init.env.ANTHROPIC_BASE_URL).toBe('https://api.palgu.ai/anthropic')
 })
 
@@ -799,12 +799,12 @@ test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the 
   const status = await $.command.run({ command: 'palgu', args: 'status' })
   expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade')
   expect(calls[0].url).toBe('https://api.palgu.ai/me')
-  expect(calls[0].init.headers.authorization).toBe('Bearer srt_test')
+  expect(calls[0].init.headers.authorization).toBe('Bearer test-key')
   const upgrade = await $.command.run({ command: 'palgu', args: 'upgrade' })
   expect(upgrade.text).toContain('https://www.palgu.ai/billing')
 })
 
-test('/palgu status never sends another gateway\'s key to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'zai_secret' } }, async ($, on) => {
+test('/palgu status never sends another gateway\'s key to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {
   const calls: any[] = []
   stubSession(on, { fetch: palguFetch(calls) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -849,14 +849,14 @@ test('a routed turn on Palgu is priced by Palgu and the route line says what it 
   const calls: any[] = []
   const done = await completeRouted($, on, calls)
   const quote = calls.find((c) => c.url === 'https://api.palgu.ai/v1/pricing/quote')
-  expect(quote.init.headers.authorization).toBe('Bearer srt_test')
+  expect(quote.init.headers.authorization).toBe('Bearer test-key')
   expect(JSON.parse(quote.init.body)).toEqual({ model: 'glm-5.3', usage: CHILD_USAGE })
   expect(done.text).toContain('saved ~$' + (ON_CLAUDE - 0.05).toFixed(2))
   const status = await $.command.run({ command: 'route', args: 'status' })
   expect(status.text).toContain('saved ~$0.70 (93%) vs all claude-opus-5')
 })
 
-test('another gateway is priced from router.prices, and its key never goes to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'zai_secret' } }, async ($, on) => {
+test('another gateway is priced from router.prices, and its key never goes to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {
   const calls: any[] = []
   stubSession(on, { fetch: routedFetch(calls), config: '{"router":{"prices":{"glm-5.3":{"input":1,"output":5}}}}' })
   on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('child answer', { usage: CHILD_USAGE }), stderr: '' } }))
@@ -867,7 +867,7 @@ test('another gateway is priced from router.prices, and its key never goes to Pa
   expect(done.text).toContain('saved ~$0.60')
 })
 
-test('an unpriced routed turn claims no saving', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'zai_secret' } }, async ($, on) => {
+test('an unpriced routed turn claims no saving', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {
   const calls: any[] = []
   const done = await completeRouted($, on, calls)
   expect(done.text).not.toContain('saved')
@@ -876,8 +876,8 @@ test('an unpriced routed turn claims no saving', { options: { gateway_url: 'http
 })
 
 // OpenRouter and LiteLLM as the gateway: a bearer key, their model ids, no x-srooter headers.
-const OPENROUTER = { options: { gateway_url: 'https://openrouter.ai/api', gateway_key: 'sk-or-test' } }
-const LITELLM = { options: { gateway_url: 'http://localhost:4000', gateway_key: 'sk-litellm-test', gateway_provider: 'litellm' } }
+const OPENROUTER = { options: { gateway_url: 'https://openrouter.ai/api', gateway_key: 'test-key-openrouter' } }
+const LITELLM = { options: { gateway_url: 'http://localhost:4000', gateway_key: 'test-key-litellm', gateway_provider: 'litellm' } }
 
 test('on OpenRouter the child runs the OpenRouter slug with a bearer key, an inherited API key blanked, and no x-srooter headers', OPENROUTER, async ($, on) => {
   stubSession(on)
@@ -890,9 +890,9 @@ test('on OpenRouter the child runs the OpenRouter slug with a bearer key, an inh
   expect(runs[0].argv).toContain('z-ai/glm-5.3')
   expect(runs[0].argv).toContain('--bare')
   expect(runs[0].argv.join(' ')).toContain('--disallowedTools Read(**/.env)')
-  expect(runs[0].argv.join(' ')).not.toContain('sk-or-test')
+  expect(runs[0].argv.join(' ')).not.toContain('test-key-openrouter')
   expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('https://openrouter.ai/api')
-  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-or-test')
+  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('test-key-openrouter')
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('')
   expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
 })
@@ -916,9 +916,9 @@ test('on a LiteLLM proxy the child uses the proxy\'s model names and a bearer ke
 
   await routedTurn($, 'grep the repo for TODO comments and list the files')
   expect(runs[0].argv).toContain('glm-5.3')
-  expect(runs[0].argv.join(' ')).not.toContain('sk-litellm-test')
+  expect(runs[0].argv.join(' ')).not.toContain('test-key-litellm')
   expect(runs[0].init.env.ANTHROPIC_BASE_URL).toBe('http://localhost:4000')
-  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-litellm-test')
+  expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('test-key-litellm')
   expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('')
   expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Team: platform')
 })
@@ -935,8 +935,8 @@ test('on OpenRouter a codex route uses OpenRouter\'s /api/v1 Responses endpoint,
   expect(argv).toContain('-m openai/gpt-5.6-terra')
   expect(argv).toContain('model_providers.openrouter.base_url="https://openrouter.ai/api/v1"')
   expect(argv).toContain('model_providers.openrouter.env_key="OPENROUTER_API_KEY"')
-  expect(argv).not.toContain('sk-or-test')
-  expect(runs[0].init.env.OPENROUTER_API_KEY).toBe('sk-or-test')
+  expect(argv).not.toContain('test-key-openrouter')
+  expect(runs[0].init.env.OPENROUTER_API_KEY).toBe('test-key-openrouter')
   expect(runs[0].init.env.PALGU_API_KEY).toBeUndefined()
 })
 
@@ -947,7 +947,7 @@ test('the Palgu child blanks an inherited bearer token so only its x-api-key rea
   recordSteps(on, [])
 
   await routedTurn($, 'grep the repo for TODO comments and list the files')
-  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('srt_test')
+  expect(runs[0].init.env.ANTHROPIC_API_KEY).toBe('test-key')
   expect(runs[0].init.env.ANTHROPIC_AUTH_TOKEN).toBe('')
 })
 

@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { CLAUDE_PRICES, addTurn, claudeCost, emptyTotals, quoteBody, savingsLine, tableCost, turnNote, usageOf } from '../hooks/lib/savings.js'
+import { CLAUDE_PRICES, addTurn, claudeCost, emptyTotals, quoteBody, quotedCost, savingsLine, tableCost, turnNote, usageOf } from '../hooks/lib/savings.js'
 
 const M = 1000000
 const usage = (input, output, read = 0, write = 0) => ({ input_tokens: input, output_tokens: output, cache_read_input_tokens: read, cache_creation_input_tokens: write })
@@ -67,4 +67,11 @@ test('turnNote is the per-turn saving on the route line', async () => {
   expect(turnNote({ baseline: 0.004, actual: 0.001 })).toBe(' · saved ~$0.003')
   expect(turnNote({ baseline: 0.4, actual: null })).toBe('')
   expect(turnNote(null)).toBe('')
+})
+
+test('quotedCost reads cost_usd from Palgu\'s quote, and null from anything else', async () => {
+  expect(quotedCost({ ok: true, text: '{"cost_usd":0.05}' })).toBe(0.05)
+  expect(quotedCost({ ok: false, text: '{"cost_usd":0.05}' })).toBe(null)
+  expect(quotedCost({ ok: true, text: '{"cost_usd":"0.05"}' })).toBe(null)
+  expect(quotedCost({ ok: true, text: 'not json' })).toBe(null)
 })
