@@ -46,3 +46,9 @@ test('modelsText says what Palgu serves now, what is down, and how to pin one', 
   expect(modelsText(null, 'palgu')).toMatch(/built-in list/)
   expect(modelsText(null, 'openrouter')).toContain('only from Palgu')
 })
+
+test('modelsText says when the list is the last one read because Palgu did not answer now', async () => {
+  const t = modelsText({ at: '2026-11-07T06:00:13+00:00', served: ['glm-5.3'], down: [] }, 'palgu', true)
+  expect(t).toContain('Palgu did not answer; the last list read')
+  expect(t).toContain('glm-5.3')
+})

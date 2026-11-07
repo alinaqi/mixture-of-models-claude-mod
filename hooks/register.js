@@ -31,7 +31,7 @@ const answered = new Map()
 // Routing strategies: built-ins plus the user's files; `chosen` is a /route strategy pick.
 let strategies = BUILTIN, chosen = '', home = '', polling = false
 // What Palgu serves now (GET /v1/models/health), saved for the next session; null: the built-in list.
-let live = null
+let live = null, modelsAsk = 0
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
 
@@ -293,10 +293,12 @@ function palguModels($, k) {
 }
 
 // A list that cannot be read keeps the last one (saved, or built in).
+// Each ask is numbered, so an older answer that arrives late never replaces a newer one.
 async function refreshModels($) {
   if (!isPalgu(cfg.child.baseUrl) || !key) return null
+  const ask = ++modelsAsk
   const fresh = liveModels(await palguModels($, key))
-  if (!fresh) return null
+  if (!fresh || ask !== modelsAsk) return null
   live = fresh
   await $.store.set('palgu-models', live)
   applyConfig()
@@ -306,7 +308,7 @@ async function refreshModels($) {
 
 async function modelsCommand($) {
   const fresh = await refreshModels($)
-  return modelsText(fresh, cfg.provider)
+  return modelsText(fresh || (cfg.provider === 'palgu' ? live : null), cfg.provider, !fresh)
 }
 
 // Palgu prices the child's usage with the formula it bills by: model id and token counts, no text.

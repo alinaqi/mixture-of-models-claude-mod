@@ -6,7 +6,7 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'test-key' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string> } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string>; ownFetch?: boolean } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -28,7 +28,8 @@ function stubSession(on, opts: { childEnv?: string; customHeaders?: string; scor
   // The local classifier's replies, in order: "<score> <kind>" verdicts the test wants, or no Ollama at all.
   const replies = opts.scores ?? [opts.score ?? '2 code']
   let n = 0
-  if (opts.fetch) on('http.fetch', ($, e) => ({ value: opts.fetch!(e.url, e.init ?? e) }))
+  if (opts.ownFetch) { /* the test answers http.fetch itself */ }
+  else if (opts.fetch) on('http.fetch', ($, e) => ({ value: opts.fetch!(e.url, e.init ?? e) }))
   else if (opts.offline) on('http.fetch', () => ({ deny: 'ollama down' }))
   else on('http.fetch', ($, e) => ({ value: !e.url.includes('localhost:11434') ? { ok: false, status: 404, headers: {}, text: '' } : { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + replies[Math.min(n++, replies.length - 1)] + '"}}' } }))
   return store
@@ -1137,4 +1138,31 @@ test('a Palgu answer that cannot be read keeps the built-in list', GW, async ($,
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect((await $.command.run({ command: 'route', args: 'models' })).text).toMatch(/built-in list/)
   expect((await $.command.run({ command: 'route', args: 'gpt' })).text).toBe('routing set to model gpt-6-sol')
+})
+
+test('when Palgu stops answering, /route models shows the last list read, marked as such', GW, async ($, on) => {
+  let up = true
+  stubSession(on, { fetch: (url: string) => (up && url === HEALTH_URL ? { ok: true, status: 200, headers: {}, text: HEALTH } : { ok: false, status: 503, headers: {}, text: '' }) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'models' })
+  up = false
+  const out = await $.command.run({ command: 'route', args: 'models' })
+  expect(out.text).toContain('Palgu did not answer; the last list read')
+  expect(out.text).toContain('grok-4.7')
+  expect((await $.command.run({ command: 'route', args: 'grok' })).text).toBe('routing set to model grok-4.7')
+})
+
+test('an older models answer that arrives late never replaces a newer one', GW, async ($, on) => {
+  const pending: any[] = []
+  on('http.fetch', ($, e) => (e.url === HEALTH_URL ? new Promise((r) => pending.push(r)) : { value: { ok: false, status: 404, headers: {}, text: '' } }))
+  const store = stubSession(on, { ownFetch: true })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const asked = $.command.run({ command: 'route', args: 'models' })
+  while (pending.length < 2) await new Promise((r) => setTimeout(r, 1))
+  const newer = JSON.stringify({ run_at: '2026-11-07T07:00:00+00:00', models: [{ model: 'glm-5.3', class: 'frontier', healthy: true }] })
+  pending[1]({ value: { ok: true, status: 200, headers: {}, text: newer } })
+  await asked
+  pending[0]({ value: { ok: true, status: 200, headers: {}, text: HEALTH } })
+  await new Promise((r) => setTimeout(r, 5))
+  expect((store.get('palgu-models') as any).served).toEqual(['glm-5.3'])
 })

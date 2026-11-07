@@ -40,11 +40,12 @@ export function liveCatalogue(curated, live) {
   return { catalogue: [...band, ...live.served.filter((id) => !band.includes(id))], band }
 }
 
-// The /route models answer.
-export function modelsText(live, provider) {
+// The /route models answer. `stale`: Palgu did not answer now, so `live` is the last list read.
+export function modelsText(live, provider, stale) {
   if (provider !== 'palgu') return 'The live model list comes only from Palgu; this gateway uses the built-in list.'
   if (!live) return 'Palgu\'s model list could not be read; the mod uses its built-in list.'
   const when = live.at ? ' (health checked ' + live.at.slice(11, 16) + ' UTC)' : ''
   const down = live.down.length ? ' · down: ' + live.down.join(', ') : ''
-  return 'Palgu serves ' + live.served.length + ' models' + when + ': ' + live.served.join(', ') + down + ' · pin one with /route <model>'
+  const lead = stale ? 'Palgu did not answer; the last list read has ' : 'Palgu serves '
+  return lead + live.served.length + ' models' + when + ': ' + live.served.join(', ') + down + ' · pin one with /route <model>'
 }
