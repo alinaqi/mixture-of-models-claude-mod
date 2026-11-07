@@ -1,6 +1,6 @@
 # 0004 - The Palgu build pipeline: Palgu decides and verifies, Claude Code builds
 
-**Status:** proposed
+**Status:** accepted (2026-11-07)
 **Date:** 2026-11-05
 **Spec:** srooter PR #2281, `docs/integrations/palgu-cli-capability-spec.md` (every Palgu call below cites it as "spec §n")
 **Deciders:** Ali Naqi Shaheen
@@ -93,4 +93,6 @@ Palgu's routing has roles (`effective.flow_roles` in `palgu routing show --json`
 
 1. `palgu spec run` exits 3 when questions are waiting (`palgu spec --help`); the mod then reads them with `palgu spec show <id> --json` and answers with `spec answer`. Still to check: the JSON shape of a waiting question.
 2. Resolved: `palgu routing show --json` returns `effective.flow_roles` (see "Models Palgu recommends").
-3. Should lane subagents commit to per-lane branches and the main session integrate (Flow's `palgu/<flow>/integration` model), or should each lane open its own PR?
+3. Resolved (2026-11-07): one PR. Each lane subagent commits to its own branch (`palgu/<run>/lane-<n>`); the main session merges them into `palgu/<run>/integration`, stage 6 runs on that branch, and stage 7 opens one PR from it. Palgu's proof gates then run once, on what ships.
+4. Spec §17 (agent runs, `/v1/agent-runs`, `model_group` on `/v1/routing/effective`, speed mode) landed after this ADR was proposed. Lane subagents report as agent runs once the mod's key can write them, so Palgu's live agents view shows Claude Code's lanes too.
+5. Every Palgu project gets its own AWG workspace automatically, and AWG settings live in Studio and the CLI as well as the web (srooter #2351). Stage 4 creates items in that workspace (the `project` of `awg_create`) instead of choosing one.
