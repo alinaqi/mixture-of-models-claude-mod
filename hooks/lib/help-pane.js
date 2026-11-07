@@ -42,6 +42,7 @@ const COMMANDS = [
   ['/route strategies', 'routing strategies: complexity (default), cost, speed, quality and yours'],
   ['/route strategy <name>', 'switch strategy; ask Claude to use the routing-strategy skill to write your own'],
   ['/route update', 'check for a newer version of the mod and install it'],
+  ['/route models', 'the models Palgu serves right now, and which are down'],
   ['/palgu login', 'sign up or sign in to Palgu and connect this computer'],
   ['/palgu status · /palgu upgrade', 'who is signed in and the plan · plans and billing'],
 ]

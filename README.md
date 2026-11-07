@@ -309,7 +309,7 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 
 ### Network hosts this plugin contacts
 
-- `https://api.palgu.ai` — Palgu, fixed in the code: `/auth/device/code` and `/auth/token` on `/palgu login`, `/me` on `/palgu status`, and `/v1/pricing/quote` after a routed turn when your gateway is Palgu and `router.prices` has no entry for the model.
+- `https://api.palgu.ai` — Palgu, fixed in the code: `/auth/device/code` and `/auth/token` on `/palgu login`, `/me` on `/palgu status`, `/v1/models/health` at session start, after `/palgu login` and on `/route models` (the gateway key as `x-api-key`; nothing else is sent), and `/v1/pricing/quote` after a routed turn when your gateway is Palgu and `router.prices` has no entry for the model.
 - `https://raw.githubusercontent.com` — only on `/route update`: a GET of `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` to read the published version. Nothing is sent.
 - `http://localhost:11434` — a local Ollama (`/api/chat`) that scores each prompt. It stays on your machine; skipped when nothing answers there.
 - Anthropic, through Claude Code's own `$.model.classify` on your own plan — only when Ollama does not answer, to score the prompt.
@@ -395,6 +395,7 @@ The mod's own calls, then the child process's:
 | :- | :- | :- | :- | :- |
 | The mod, in `/route update` | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`, fixed in the code | Nothing but the GET | Reads the published version to compare with yours. |
 | The mod, in `/palgu login` | `$.http.fetch` | `https://api.palgu.ai/auth/device/code`, then `/auth/token`, fixed in the code | The client id `mixture-of-models`, the device name (`Claude Code on <HOSTNAME>`), the mod's version and a random install id it keeps in its store; then the device code Palgu gave it | Sign-in. Palgu answers with a key for this computer. |
+| The mod, at session start, after `/palgu login` and on `/route models` | `$.http.fetch` | `https://api.palgu.ai/v1/models/health`, fixed in the code | Nothing but the GET and the gateway key as `x-api-key`; only when your `gateway_url` is on `https://api.palgu.ai` | Reads which models Palgu serves now and which are down, so the model list follows Palgu instead of a release. Kept in the mod's store for the next session. |
 | The mod, in `turn.complete` after a routed turn on Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`, fixed in the code | The routed model id and the child's four token counts (input, output, cache read, cache write), and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` and `router.prices` has no entry for that model | Prices the turn for the savings estimate. No prompt or answer text. |
 | The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
@@ -525,6 +526,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/palgu status` | Who the key belongs to and the org's plan |
 | `/palgu upgrade` | The Palgu plans and billing page |
 | `/route update` | Check GitHub for a newer version and, if there is one, run `claude plugin marketplace update` and `claude plugin update` for you; restart Claude Code to load it |
+| `/route models` | The models Palgu serves right now and which are down; any of them can be pinned with `/route <model>`. The band keeps one button per family the mod knows. Without Palgu (or when it does not answer) the built-in list is used |
 | `/route strategies`, `/route strategy <name>` | List the routing strategies (complexity, cost, speed, quality and yours) or switch to one |
 | `/route help` (or `0` on the band) | What the mod does, where it stands now, every button and command, and how to connect a provider |
 | `/route`, `/route status` | Live or observe-only, mode, current decision (with family and member), today's counts, the families and their members |

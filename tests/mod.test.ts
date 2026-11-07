@@ -30,7 +30,7 @@ function stubSession(on, opts: { childEnv?: string; customHeaders?: string; scor
   let n = 0
   if (opts.fetch) on('http.fetch', ($, e) => ({ value: opts.fetch!(e.url, e.init ?? e) }))
   else if (opts.offline) on('http.fetch', () => ({ deny: 'ollama down' }))
-  else on('http.fetch', () => ({ value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + replies[Math.min(n++, replies.length - 1)] + '"}}' } }))
+  else on('http.fetch', ($, e) => ({ value: !e.url.includes('localhost:11434') ? { ok: false, status: 404, headers: {}, text: '' } : { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + replies[Math.min(n++, replies.length - 1)] + '"}}' } }))
   return store
 }
 
@@ -798,8 +798,8 @@ test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const status = await $.command.run({ command: 'palgu', args: 'status' })
   expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade')
-  expect(calls[0].url).toBe('https://api.palgu.ai/me')
-  expect(calls[0].init.headers.authorization).toBe('Bearer test-key')
+  const me = calls.find((c) => c.url === 'https://api.palgu.ai/me')
+  expect(me.init.headers.authorization).toBe('Bearer test-key')
   const upgrade = await $.command.run({ command: 'palgu', args: 'upgrade' })
   expect(upgrade.text).toContain('https://www.palgu.ai/billing')
 })
@@ -1095,4 +1095,46 @@ test('on Palgu /route mercury pins Mercury 3, and the child gives up after two r
   expect(runs[0].argv).toContain('mercury-3')
   expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: mercury-3')
   expect(runs[0].init.env.CLAUDE_CODE_MAX_RETRIES).toBe('2')
+})
+
+const HEALTH_URL = 'https://api.palgu.ai/v1/models/health'
+const HEALTH = JSON.stringify({ run_at: '2026-11-07T06:00:13+00:00', models: [
+  { model: 'glm-5.3', class: 'frontier', healthy: true }, { model: 'gpt-6-sol', class: 'frontier', healthy: true },
+  { model: 'grok-4.7', class: 'frontier', healthy: true }, { model: 'kimi-k3.1-pro', class: 'frontier', healthy: false },
+  { model: 'claude-opus', class: 'premium', healthy: true }
+] })
+const healthFetch = (calls: any[]) => (url: string, init: any) => {
+  calls.push({ url, init })
+  return url === HEALTH_URL ? { ok: true, status: 200, headers: {}, text: HEALTH } : { ok: false, status: 404, headers: {}, text: '{}' }
+}
+
+test('/route models reads what Palgu serves now with the mod\'s key, and a new model can be pinned', GW, async ($, on) => {
+  const calls: any[] = []
+  const store = stubSession(on, { fetch: healthFetch(calls) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'route', args: 'models' })
+  expect(out.text).toContain('Palgu serves 3 models')
+  expect(out.text).toContain('grok-4.7')
+  expect(out.text).toContain('down: kimi-k3.1-pro')
+  expect(out.text).not.toContain('claude-opus')
+  const health = calls.find((c) => c.url === HEALTH_URL)
+  expect(health.init.headers['x-api-key']).toBe('test-key')
+  expect((store.get('palgu-models') as any).served).toEqual(['glm-5.3', 'gpt-6-sol', 'grok-4.7'])
+  expect((await $.command.run({ command: 'route', args: 'grok' })).text).toBe('routing set to model grok-4.7')
+})
+
+test('the live list never asks Palgu with another gateway\'s key', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {
+  const calls: any[] = []
+  stubSession(on, { fetch: healthFetch(calls) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'route', args: 'models' })
+  expect(out.text).toContain('only from Palgu')
+  expect(calls.some((c) => c.url.includes('palgu'))).toBe(false)
+})
+
+test('a Palgu answer that cannot be read keeps the built-in list', GW, async ($, on) => {
+  stubSession(on, { fetch: () => ({ ok: false, status: 503, headers: {}, text: '' }) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect((await $.command.run({ command: 'route', args: 'models' })).text).toMatch(/built-in list/)
+  expect((await $.command.run({ command: 'route', args: 'gpt' })).text).toBe('routing set to model gpt-6-sol')
 })

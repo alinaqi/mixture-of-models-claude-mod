@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-11-07
+
+The model list follows Palgu: what it serves now, not what the release shipped with.
+
+### Added
+- On Palgu, the mod reads `GET https://api.palgu.ai/v1/models/health` with its own key at session start (in the background), after `/palgu login`, and on `/route models`. Models Palgu serves become pinnable by name or prefix (`/route grok` pins `grok-4.7`) with no new release; models Palgu reports unhealthy are left out. Claude models, Palgu's internal and image models, and bare aliases such as `deepseek` are never listed.
+- `/route models`: the models Palgu serves now, and which are down.
+- The last list read is kept in the mod's store, so a session that cannot reach Palgu starts from it; with none, the built-in list is used as before. Other gateways keep the built-in list, and their key never goes to Palgu.
+
+### Changed
+- The band keeps one button per family the mod knows (GLM, DeepSeek, Gemini, MiniMax, GPT, Kimi, Mercury), now only for families Palgu serves; new model families are pinned with `/route <model>` rather than adding buttons.
+
 ## [0.22.0] - 2026-11-03
 
 Directory compliance: plain capability calls, fixed hosts and commands, user_config credentials, README security section.

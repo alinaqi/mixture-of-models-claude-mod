@@ -16,6 +16,7 @@ import { gatewayName } from './lib/providers.js'
 import { addTurn, claudeCost, quoteBody, quotedCost, savingsLine, tableCost, turnNote } from './lib/savings.js'
 import { helpTree } from './lib/help-pane.js'
 import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, strategyFiles, strategyPrompt } from './lib/strategies.js'
+import { liveCatalogue, liveModels, modelsText } from './lib/catalogue.js'
 import { failedRun, isNewer, lastLine, latestVersion, updateText } from './lib/update.js'
 import { VERSION } from './lib/version.js'
 
@@ -29,6 +30,8 @@ let pin = { mode: 'auto' }, decision = { label: 'critical', model: '', source: '
 const answered = new Map()
 // Routing strategies: built-ins plus the user's files; `chosen` is a /route strategy pick.
 let strategies = BUILTIN, chosen = '', home = '', polling = false
+// What Palgu serves now (GET /v1/models/health), saved for the next session; null: the built-in list.
+let live = null
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
 
@@ -42,6 +45,7 @@ function applyGateway() {
 function applyConfig() {
   const base = parseConfig(configText, options)
   cfg = applyStrategy(base, strategies[chosen || base.strategyName] || BUILTIN.complexity)
+  Object.assign(cfg, liveCatalogue(cfg.catalogue, cfg.provider === 'palgu' ? live : null))
   applyGateway()
 }
 
@@ -62,6 +66,7 @@ async function loadConfig($, homeDir) {
   configText = await $.fs.read(homeDir + '/.claude/model-config.json').catch(() => '')
   strategies = await readStrategies($, homeDir + STRATEGY_DIR)
   chosen = (await $.store.get('strategy')) || ''
+  live = (await $.store.get('palgu-models')) || null
   applyConfig()
   const dropped = droppedArgs(cfg.codex)
   if (dropped.length) $.ui.log('router.codex.args: ignored ' + dropped.join(' ') + ' (set router.codex.sandbox or router.codex.allowOutsideGit instead)')
@@ -239,7 +244,7 @@ function openPane($, id) {
 }
 
 async function helpView($, c) {
-  const buttons = bandButtons(c.routes, c.catalogue).map((b) => b.arg).filter((a) => a !== 'help')
+  const buttons = bandButtons(c.routes, c.band).map((b) => b.arg).filter((a) => a !== 'help')
   return { pin, ready, provider: c.provider, sessionModel, saved: savingsLine(await $.store.get('savings'), sessionModel), buttons, strategy: c.strategy }
 }
 
@@ -282,6 +287,28 @@ function palguMe($, k) {
   return $.http.fetch('https://api.palgu.ai/me', { method: 'GET', headers: { authorization: 'Bearer ' + k } }).catch(() => FAILED)
 }
 
+// The models Palgu serves now and their health. Asked with the mod's key, only when the gateway is Palgu.
+function palguModels($, k) {
+  return $.http.fetch('https://api.palgu.ai/v1/models/health', { method: 'GET', headers: { 'x-api-key': k } }).catch(() => FAILED)
+}
+
+// A list that cannot be read keeps the last one (saved, or built in).
+async function refreshModels($) {
+  if (!isPalgu(cfg.child.baseUrl) || !key) return null
+  const fresh = liveModels(await palguModels($, key))
+  if (!fresh) return null
+  live = fresh
+  await $.store.set('palgu-models', live)
+  applyConfig()
+  $.ui.invalidate('ui.render')
+  return live
+}
+
+async function modelsCommand($) {
+  const fresh = await refreshModels($)
+  return modelsText(fresh, cfg.provider)
+}
+
 // Palgu prices the child's usage with the formula it bills by: model id and token counts, no text.
 function palguQuote($, model, usage) {
   return $.http.fetch('https://api.palgu.ai/v1/pricing/quote', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key }, body: JSON.stringify(quoteBody(model, usage)) })
@@ -305,6 +332,7 @@ function usePalguKey($, k) {
   options = { ...options, gateway_url: PALGU_GATEWAY, gateway_key: k, gateway_provider: 'palgu' }
   applyConfig()
   $.ui.invalidate('ui.render')
+  refreshModels($)
 }
 
 // Program and arguments are fixed text. The one fetched value near here, the key Palgu minted, is
@@ -382,7 +410,7 @@ async function routeUpdate($, current) {
 }
 
 function bandView(e, theirs) {
-  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.catalogue, strategy: cfg.strategy.name, isWorking: e.props.isWorking, theirs }
+  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.band, strategy: cfg.strategy.name, isWorking: e.props.isWorking, theirs }
 }
 
 export function register(on, opts) {
@@ -393,8 +421,10 @@ export function register(on, opts) {
     home = (await $.env.get('HOME')) || ''
     await loadConfig($, home)
     applyPin()
+    // In the background: a slow Palgu never holds up the session.
+    refreshModels($)
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
-    const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
+    const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')
     const palguOk = await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models: /palgu [login|status|upgrade]', argumentHint: '[login|status|upgrade]', immediate: true }).then(registered, refused)
     if (!palguOk) $.ui.log('/palgu is taken by another plugin')
@@ -477,6 +507,7 @@ export function register(on, opts) {
     if (parsed.mode === 'stats') return { ...(await openPane($, 'routing-stats') && {}) }
     if (parsed.mode === 'help') return { ...(await openPane($, 'mom-help') && {}) }
     if (parsed.mode === 'update') return { text: await routeUpdate($, VERSION) }
+    if (parsed.mode === 'models') return { text: await modelsCommand($) }
     if (parsed.mode === 'strategies' || parsed.mode === 'strategy') return { text: await strategyCommand($, parsed) }
     return { text: await pinFrom($, e.args) }
   })
