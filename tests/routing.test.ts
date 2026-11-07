@@ -165,6 +165,7 @@ test('parseRouteArg reads strategies and strategy <name>', async () => {
   expect(parseRouteArg('strategy', DEFAULT_ROUTES)).toEqual({ mode: 'strategies' })
 })
 
-test('parseRouteArg reads update', async () => {
+test('parseRouteArg reads update and models', async () => {
   expect(parseRouteArg('update', DEFAULT_ROUTES)).toEqual({ mode: 'update' })
+  expect(parseRouteArg('models', DEFAULT_ROUTES)).toEqual({ mode: 'models' })
 })
