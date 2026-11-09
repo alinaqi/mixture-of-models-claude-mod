@@ -334,20 +334,20 @@ Each `$.process.run` call has its program and fixed flags written as literal tex
 - `codex exec --json … -`, and `codex exec -C <cwd> resume --json … <thread id> -` after you approve refused commands — the Codex CLI, for `codex` routes only, with the same checks (the thread id as a plain id).
 - `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` — once after `/palgu login`, to save the key Palgu minted in Claude Code's secure storage. Every argument is fixed text; the key goes on stdin only, and only after it is checked to be one plain token (`A-Z a-z 0-9 . _ -`, 8 to 512 characters).
 - `claude plugin marketplace update mixture-of-models-claude-mod`, then `claude plugin update mixture-of-models@mixture-of-models-claude-mod` — on `/route update`, only when GitHub lists a newer version. Every argument is fixed text.
-- `palgu memory index .` (in the session folder, in the background, at most every 10 minutes per project) and `palgu memory status . --json` — the Palgu CLI, only after you turn Palgu memory on with `/palgu memory on` and while the mod is signed in to Palgu. Every argument is fixed text. `palgu` signs in with its own key (`palgu login`); the mod passes it no key, environment or stdin. Indexing uploads the project's source files to Palgu, which is why it is off until you turn it on.
+- `palgu memory index .` (in the session folder, in the background, at most every 10 minutes per project) and `palgu memory status . --json` — the Palgu CLI, only in a project folder where you ran `/palgu memory on` and while the mod is signed in to Palgu. Every argument is fixed text. `palgu` signs in with its own key (`palgu login`); the mod passes it no key, environment or stdin. Indexing uploads the project's source files to Palgu, which is why it is off until you turn it on.
 - The plugin never runs commands received from the network. Network responses are never on a `process.run` argv: GitHub's answer only decides whether the fixed update commands run, and the one fetched value that reaches a process at all is the Palgu key, on stdin, after the check above.
 
 ### Hooks
 
 - `prompt.submit` — reads the prompt to decide its route (pre-rules, then the classifier score, then the thresholds). Passes it through unchanged: never drops, rewrites or adds to it. Fails open.
 - `turn.step` — for a routed turn, runs the child above instead of the main model and answers the turn with the child's text; every other turn, and every subagent, goes through unchanged. A failed or discarded child answer hands the turn back to the main model.
-- `turn.complete` — appends the route line (route, score, cost, savings) to the turn's text and updates the counts, the decision log and the savings totals in the plugin store. Then the heartbeat: when the main session's answer stopped mid-task (it announced an action and ended, or described edits it did not make), the mod submits one continue prompt of its own (`$.prompt.submit`, shown to the model as from this plugin), at most `router.heartbeatMax` (3) times per prompt of yours. Fails open: an error never blocks a stop.
+- `turn.complete` — appends the route line (route, score, cost, savings) to the turn's text and updates the counts, the decision log and the savings totals in the plugin store. Then the heartbeat: when the main session's answer stopped mid-task (it announced an action and ended, or, when you asked for changes, described edits it did not make), the mod submits one continue prompt of its own (`$.prompt.submit`, shown to the model as from this plugin), at most `router.heartbeatMax` (3) times per prompt of yours. Fails open: an error never blocks a stop.
 - Also: `session.start` (reads the settings, registers `/route` and `/palgu`), `turn.start` (clears the last child result), `ui.render` for `AbovePrompt` (the band), `AssistantMessage` (a provenance tag on child replies), `Pane` (the help and stats panes) and `Spinner` (`via <model> (child)…`), and `command.run` for `/route` and `/palgu`. The mod never handles `tool.call` or `tool.check`.
 
 ### Commands, tools, and agents added
 
 - `/route` — show the route state, pin a tier, model, family member or `codex`, switch strategy, open the stats or help pane, reset failure memory, or update the plugin (`/route update`).
-- `/palgu` — sign in to Palgu (`login`), say whose key is set and whether the project is in Palgu memory (`status`), link plans and billing (`upgrade`), or turn Palgu memory for your projects on or off (`memory on`, `memory off`, `memory`).
+- `/palgu` — sign in to Palgu (`login`), say whose key is set and whether the project is in Palgu memory (`status`), link plans and billing (`upgrade`), or turn Palgu memory on or off for the project you are in (`memory on`, `memory off`, `memory`; each project folder needs its own `memory on`).
 - The `routing-strategy` skill — helps write or explain a routing strategy file.
 - No tools, no agents, no MCP servers.
 
@@ -449,7 +449,7 @@ They go in the child's `ANTHROPIC_CUSTOM_HEADERS` (Claude Code's newline-separat
 
 ### What it stores
 
-In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): a random install id for Palgu sign-in (`palgu-install-id`, so Palgu sees one device across sign-ins), whether Palgu memory is on and when each project was last indexed (its folder path), the last model list Palgu served, the `/route` pin, per-day counts per model, the last verdict, per-kind failure counts, and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child duration and exit code). No prompt text, no answers, no credentials.
+In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): a random install id for Palgu sign-in (`palgu-install-id`, so Palgu sees one device across sign-ins), the project folders where Palgu memory is on and when each was last indexed (its folder path), the last model list Palgu served, the `/route` pin, per-day counts per model, the last verdict, per-kind failure counts, and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child duration and exit code). No prompt text, no answers, no credentials.
 
 ### What it never does
 

@@ -19,8 +19,8 @@ import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, st
 import { liveCatalogue, liveModels, modelsText } from './lib/catalogue.js'
 import { failedRun, isNewer, lastLine, latestVersion, updateText } from './lib/update.js'
 import { VERSION } from './lib/version.js'
-import { heartbeatBody, heartbeatMode, localVerdict, palguVerdict, shouldCheck, turnUsedTools } from './lib/heartbeat.js'
-import { indexDue, memoryLine, memoryStatus } from './lib/memory.js'
+import { continuePrompt, heartbeatBody, heartbeatMode, localVerdict, palguVerdict, shouldCheck, turnUsedTools } from './lib/heartbeat.js'
+import { indexDue, memoryLine, memoryOn, memoryStatus, setMemory } from './lib/memory.js'
 
 // Every capability call in this module is written `$.noun.method(...)`, and `$` is handed only,
 // whole, to this file's own top-level functions. Network hosts are fixed https:// URLs written at
@@ -35,7 +35,8 @@ let strategies = BUILTIN, chosen = '', home = '', polling = false
 // What Palgu serves now (GET /v1/models/health), saved for the next session; null: the built-in list.
 let live = null, modelsAsk = 0
 // The heartbeat's continues for the person's current prompt, and that prompt's number.
-let beats = 0, promptSeq = 0, cwd = ''
+// sessionTag: a random id per session, so Palgu's heartbeat budget is never shared between sessions.
+let beats = 0, promptSeq = 0, cwd = '', sessionTag = newInstallId()
 const PLUGIN_NAME = 'mixture-of-models'
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
@@ -386,8 +387,12 @@ function signedInToPalgu() {
   return isPalgu(cfg.child.baseUrl) && Boolean(key)
 }
 
+async function memoryHere($) {
+  return memoryOn(await $.store.get('palgu-memory'), cwd)
+}
+
 async function memoryNow($) {
-  if (!(await $.store.get('palgu-memory'))) return { on: false }
+  if (!(await memoryHere($))) return { on: false }
   const r = await $.process.run(['palgu', 'memory', 'status', '.', '--json'], { cwd, timeoutMs: 30000 }).catch(() => null)
   return { on: true, status: r ? memoryStatus(r) : null, now: Date.now(), missing: !r }
 }
@@ -395,7 +400,7 @@ async function memoryNow($) {
 // One background `palgu memory index .` per project at most every INDEX_EVERY_MS; palgu itself
 // pushes nothing when nothing changed. Never awaited by a hook, never fails the session.
 async function indexProject($) {
-  const on = Boolean(await $.store.get('palgu-memory'))
+  const on = await memoryHere($)
   const last = (await $.store.get('palgu-memory-index')) || {}
   if (!indexDue({ on, signedIn: signedInToPalgu(), installed: true }, last[cwd], Date.now())) return
   await $.store.set('palgu-memory-index', { ...last, [cwd]: Date.now() })
@@ -404,10 +409,11 @@ async function indexProject($) {
 }
 
 async function memoryCommand($, word) {
-  if (word === 'memory off') await $.store.set('palgu-memory', false)
+  const saved = await $.store.get('palgu-memory')
+  if (word === 'memory off') await $.store.set('palgu-memory', setMemory(saved, cwd, false))
   if (word === 'memory on' && !signedInToPalgu()) return 'Palgu memory needs Palgu: sign in with /palgu login first.'
-  if (word === 'memory on') await $.store.set('palgu-memory', true)
-  if (word === 'memory on') indexProject($)
+  if (word === 'memory on') await $.store.set('palgu-memory', setMemory(saved, cwd, true))
+  if (word === 'memory on') indexProject($).catch(() => undefined)
   return memoryLine(await memoryNow($))
 }
 
@@ -428,19 +434,22 @@ function palguHeartbeat($, body) {
 
 async function heartbeatVerdict($, answer, usedTools) {
   const mode = heartbeatMode(cfg.heartbeat.mode, signedInToPalgu())
-  const sessionId = (await installId($, 'palgu-install-id')) + ':' + promptSeq
+  const sessionId = sessionTag + ':' + promptSeq
   const palgu = mode === 'palgu' ? palguVerdict(await palguHeartbeat($, heartbeatBody(sessionId, answer))) : null
   return palgu || localVerdict(answer, usedTools)
 }
 
 // A stop worth healing gets one continue prompt of the mod's own, a turn once the session is idle.
+// A verdict that arrives after a new prompt of yours, or past the budget, is dropped.
 async function heartbeat($, e) {
   const mode = heartbeatMode(cfg.heartbeat.mode, signedInToPalgu())
+  const seq = promptSeq, asked = lastPrompt
   if (!shouldCheck(e, { mode, used: beats, max: cfg.heartbeat.max, child: Boolean(decision.child) })) return
   const verdict = await heartbeatVerdict($, e.answer, turnUsedTools(await $.session.messages()))
-  if (!verdict.reason) return
+  const text = continuePrompt(verdict, asked)
+  if (!text || seq !== promptSeq || beats >= cfg.heartbeat.max) return
   beats += 1
-  $.prompt.submit({ text: verdict.reason })
+  $.prompt.submit({ text })
 }
 
 // What a routed turn cost: Palgu's own quote, router.prices, or Claude rates for a Claude member.

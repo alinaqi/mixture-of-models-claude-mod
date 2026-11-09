@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { INDEX_EVERY_MS, indexDue, memoryLine, memoryStatus } from '../hooks/lib/memory.js'
+import { INDEX_EVERY_MS, indexDue, memoryLine, memoryOn, memoryStatus, setMemory } from '../hooks/lib/memory.js'
 import { parsePalguArg } from '../hooks/lib/palgu.js'
 
 const STATUS = '{"branch": "main", "docs": 192, "indexed": true, "layer": "canonical", "project": "mixture-of-models-mod", "symbols": 284, "updated": "2026-11-05T10:27:11.519332+00:00"}'
@@ -36,4 +36,13 @@ test('indexDue: only when on, signed in and palgu installed, at most once per pr
   expect(indexDue({ ...ok, on: false }, undefined, 1)).toBe(false)
   expect(indexDue({ ...ok, signedIn: false }, undefined, 1)).toBe(false)
   expect(indexDue({ ...ok, installed: false }, undefined, 1)).toBe(false)
+})
+
+test('Palgu memory is turned on per project folder, never for every project', async () => {
+  const on = setMemory(undefined, '/work/a', true)
+  expect(memoryOn(on, '/work/a')).toBe(true)
+  expect(memoryOn(on, '/work/b')).toBe(false)
+  expect(memoryOn(setMemory(on, '/work/a', false), '/work/a')).toBe(false)
+  // the 0.24.0 pre-release kept one flag for everything: that counts as nowhere
+  expect(memoryOn(true, '/work/a')).toBe(false)
 })

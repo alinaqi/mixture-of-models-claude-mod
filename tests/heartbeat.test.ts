@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { HEARTBEAT_MODES, REASONS, turnUsedTools, assessStop, heartbeatBody, heartbeatMode, palguVerdict, shouldCheck } from '../hooks/lib/heartbeat.js'
+import { HEARTBEAT_MODES, REASONS, turnUsedTools, wantsEdits, continuePrompt, assessStop, heartbeatBody, heartbeatMode, palguVerdict, shouldCheck } from '../hooks/lib/heartbeat.js'
 
 test('assessStop is Palgu\'s classifier: an announced action, an empty stop or a trailing colon is premature', async () => {
   expect(assessStop('Tests pass. Let me check the config loader next.', false)).toBe('premature')
@@ -80,4 +80,20 @@ test('turnUsedTools looks only at this turn: the assistant messages after the pe
   expect(turnUsedTools([prompt, call, result, done])).toBe(true)
   expect(turnUsedTools([call, result, prompt, done])).toBe(false)
   expect(turnUsedTools([])).toBe(false)
+})
+
+test('wantsEdits: the person asked for changes, and did not ask to only see them', async () => {
+  expect(wantsEdits('fix the failing config test')).toBe(true)
+  expect(wantsEdits('add a --json flag to the status command')).toBe(true)
+  expect(wantsEdits('show me a patch for this; don\'t edit files')).toBe(false)
+  expect(wantsEdits('explain how the loader works')).toBe(false)
+  expect(wantsEdits('what would you change here?')).toBe(false)
+  expect(wantsEdits('just show the diff, do not apply it')).toBe(false)
+})
+
+test('continuePrompt: narration continues only when edits were asked for; premature always', async () => {
+  expect(continuePrompt({ assessment: 'narration', reason: REASONS.narration }, 'fix the config test')).toBe(REASONS.narration)
+  expect(continuePrompt({ assessment: 'narration', reason: REASONS.narration }, 'show me a patch, don\'t edit')).toBe('')
+  expect(continuePrompt({ assessment: 'premature', reason: REASONS.premature }, 'explain the loader')).toBe(REASONS.premature)
+  expect(continuePrompt({ assessment: 'complete', reason: '' }, 'fix it')).toBe('')
 })

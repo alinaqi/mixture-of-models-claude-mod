@@ -1253,7 +1253,7 @@ test('/palgu memory on indexes the project in the background with palgu, never w
   const index = runs.find((r) => r.argv.join(' ') === 'palgu memory index .')
   expect(index).toBeDefined()
   expect(JSON.stringify(index)).not.toContain('test-key')
-  expect(store.get('palgu-memory')).toBe(true)
+  expect(store.get('palgu-memory')).toEqual({ '/work': true })
   const status = await $.command.run({ command: 'palgu', args: 'memory' })
   expect(status.text).toContain('work indexed, 12 symbols')
   expect(runs.some((r) => r.argv.join(' ') === 'palgu memory status . --json')).toBe(true)
@@ -1267,5 +1267,39 @@ test('Palgu memory does nothing while the mod is not signed in to Palgu', { opti
   const out = await $.command.run({ command: 'palgu', args: 'memory on' })
   await settle()
   expect(out.text).toMatch(/sign in with \/palgu login/)
+  expect(runs.filter((r) => r.argv[0] === 'palgu')).toEqual([])
+})
+
+test('heartbeat: an answer that only shows a patch the person asked to see is not pushed to edit', GW, async ($, on) => {
+  const submits: string[] = []
+  stubSession(on, { submits, offline: true, messages: [said('Apply the following change to config.js.')] })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.prompt.submit({ text: 'show me a patch for the loader; don\'t edit files' })
+  await $.turn.start({ turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: 'Apply the following change to config.js.', durationMs: 10, isAborted: false, usage: null })
+  await settle()
+  expect(submits).toEqual([])
+})
+
+test('heartbeat: a verdict that arrives after a new prompt is dropped', GW, async ($, on) => {
+  const submits: string[] = [], pending: any[] = []
+  on('http.fetch', ($, e) => (e.url === HEARTBEAT_URL ? new Promise((r) => pending.push(r)) : { value: { ok: false, status: 404, headers: {}, text: '' } }))
+  stubSession(on, { submits, ownFetch: true, messages: [said(PREMATURE)] })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await mainTurn($, 't1', PREMATURE)
+  while (!pending.length) await settle()
+  await $.prompt.submit({ text: 'never mind, explain the band instead' })
+  pending[0]({ value: { ok: true, status: 200, headers: {}, text: JSON.stringify({ assessment: 'premature', should_continue: true, reason: 'You stopped mid-task — continue.' }) } })
+  await settle()
+  expect(submits).toEqual([])
+})
+
+test('Palgu memory turned on in one project does not index another', GW, async ($, on) => {
+  const runs: any[] = []
+  const store = stubSession(on, { offline: true })
+  store.set('palgu-memory', { '/elsewhere': true })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
   expect(runs.filter((r) => r.argv[0] === 'palgu')).toEqual([])
 })

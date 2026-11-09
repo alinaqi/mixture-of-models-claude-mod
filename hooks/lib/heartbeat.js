@@ -81,3 +81,19 @@ export function turnUsedTools(messages) {
   }
   return false
 }
+
+// The person asked for changes, and not only to see them. Narration ("apply the following change")
+// is a stop worth healing only then: a patch someone asked to see is the answer.
+const EDIT_ASK = /\b(fix|add|implement|create|update|change|write|refactor|build|make|wire|remove|delete|rename|migrate|bump|set up)\b/i
+const ONLY_SHOW = /\b(don'?t|do not|never|without)\s+(edit|change|modify|apply|touch|write)|\b(show|explain|describe|suggest|review|propose)\b|\?\s*$/i
+
+export function wantsEdits(prompt) {
+  const text = String(prompt || '')
+  return EDIT_ASK.test(text) && !ONLY_SHOW.test(text)
+}
+
+// The continue prompt for a verdict, or '' for none.
+export function continuePrompt(verdict, prompt) {
+  if (verdict.assessment === 'narration' && !wantsEdits(prompt)) return ''
+  return verdict.reason || ''
+}

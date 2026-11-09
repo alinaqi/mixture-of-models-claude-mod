@@ -39,3 +39,16 @@ export function indexDue(s, last, now) {
   if (!s.on || !s.signedIn || !s.installed) return false
   return last === undefined || now - last >= INDEX_EVERY_MS
 }
+
+// Consent is per project folder: { '<cwd>': true }. Anything else (the pre-release's single flag
+// included) is on nowhere.
+export function memoryOn(saved, folder) {
+  return Boolean(saved && typeof saved === 'object' && saved[folder] === true)
+}
+
+export function setMemory(saved, folder, on) {
+  const all = saved && typeof saved === 'object' ? { ...saved } : {}
+  if (on) all[folder] = true
+  else delete all[folder]
+  return all
+}
