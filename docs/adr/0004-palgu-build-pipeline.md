@@ -58,6 +58,7 @@ Palgu's routing has roles (`effective.flow_roles` in `palgu routing show --json`
 - Planning (stage 3) stays on the main session's own model: it holds the conversation and the approved spec, and the plan is a gate the person reviews.
 - A role that resolves to a Claude model sets the subagent's `model` on `agent.spawn`; it runs in-process on the user's login.
 - A role that resolves to a gateway model runs that subagent's turn as a gateway child pinned with `x-srooter-pin` (ADR 0001, 0003). The child has no conversation to miss: its context is the AWG item bundle from `awg_next`.
+- A role whose model Palgu reports down (`GET /v1/models/health`, read by the mod since 0.23.0) is not used: the lane takes the mod's own routing for that turn, and the pane says which role fell back and why. On 2026-11-07 that was `validator` and `adversarial` (gpt-5.6-terra down).
 - Until the mod has `routing:read` (S1), the roles come from `palgu routing show --json` (Palgu's own key). Without either, the mod's own routing strategy (complexity by default) picks, and the pane says so.
 
 ### Structure, repo and ADRs
