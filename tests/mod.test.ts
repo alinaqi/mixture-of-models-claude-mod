@@ -6,7 +6,7 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'test-key' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string>; ownFetch?: boolean } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string>; ownFetch?: boolean; submits?: string[] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -19,7 +19,7 @@ function stubSession(on, opts: { childEnv?: string; customHeaders?: string; scor
   on('command.register', () => ({ value: undefined }))
   on('ui.log', ($, e) => { opts.logs?.push(e.text ?? e.message ?? JSON.stringify(e)); return { value: undefined } })
   on('session.messages', () => ({ value: opts.messages ?? [] }))
-  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('prompt.submit', ($, e) => { if (e.origin?.kind === 'plugin') opts.submits?.push(e.text); return { text: e.text } })
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
@@ -798,7 +798,7 @@ test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the 
   stubSession(on, { fetch: palguFetch(calls) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const status = await $.command.run({ command: 'palgu', args: 'status' })
-  expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade')
+  expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade · Palgu memory: off · /palgu memory on indexes this project into Palgu (uploads its source)')
   const me = calls.find((c) => c.url === 'https://api.palgu.ai/me')
   expect(me.init.headers.authorization).toBe('Bearer test-key')
   const upgrade = await $.command.run({ command: 'palgu', args: 'upgrade' })
@@ -1165,4 +1165,107 @@ test('an older models answer that arrives late never replaces a newer one', GW, 
   pending[0]({ value: { ok: true, status: 200, headers: {}, text: HEALTH } })
   await new Promise((r) => setTimeout(r, 5))
   expect((store.get('palgu-models') as any).served).toEqual(['glm-5.3'])
+})
+
+// Issue #25: the heartbeat. A main-session answer that stops mid-task gets one continue prompt.
+const HEARTBEAT_URL = 'https://api.palgu.ai/anthropic/heartbeat'
+const PREMATURE = 'Tests pass. Let me check the config loader next.'
+const said = (text: string) => ({ role: 'assistant', text, toolUses: [] })
+
+async function mainTurn($, turnId: string, answer: string) {
+  await $.prompt.submit({ text: 'explain how the config loader works and fix it' })
+  await $.turn.start({ turnId })
+  return $.turn.complete({ turnId, answer, durationMs: 10, isAborted: false, usage: null })
+}
+
+const settle = () => new Promise((r) => setTimeout(r, 5))
+
+test('heartbeat: a premature stop on Palgu is continued with Palgu\'s prompt, asked with the mod\'s key', GW, async ($, on) => {
+  const calls: any[] = [], submits: string[] = []
+  stubSession(on, { submits, messages: [said(PREMATURE)], config: '{"primary":"claude","router":{"routes":{"simple":"claude","coding":"claude"}}}', fetch: (url: string, init: any) => {
+    calls.push({ url, init })
+    if (url === HEARTBEAT_URL) return { ok: true, status: 200, headers: {}, text: JSON.stringify({ assessment: 'premature', should_continue: true, reason: 'You stopped mid-task — continue.' }) }
+    return { ok: false, status: 404, headers: {}, text: '' }
+  } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await mainTurn($, 't1', PREMATURE)
+  await settle()
+  expect(submits).toEqual(['You stopped mid-task — continue.'])
+  const beat = calls.find((c) => c.url === HEARTBEAT_URL)
+  expect(beat.init.headers['x-api-key']).toBe('test-key')
+  expect(JSON.parse(beat.init.body).text).toBe(PREMATURE)
+})
+
+test('heartbeat: a finished answer is left alone', GW, async ($, on) => {
+  const submits: string[] = []
+  stubSession(on, { submits, offline: true, messages: [said('Done: all tests pass.')] })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await mainTurn($, 't1', 'Done: all tests pass.')
+  await settle()
+  expect(submits).toEqual([])
+})
+
+test('heartbeat: when Palgu errors the local classifier decides, and a stop is never blocked by the error', GW, async ($, on) => {
+  const submits: string[] = []
+  stubSession(on, { submits, messages: [said(PREMATURE)], fetch: () => ({ ok: false, status: 503, headers: {}, text: '' }) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await mainTurn($, 't1', PREMATURE)
+  await settle()
+  expect(submits.length).toBe(1)
+  expect(submits[0]).toMatch(/^You stopped mid-task/)
+})
+
+test('heartbeat: at most three continues per prompt, and router.heartbeat off turns it off', GW, async ($, on) => {
+  const submits: string[] = []
+  stubSession(on, { submits, offline: true, messages: [said(PREMATURE)] })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await mainTurn($, 't0', PREMATURE)
+  for (const id of ['t1', 't2', 't3']) {
+    await settle()
+    await $.turn.start({ turnId: id })
+    await $.turn.complete({ turnId: id, answer: PREMATURE, durationMs: 10, isAborted: false, usage: null })
+  }
+  await settle()
+  expect(submits.length).toBe(3)
+})
+
+test('heartbeat: router.heartbeat "off" never continues', GW, async ($, on) => {
+  const submits: string[] = []
+  stubSession(on, { submits, offline: true, messages: [said(PREMATURE)], config: '{"router":{"heartbeat":"off"}}' })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await mainTurn($, 't1', PREMATURE)
+  await settle()
+  expect(submits).toEqual([])
+})
+
+// Issue #24: Palgu memory, through the palgu CLI and its own sign-in; off until /palgu memory on.
+test('/palgu memory on indexes the project in the background with palgu, never with the mod\'s key; off by default', GW, async ($, on) => {
+  const runs: any[] = []
+  const store = stubSession(on, { offline: true })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '{"indexed": true, "project": "work", "symbols": 12, "updated": "2026-11-10T09:00:00+00:00"}', stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  expect(runs.filter((r) => r.argv[0] === 'palgu')).toEqual([])
+  expect((await $.command.run({ command: 'palgu', args: 'memory' })).text).toMatch(/Palgu memory: off/)
+  const out = await $.command.run({ command: 'palgu', args: 'memory on' })
+  await settle()
+  expect(out.text).toMatch(/Palgu memory: on/)
+  const index = runs.find((r) => r.argv.join(' ') === 'palgu memory index .')
+  expect(index).toBeDefined()
+  expect(JSON.stringify(index)).not.toContain('test-key')
+  expect(store.get('palgu-memory')).toBe(true)
+  const status = await $.command.run({ command: 'palgu', args: 'memory' })
+  expect(status.text).toContain('work indexed, 12 symbols')
+  expect(runs.some((r) => r.argv.join(' ') === 'palgu memory status . --json')).toBe(true)
+})
+
+test('Palgu memory does nothing while the mod is not signed in to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {
+  const runs: any[] = []
+  stubSession(on, { offline: true })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'palgu', args: 'memory on' })
+  await settle()
+  expect(out.text).toMatch(/sign in with \/palgu login/)
+  expect(runs.filter((r) => r.argv[0] === 'palgu')).toEqual([])
 })

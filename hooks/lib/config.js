@@ -77,6 +77,8 @@ export const DEFAULTS = {
   prices: {},
   // The routing strategy (router.strategy): a built-in or one of yours; '' is the default, complexity.
   strategyName: '',
+  // The heartbeat (issue #25): 'palgu' (Palgu decides on a Palgu gateway, else local), 'local' or 'off'.
+  heartbeat: { mode: 'palgu', max: 3 },
 }
 
 function parseJson(text) {
@@ -131,5 +133,6 @@ export function parseConfig(text, options) {
     summary: router.summary === undefined ? DEFAULTS.summary : router.summary,
     prices: { ...DEFAULTS.prices, ...(router.prices || {}) },
     strategyName: String(router.strategy || DEFAULTS.strategyName),
+    heartbeat: { mode: router.heartbeat === undefined ? DEFAULTS.heartbeat.mode : router.heartbeat, max: Number(router.heartbeatMax) >= 0 ? Number(router.heartbeatMax) : DEFAULTS.heartbeat.max },
   }
 }

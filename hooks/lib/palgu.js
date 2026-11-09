@@ -11,7 +11,7 @@ export const PALGU_BILLING = PALGU_WEB + '/billing'
 export const PLUGIN_ID = 'mixture-of-models@mixture-of-models-claude-mod'
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
-export const HELP = '/palgu login: sign up or sign in to Palgu and use its models for routed turns · /palgu status: who is signed in, on which plan · /palgu upgrade: plans and billing'
+export const HELP = '/palgu login: sign up or sign in to Palgu and use its models for routed turns · /palgu status: who is signed in, on which plan · /palgu upgrade: plans and billing · /palgu memory on|off: index this project into Palgu memory'
 
 // The key may go to Palgu only when the gateway is Palgu: an exact https origin match, so a
 // look-alike host or another provider's endpoint never receives it.
@@ -21,8 +21,8 @@ export function isPalgu(gatewayUrl) {
 }
 
 export function parsePalguArg(args) {
-  const word = String(args || '').trim().toLowerCase()
-  return ['login', 'status', 'upgrade'].includes(word) ? word : 'help'
+  const word = String(args || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  return ['login', 'status', 'upgrade', 'memory', 'memory on', 'memory off'].includes(word) ? word : 'help'
 }
 
 // The gateway strips control characters and `<>` and wants 1 to 64 characters.
