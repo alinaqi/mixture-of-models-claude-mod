@@ -62,7 +62,7 @@ For `codex` routes install the Codex CLI: `brew install --cask codex` (or `npm i
 ollama pull qwen2.5-coder:3b
 ```
 
-Without Ollama the classifier falls back to `claude-haiku-4-5` on your plan.
+Without Ollama the classifier falls back to `claude-haiku-5-5` on your plan.
 
 ## 7. Try it
 

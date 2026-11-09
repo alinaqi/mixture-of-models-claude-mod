@@ -66,7 +66,7 @@ Or give the child a gateway yourself: [OpenRouter](#openrouter), a [LiteLLM](#li
 
 Per prompt the mod:
 
-1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-4-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
+1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-5-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
 2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; follow-ups after a child-answered turn return to the main session; `go ahead`, `yes`, or a prompt of six words or fewer while the main session is mid-task keeps it there; coding-level work stays on a mid-task main session.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
 4. **Falls back** to the main model for that turn if the child fails, prints nothing, or its answer fails vetting (see [What a child may not do](#what-a-child-may-not-do)), and says so in the transcript.
@@ -209,7 +209,7 @@ Claude and the gateway are both visible, all the time:
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
-| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | same |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
 | `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
@@ -399,7 +399,7 @@ The mod's own calls, then the child process's:
 | The mod, in `turn.complete` after a routed turn on Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`, fixed in the code | The routed model id and the child's four token counts (input, output, cache read, cache write), and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` and `router.prices` has no entry for that model | Prices the turn for the savings estimate. No prompt or answer text. |
 | The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
-| The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-4-5` by default. |
+| The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-5-5` by default. |
 | The child process (Claude Code itself), started in `turn.step` | Claude Code's normal API client | The `gateway_url` you set in the plugin's options (for example `https://api.palgu.ai/anthropic`, `https://openrouter.ai/api` or your LiteLLM proxy), with `gateway_key` as its `x-api-key` (Palgu, generic) or `Authorization: Bearer` (OpenRouter, LiteLLM) | Your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated), then whatever the child's own agent loop sends while it works | That is the point of the plugin: the turn runs on the gateway's model instead of the main session's. |
 | A Claude-member child (`claude/<member>` routes), started in `turn.step` | Claude Code's normal API client | Anthropic, on your own claude.ai login, the same as your main session | The same brief, then the child's own agent loop | Runs the turn on another Claude model without re-pointing the main session. |
 | The Codex child (`codex` routes), started in `turn.step` | The Codex CLI's own client | With `codex.auth: "palgu"`: your gateway's `/v1` (for example `https://api.palgu.ai/v1/responses`, `https://openrouter.ai/api/v1/responses` or `<your LiteLLM proxy>/v1/responses`) with `gateway_key`; with `"chatgpt"`: OpenAI, on your own Codex login | The same brief, then Codex's own agent loop | Runs the turn on Codex. |
@@ -465,7 +465,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
                     "kinds": { "research": "deepseek-pro", "review": "deepseek-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
-    "classifier": "claude-haiku-4-5",
+    "classifier": "claude-haiku-5-5",
     "child": {
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
@@ -501,7 +501,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `routes`: tier → model id the gateway serves, plus `routes.kinds`: kind → model for the non-critical tiers. `"claude"` means the main session.
 - `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
-- `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
+- `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `provider`: the gateway provider when the plugin's `gateway_provider` option is unset or `auto`: `palgu`, `openrouter`, `litellm` or `anthropic-compatible`. Unset, it is detected from the gateway URL (see [Setup](#setup)). It picks the default `routes`, `families`, the band's buttons and the child's auth; anything you set in `routes` or `families` still wins.
 - `child.baseUrl`: fallback for the gateway URL when the plugin's `gateway_url` option is unset. The key has no fallback; it comes only from the `gateway_key` option.
 - `child.auth`: `x-api-key` (`ANTHROPIC_API_KEY`) or `bearer` (`ANTHROPIC_AUTH_TOKEN`), set from the provider; set it yourself for a generic gateway that wants a bearer token. `child.identify`: send the `x-srooter-*` headers (on for Palgu and generic gateways).

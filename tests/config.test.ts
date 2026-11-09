@@ -34,7 +34,7 @@ test('router options override the defaults', async () => {
 
 
 test('the fallback classifier is an undated current-generation alias, overridable', async () => {
-  expect(DEFAULTS.classifier).toBe('claude-haiku-4-5')
+  expect(DEFAULTS.classifier).toBe('claude-haiku-5-5')
   expect(parseConfig('')).toEqual({ ...DEFAULTS })
   expect(parseConfig('{"router":{"classifier":"claude-sonnet-5"}}').classifier).toBe('claude-sonnet-5')
 })

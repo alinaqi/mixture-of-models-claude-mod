@@ -6,7 +6,7 @@
                     "kinds": { "research": "kimi-k3.1-pro", "review": "kimi-k3.1-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
-    "classifier": "claude-haiku-4-5",
+    "classifier": "claude-haiku-5-5",
     "child": {
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],

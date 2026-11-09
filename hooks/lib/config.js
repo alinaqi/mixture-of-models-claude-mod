@@ -42,7 +42,7 @@ export const DEFAULTS = {
   thresholds: { simple: 3, coding: 7 },
   ollama: { model: 'qwen2.5-coder:3b' },
   // Fallback classifier when Ollama is down. Undated alias: Claude Code resolves it to the current snapshot.
-  classifier: 'claude-haiku-4-5',
+  classifier: 'claude-haiku-5-5',
   // The delegate: a headless claude on the gateway, in its own process and environment.
   child: {
     baseUrl: '',
