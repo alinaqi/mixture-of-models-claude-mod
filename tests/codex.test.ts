@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { DEFAULTS, parseConfig } from '../hooks/lib/config.js'
-import { CODEX_INSTALL, codexArgs, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexReady, codexRelayText, codexResumeArgs, droppedArgs, missingCodex, parseCodexOutput } from '../hooks/lib/codex.js'
+import { CODEX_INSTALL, codexArgs, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexReady, codexRelayText, codexResumeArgs, codexResumeFlags, droppedArgs, missingCodex, parseCodexOutput } from '../hooks/lib/codex.js'
 
 const CODEX = DEFAULTS.codex
 const PALGU = 'https://api.palgu.ai/v1'
@@ -33,9 +33,20 @@ test('codexArgs on Palgu: non-interactive exec, JSON events, a palgu provider on
     '-c', 'model_providers.palgu.base_url="https://api.palgu.ai/v1"',
     '-c', 'model_providers.palgu.env_key="PALGU_API_KEY"',
     '-c', 'model_providers.palgu.wire_api="responses"',
+    '-c', 'model_providers.palgu.http_headers={ "x-srooter-pin" = "glm-5.3" }',
     '--sandbox', 'read-only', '-c', 'approval_policy="never"', '-',
   ])
   expect(args.join(' ')).not.toContain('test-key')
+})
+
+// Issue #21: without the pin Palgu routes a Codex turn by intent (codex/<model> ran as glm-5.3).
+test('the Codex child pins its model on Palgu, as the Claude child does; never on OpenRouter or LiteLLM, never without a model', async () => {
+  const pin = (args) => args.filter((a) => a.includes('x-srooter-pin'))
+  expect(pin(codexArgs(CODEX, 'gpt-6-sol', { cwd: '/work', baseUrl: PALGU, provider: 'palgu' }))).toEqual(['model_providers.palgu.http_headers={ "x-srooter-pin" = "gpt-6-sol" }'])
+  expect(pin(codexArgs(CODEX, '', { cwd: '/work', baseUrl: PALGU, provider: 'palgu' }))).toEqual([])
+  expect(pin(codexArgs(CODEX, 'openai/gpt-6-sol', { cwd: '/work', baseUrl: 'https://openrouter.ai/api/v1', provider: 'openrouter' }))).toEqual([])
+  expect(pin(codexArgs(CODEX, 'gpt-6-sol', { cwd: '/work', baseUrl: 'http://localhost:4000', provider: 'litellm' }))).toEqual([])
+  expect(pin(codexResumeFlags(CODEX, 'gpt-6-sol', { cwd: '/work', baseUrl: PALGU, provider: 'palgu' })).length).toBe(1)
 })
 
 test('codexArgs on the ChatGPT login: no provider override, and no -m for the default model', async () => {
