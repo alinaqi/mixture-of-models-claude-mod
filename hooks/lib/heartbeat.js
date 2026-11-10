@@ -83,13 +83,17 @@ export function turnUsedTools(messages) {
 }
 
 // The person asked for changes, and not only to see them. Narration ("apply the following change")
-// is a stop worth healing only then: a patch someone asked to see is the answer.
+// is a stop worth healing only then: a patch someone asked to see is the answer. "Fix it and
+// explain" and "Can you fix it?" ask for edits; "don't edit", "show me a patch" and "how would you
+// change this?" do not.
 const EDIT_ASK = /\b(fix|add|implement|create|update|change|write|refactor|build|make|wire|remove|delete|rename|migrate|bump|set up)\b/i
-const ONLY_SHOW = /\b(don'?t|do not|never|without)\s+(edit|change|modify|apply|touch|write)|\b(show|explain|describe|suggest|review|propose)\b|\?\s*$/i
+const NO_EDITS = /\b(don'?t|do not|never|without)\s+(edit|change|modify|apply|touch|write)/i
+const SHOW_LEAD = /^\s*(just\s+)?(show|explain|describe|suggest|propose)\b/i
+const ASKS_HOW = /^\s*(what|how|why|which|where|would|should|is|are|does|do)\b[\s\S]*\?\s*$/i
 
 export function wantsEdits(prompt) {
   const text = String(prompt || '')
-  return EDIT_ASK.test(text) && !ONLY_SHOW.test(text)
+  return EDIT_ASK.test(text) && !NO_EDITS.test(text) && !SHOW_LEAD.test(text) && !ASKS_HOW.test(text)
 }
 
 // The continue prompt for a verdict, or '' for none.

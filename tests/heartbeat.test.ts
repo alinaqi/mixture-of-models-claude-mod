@@ -91,6 +91,13 @@ test('wantsEdits: the person asked for changes, and did not ask to only see them
   expect(wantsEdits('just show the diff, do not apply it')).toBe(false)
 })
 
+test('wantsEdits: a polite question or a fix that also asks for an explanation still wants edits', async () => {
+  expect(wantsEdits('Can you fix the loader?')).toBe(true)
+  expect(wantsEdits('Fix the loader and explain the changes')).toBe(true)
+  expect(wantsEdits('review the config module and fix what is broken')).toBe(true)
+  expect(wantsEdits('how would you refactor this?')).toBe(false)
+})
+
 test('continuePrompt: narration continues only when edits were asked for; premature always', async () => {
   expect(continuePrompt({ assessment: 'narration', reason: REASONS.narration }, 'fix the config test')).toBe(REASONS.narration)
   expect(continuePrompt({ assessment: 'narration', reason: REASONS.narration }, 'show me a patch, don\'t edit')).toBe('')
