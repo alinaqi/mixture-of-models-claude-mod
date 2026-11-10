@@ -42,7 +42,7 @@ export const DEFAULTS = {
   thresholds: { simple: 3, coding: 7 },
   ollama: { model: 'qwen2.5-coder:3b' },
   // Fallback classifier when Ollama is down. Undated alias: Claude Code resolves it to the current snapshot.
-  classifier: 'claude-haiku-4-5',
+  classifier: 'claude-haiku-5-5',
   // The delegate: a headless claude on the gateway, in its own process and environment.
   child: {
     baseUrl: '',
@@ -77,6 +77,8 @@ export const DEFAULTS = {
   prices: {},
   // The routing strategy (router.strategy): a built-in or one of yours; '' is the default, complexity.
   strategyName: '',
+  // The heartbeat (issue #25): 'palgu' (Palgu decides on a Palgu gateway, else local), 'local' or 'off'.
+  heartbeat: { mode: 'palgu', max: 3 },
 }
 
 function parseJson(text) {
@@ -131,5 +133,6 @@ export function parseConfig(text, options) {
     summary: router.summary === undefined ? DEFAULTS.summary : router.summary,
     prices: { ...DEFAULTS.prices, ...(router.prices || {}) },
     strategyName: String(router.strategy || DEFAULTS.strategyName),
+    heartbeat: { mode: router.heartbeat === undefined ? DEFAULTS.heartbeat.mode : router.heartbeat, max: Number(router.heartbeatMax) >= 0 ? Number(router.heartbeatMax) : DEFAULTS.heartbeat.max },
   }
 }

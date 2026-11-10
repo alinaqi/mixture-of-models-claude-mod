@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-11-10
+
+Palgu parity in Claude Code: the heartbeat and Palgu memory come to the mod, and Codex pins its model on Palgu.
+
+### Added
+- The heartbeat (#25): when the main session ends a turn mid-task (it announced an action and stopped, or, when you asked for changes ("fix it", "can you fix it?", "fix it and explain"; not "show me a patch" or "how would you change this?"), described edits it never made), the mod continues it with one prompt of its own, at most 3 times per prompt of yours (`router.heartbeatMax`). On Palgu, Palgu's `POST /anthropic/heartbeat` decides, with the mod's own key and only the answer's last 600 characters; otherwise, or when Palgu does not answer, the same classifier runs locally. A stop is never blocked by an error, and a verdict that arrives after your next prompt is dropped. Each session has its own heartbeat id, so Palgu's budget is never shared between sessions. `router.heartbeat`: `palgu` (default), `local` or `off`. Turns a child answered are not checked: the child's answer is already vetted for narration. If Palgu's old Stop hook is still in your `~/.claude/settings.json`, remove it (`palgu heartbeat-hook off`) so a stop is not continued twice.
+- Palgu memory (#24): `/palgu memory on` turns it on for the project folder you are in (each project needs its own), and indexes that project into Palgu's code memory with `palgu memory index .` in the background at session start (at most every 10 minutes per project; `palgu` pushes nothing when nothing changed). It runs through the `palgu` CLI and its own sign-in, because the mod's key has no memory scope yet; the mod passes it no key. Off by default, because indexing uploads the project's source. `/palgu status` and `/palgu memory` say whether the project is indexed and how fresh it is.
+
+### Fixed
+- A Codex route on Palgu ran on whatever Palgu picked (a `codex/<model>` turn ran as glm-5.3). The Codex child now sends `x-srooter-pin` with its model, as the Claude child does (#21).
+
+### Changed
+- The fallback classifier (when Ollama does not answer) is `claude-haiku-5-5`, a tenth of Haiku 4.5's price.
+- Removed the `bench/__pycache__` files committed by mistake.
+
 ## [0.23.0] - 2026-11-07
 
 The model list follows Palgu: what it serves now, not what the release shipped with.

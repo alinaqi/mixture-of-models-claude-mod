@@ -35,15 +35,23 @@ export function codexReady(codex, gateway) {
   return codex.auth === 'chatgpt' || Boolean(codexBaseUrl(codex, gateway.baseUrl, gateway.provider) && gateway.key)
 }
 
+// Palgu routes an unpinned request by intent, so on Palgu (and generic gateways, which take its
+// headers) the routed model rides in x-srooter-pin, as it does for the Claude child (issue #21).
+// The model id passed the plain-id check (safeModelId) before it gets here.
+function pinArgs(p, model) {
+  if (!model || CODEX_PROVIDERS[p.name]) return []
+  return ['-c', 'model_providers.' + p.name + '.http_headers={ "x-srooter-pin" = ' + JSON.stringify(model) + ' }']
+}
+
 // The gateway as an explicit provider: Codex ignores OPENAI_BASE_URL under a ChatGPT login.
-function providerArgs(where) {
+function providerArgs(where, model) {
   const p = codexProvider(where.provider)
   const set = (k, v) => ['-c', k + '=' + JSON.stringify(v)]
   const key = 'model_providers.' + p.name
   return [
     ...set('model_provider', p.name), ...set(key + '.name', p.name),
     ...set(key + '.base_url', where.baseUrl), ...set(key + '.env_key', p.keyEnv),
-    ...set(key + '.wire_api', 'responses'),
+    ...set(key + '.wire_api', 'responses'), ...pinArgs(p, model),
   ]
 }
 
@@ -98,7 +106,7 @@ function gitArgs(codex) {
 }
 
 function modelArgs(codex, model, where) {
-  return [...(model ? ['-m', model] : []), ...(codex.auth === 'chatgpt' ? [] : providerArgs(where))]
+  return [...(model ? ['-m', model] : []), ...(codex.auth === 'chatgpt' ? [] : providerArgs(where, model))]
 }
 
 // The flags after the program name (`codex`, written as fixed text at the $.process.run call,

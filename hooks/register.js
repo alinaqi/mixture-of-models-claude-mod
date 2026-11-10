@@ -19,6 +19,8 @@ import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, st
 import { liveCatalogue, liveModels, modelsText } from './lib/catalogue.js'
 import { failedRun, isNewer, lastLine, latestVersion, updateText } from './lib/update.js'
 import { VERSION } from './lib/version.js'
+import { continuePrompt, heartbeatBody, heartbeatMode, localVerdict, palguVerdict, shouldCheck, turnUsedTools } from './lib/heartbeat.js'
+import { indexDue, memoryLine, memoryOn, memoryStatus, setMemory } from './lib/memory.js'
 
 // Every capability call in this module is written `$.noun.method(...)`, and `$` is handed only,
 // whole, to this file's own top-level functions. Network hosts are fixed https:// URLs written at
@@ -32,6 +34,10 @@ const answered = new Map()
 let strategies = BUILTIN, chosen = '', home = '', polling = false
 // What Palgu serves now (GET /v1/models/health), saved for the next session; null: the built-in list.
 let live = null, modelsAsk = 0
+// The heartbeat's continues for the person's current prompt, and that prompt's number.
+// sessionTag: a random id per session, so Palgu's heartbeat budget is never shared between sessions.
+let beats = 0, promptSeq = 0, cwd = '', sessionTag = newInstallId()
+const PLUGIN_NAME = 'mixture-of-models'
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
 
@@ -375,12 +381,75 @@ async function palguStatus($, k) {
   return statusText(res.ok ? parseBody(res) : null)
 }
 
-// /palgu: device-code sign-in polled in the background on the mod's clock, status, upgrade.
+// Palgu memory (issue #24) runs through the palgu CLI, which uses its own sign-in: no key of the
+// mod's is on its argv, env or stdin. Program and arguments are fixed text.
+function signedInToPalgu() {
+  return isPalgu(cfg.child.baseUrl) && Boolean(key)
+}
+
+async function memoryHere($) {
+  return memoryOn(await $.store.get('palgu-memory'), cwd)
+}
+
+async function memoryNow($) {
+  if (!(await memoryHere($))) return { on: false }
+  const r = await $.process.run(['palgu', 'memory', 'status', '.', '--json'], { cwd, timeoutMs: 30000 }).catch(() => null)
+  return { on: true, status: r ? memoryStatus(r) : null, now: Date.now(), missing: !r }
+}
+
+// One background `palgu memory index .` per project at most every INDEX_EVERY_MS; palgu itself
+// pushes nothing when nothing changed. Never awaited by a hook, never fails the session.
+async function indexProject($) {
+  const on = await memoryHere($)
+  const last = (await $.store.get('palgu-memory-index')) || {}
+  if (!indexDue({ on, signedIn: signedInToPalgu(), installed: true }, last[cwd], Date.now())) return
+  await $.store.set('palgu-memory-index', { ...last, [cwd]: Date.now() })
+  const r = await $.process.run(['palgu', 'memory', 'index', '.'], { cwd, timeoutMs: 600000 }).catch(failedRun)
+  if (r.exitCode !== 0) $.ui.log('Palgu memory: indexing ' + cwd + ' failed: ' + lastLine(r))
+}
+
+async function memoryCommand($, word) {
+  const saved = await $.store.get('palgu-memory')
+  if (word === 'memory off') await $.store.set('palgu-memory', setMemory(saved, cwd, false))
+  if (word === 'memory on' && !signedInToPalgu()) return 'Palgu memory needs Palgu: sign in with /palgu login first.'
+  if (word === 'memory on') await $.store.set('palgu-memory', setMemory(saved, cwd, true))
+  if (word === 'memory on') indexProject($).catch(() => undefined)
+  return memoryLine(await memoryNow($))
+}
+
+// /palgu: device-code sign-in polled in the background on the mod's clock, status, upgrade, memory.
 async function palguCommand($, args) {
   const word = parsePalguArg(args)
   if (word === 'login') return palguLogin($, deviceName((await $.env.get('HOSTNAME')) || ''))
-  if (word === 'status') return palguStatus($, key)
+  if (word === 'status') return (await palguStatus($, key)) + (signedInToPalgu() ? ' · ' + memoryLine(await memoryNow($)) : '')
+  if (word.startsWith('memory')) return memoryCommand($, word)
   return word === 'upgrade' ? upgradeText() : HELP
+}
+
+// The heartbeat (issue #25): Palgu's verdict when it is the gateway, else (or when Palgu does not
+// answer) the same classifier here. Only the answer's last 600 characters go, with the mod's key.
+function palguHeartbeat($, body) {
+  return $.http.fetch('https://api.palgu.ai/anthropic/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key }, body: JSON.stringify(body) }).catch(() => FAILED)
+}
+
+async function heartbeatVerdict($, answer, usedTools) {
+  const mode = heartbeatMode(cfg.heartbeat.mode, signedInToPalgu())
+  const sessionId = sessionTag + ':' + promptSeq
+  const palgu = mode === 'palgu' ? palguVerdict(await palguHeartbeat($, heartbeatBody(sessionId, answer))) : null
+  return palgu || localVerdict(answer, usedTools)
+}
+
+// A stop worth healing gets one continue prompt of the mod's own, a turn once the session is idle.
+// A verdict that arrives after a new prompt of yours, or past the budget, is dropped.
+async function heartbeat($, e) {
+  const mode = heartbeatMode(cfg.heartbeat.mode, signedInToPalgu())
+  const seq = promptSeq, asked = lastPrompt
+  if (!shouldCheck(e, { mode, used: beats, max: cfg.heartbeat.max, child: Boolean(decision.child) })) return
+  const verdict = await heartbeatVerdict($, e.answer, turnUsedTools(await $.session.messages()))
+  const text = continuePrompt(verdict, asked)
+  if (!text || seq !== promptSeq || beats >= cfg.heartbeat.max) return
+  beats += 1
+  $.prompt.submit({ text })
 }
 
 // What a routed turn cost: Palgu's own quote, router.prices, or Claude rates for a Claude member.
@@ -424,7 +493,9 @@ export function register(on, opts) {
     await loadConfig($, home)
     applyPin()
     // In the background: a slow Palgu never holds up the session.
+    cwd = e.cwd || (await $.session.cwd())
     refreshModels($)
+    indexProject($).catch(() => undefined)
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
     const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')
@@ -435,6 +506,13 @@ export function register(on, opts) {
 
   on('prompt.submit', async ($, e, next) => {
     if (disabled) return next(e)
+    // The heartbeat's own continue stays on the main session, the one that stopped mid-task.
+    if (e.origin && e.origin.kind === 'plugin' && e.origin.name === PLUGIN_NAME) {
+      setDecision('main', 'heartbeat')
+      return next(e)
+    }
+    beats = 0
+    promptSeq += 1
     lastPrompt = e.text
     await decide($, e.text)
     return next(e)
@@ -462,6 +540,7 @@ export function register(on, opts) {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
+    if (!disabled) heartbeat($, e).catch(() => undefined)
     if (disabled || e.agentId || !cfg.summary || !decision.model) return result
     const day = new Date().toISOString().slice(0, 10)
     const stats = bumpStats((await $.store.get('stats')) || {}, day, decision.model)

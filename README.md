@@ -66,7 +66,7 @@ Or give the child a gateway yourself: [OpenRouter](#openrouter), a [LiteLLM](#li
 
 Per prompt the mod:
 
-1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-4-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
+1. **Scores** it on two axes with one classifier call: a 1-10 blast radius and a task kind (`code | research | review | docs | data | multimodal`). The score decides whether Claude is mandatory; the kind picks which cheaper model gets the rest. A local Ollama model does it for free, `claude-haiku-5-5` on your plan is the fallback, then the last verdict seen. See [How it decides](#how-it-decides).
 2. **Applies Maggy's pre-routing rules first**: `use claude` or `execute the plan` force `critical`; follow-ups after a child-answered turn return to the main session; `go ahead`, `yes`, or a prompt of six words or fewer while the main session is mid-task keeps it there; coding-level work stays on a mid-task main session.
 3. **Delegates** a routed turn to the child: `claude -p --model glm-5.3` on the gateway, fed a brief over stdin with the last few exchanges of your session plus the task.
 4. **Falls back** to the main model for that turn if the child fails, prints nothing, or its answer fails vetting (see [What a child may not do](#what-a-child-may-not-do)), and says so in the transcript.
@@ -209,7 +209,7 @@ Claude and the gateway are both visible, all the time:
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
-| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-4-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | same |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
 | `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
@@ -309,7 +309,7 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 
 ### Network hosts this plugin contacts
 
-- `https://api.palgu.ai` — Palgu, fixed in the code: `/auth/device/code` and `/auth/token` on `/palgu login`, `/me` on `/palgu status`, `/v1/models/health` at session start, after `/palgu login` and on `/route models` (the gateway key as `x-api-key`; nothing else is sent), and `/v1/pricing/quote` after a routed turn when your gateway is Palgu and `router.prices` has no entry for the model.
+- `https://api.palgu.ai` — Palgu, fixed in the code: `/auth/device/code` and `/auth/token` on `/palgu login`, `/me` on `/palgu status`, `/v1/models/health` at session start, after `/palgu login` and on `/route models` (the gateway key as `x-api-key`; nothing else is sent), `/v1/pricing/quote` after a routed turn when your gateway is Palgu and `router.prices` has no entry for the model, and `/anthropic/heartbeat` when the main session ends a turn (the heartbeat, below).
 - `https://raw.githubusercontent.com` — only on `/route update`: a GET of `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` to read the published version. Nothing is sent.
 - `http://localhost:11434` — a local Ollama (`/api/chat`) that scores each prompt. It stays on your machine; skipped when nothing answers there.
 - Anthropic, through Claude Code's own `$.model.classify` on your own plan — only when Ollama does not answer, to score the prompt.
@@ -321,6 +321,8 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 - The prompt text and the scoring rubric: to the local Ollama, or to Anthropic through `$.model.classify`, for every prompt that reaches classification.
 - Local file contents (`fs.read`): `~/.claude/model-config.json` (your settings; never sent) and `~/.claude/mixture-of-models/strategies/*.md` (your routing strategies; the rubric of the active strategy is part of the scoring prompt, so it goes to Ollama or Anthropic as above). The mod reads no project files itself.
 - To Palgu: on `/palgu login` the client id `mixture-of-models`, the device name `Claude Code on <HOSTNAME>`, the mod's version, a random install id and the device code; on `/palgu status` the gateway key as a Bearer header; for a price quote the model id, four token counts and the key. No prompt or answer text.
+- To Palgu, the heartbeat: when the main session finishes an answer and your gateway is Palgu (and `router.heartbeat` is not `local` or `off`), the last 600 characters of that answer, a session id (the install id and the prompt's number) and the key as `x-api-key`. Palgu says whether the turn stopped mid-task. Nothing else from the conversation.
+- To Palgu, through the `palgu` CLI and only after you run `/palgu memory on`: the project's source files, for Palgu memory (see Programs). The mod sends nothing itself; `palgu` uses its own sign-in.
 - To a Palgu or generic gateway, the child's identifying headers: `x-srooter-client` (mod name and version), `x-srooter-project` (the session folder's name, slugged) and, on Palgu, `x-srooter-pin` (the routed model id). See [Headers the child sends](#headers-the-child-sends).
 - No other data is sent. No telemetry. No analytics.
 
@@ -332,19 +334,20 @@ Each `$.process.run` call has its program and fixed flags written as literal tex
 - `codex exec --json … -`, and `codex exec -C <cwd> resume --json … <thread id> -` after you approve refused commands — the Codex CLI, for `codex` routes only, with the same checks (the thread id as a plain id).
 - `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` — once after `/palgu login`, to save the key Palgu minted in Claude Code's secure storage. Every argument is fixed text; the key goes on stdin only, and only after it is checked to be one plain token (`A-Z a-z 0-9 . _ -`, 8 to 512 characters).
 - `claude plugin marketplace update mixture-of-models-claude-mod`, then `claude plugin update mixture-of-models@mixture-of-models-claude-mod` — on `/route update`, only when GitHub lists a newer version. Every argument is fixed text.
+- `palgu memory index .` (in the session folder, in the background, at most every 10 minutes per project) and `palgu memory status . --json` — the Palgu CLI, only in a project folder where you ran `/palgu memory on` and while the mod is signed in to Palgu. Every argument is fixed text. `palgu` signs in with its own key (`palgu login`); the mod passes it no key, environment or stdin. Indexing uploads the project's source files to Palgu, which is why it is off until you turn it on.
 - The plugin never runs commands received from the network. Network responses are never on a `process.run` argv: GitHub's answer only decides whether the fixed update commands run, and the one fetched value that reaches a process at all is the Palgu key, on stdin, after the check above.
 
 ### Hooks
 
 - `prompt.submit` — reads the prompt to decide its route (pre-rules, then the classifier score, then the thresholds). Passes it through unchanged: never drops, rewrites or adds to it. Fails open.
 - `turn.step` — for a routed turn, runs the child above instead of the main model and answers the turn with the child's text; every other turn, and every subagent, goes through unchanged. A failed or discarded child answer hands the turn back to the main model.
-- `turn.complete` — appends the route line (route, score, cost, savings) to the turn's text and updates the counts, the decision log and the savings totals in the plugin store.
+- `turn.complete` — appends the route line (route, score, cost, savings) to the turn's text and updates the counts, the decision log and the savings totals in the plugin store. Then the heartbeat: when the main session's answer stopped mid-task (it announced an action and ended, or, when you asked for changes, described edits it did not make), the mod submits one continue prompt of its own (`$.prompt.submit`, shown to the model as from this plugin), at most `router.heartbeatMax` (3) times per prompt of yours. Fails open: an error never blocks a stop.
 - Also: `session.start` (reads the settings, registers `/route` and `/palgu`), `turn.start` (clears the last child result), `ui.render` for `AbovePrompt` (the band), `AssistantMessage` (a provenance tag on child replies), `Pane` (the help and stats panes) and `Spinner` (`via <model> (child)…`), and `command.run` for `/route` and `/palgu`. The mod never handles `tool.call` or `tool.check`.
 
 ### Commands, tools, and agents added
 
 - `/route` — show the route state, pin a tier, model, family member or `codex`, switch strategy, open the stats or help pane, reset failure memory, or update the plugin (`/route update`).
-- `/palgu` — sign in to Palgu (`login`), say whose key is set (`status`), or link plans and billing (`upgrade`).
+- `/palgu` — sign in to Palgu (`login`), say whose key is set and whether the project is in Palgu memory (`status`), link plans and billing (`upgrade`), or turn Palgu memory on or off for the project you are in (`memory on`, `memory off`, `memory`; each project folder needs its own `memory on`).
 - The `routing-strategy` skill — helps write or explain a routing strategy file.
 - No tools, no agents, no MCP servers.
 
@@ -399,7 +402,7 @@ The mod's own calls, then the child process's:
 | The mod, in `turn.complete` after a routed turn on Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`, fixed in the code | The routed model id and the child's four token counts (input, output, cache read, cache write), and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` and `router.prices` has no entry for that model | Prices the turn for the savings estimate. No prompt or answer text. |
 | The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
-| The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-4-5` by default. |
+| The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-5-5` by default. |
 | The child process (Claude Code itself), started in `turn.step` | Claude Code's normal API client | The `gateway_url` you set in the plugin's options (for example `https://api.palgu.ai/anthropic`, `https://openrouter.ai/api` or your LiteLLM proxy), with `gateway_key` as its `x-api-key` (Palgu, generic) or `Authorization: Bearer` (OpenRouter, LiteLLM) | Your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated), then whatever the child's own agent loop sends while it works | That is the point of the plugin: the turn runs on the gateway's model instead of the main session's. |
 | A Claude-member child (`claude/<member>` routes), started in `turn.step` | Claude Code's normal API client | Anthropic, on your own claude.ai login, the same as your main session | The same brief, then the child's own agent loop | Runs the turn on another Claude model without re-pointing the main session. |
 | The Codex child (`codex` routes), started in `turn.step` | The Codex CLI's own client | With `codex.auth: "palgu"`: your gateway's `/v1` (for example `https://api.palgu.ai/v1/responses`, `https://openrouter.ai/api/v1/responses` or `<your LiteLLM proxy>/v1/responses`) with `gateway_key`; with `"chatgpt"`: OpenAI, on your own Codex login | The same brief, then Codex's own agent loop | Runs the turn on Codex. |
@@ -408,7 +411,7 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 
 ### Programs this plugin runs
 
-**Which programs:** two, `claude` (Claude Code itself in headless mode, and once after `/palgu login` as `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`, with the gateway URL and key on stdin, to save them; and on `/route update`, when a newer version is published, `claude plugin marketplace update mixture-of-models-claude-mod` then `claude plugin update mixture-of-models@mixture-of-models-claude-mod`) and `codex` (the Codex CLI, `codex exec`, only for `codex` routes). The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
+**Which programs:** three, `palgu` (the Palgu CLI, only after `/palgu memory on`: `palgu memory index .` and `palgu memory status . --json`, both fixed text), `claude` (Claude Code itself in headless mode, and once after `/palgu login` as `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin`, with the gateway URL and key on stdin, to save them; and on `/route update`, when a newer version is published, `claude plugin marketplace update mixture-of-models-claude-mod` then `claude plugin update mixture-of-models@mixture-of-models-claude-mod`) and `codex` (the Codex CLI, `codex exec`, only for `codex` routes). The plugin runs no shell, no script bundled in the plugin folder, no package launcher, and no other executable.
 
 **Why:** a mod can rename the model on a request but cannot change the endpoint or credentials of the session it runs in. The only way to run a turn on a different endpoint with Claude Code's own tools, while leaving the main session's endpoint and credentials untouched, is a second Claude Code process whose environment points at the gateway. The child exists for that reason alone, and only for turns the score routes away from the main session. The same reasoning covers a different Claude model (the main session is never renamed, so another member runs in its own process) and Codex (a different agent CLI, which only runs as its own process).
 
@@ -446,7 +449,7 @@ They go in the child's `ANTHROPIC_CUSTOM_HEADERS` (Claude Code's newline-separat
 
 ### What it stores
 
-In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): a random install id for Palgu sign-in (`palgu-install-id`, so Palgu sees one device across sign-ins), the `/route` pin, per-day counts per model, the last verdict, per-kind failure counts, and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child duration and exit code). No prompt text, no answers, no credentials.
+In the plugin's own store (`$.store`, under `~/.claude/plugins/store/`): a random install id for Palgu sign-in (`palgu-install-id`, so Palgu sees one device across sign-ins), the project folders where Palgu memory is on and when each was last indexed (its folder path), the last model list Palgu served, the `/route` pin, per-day counts per model, the last verdict, per-kind failure counts, and a log of the last 200 decisions (day, model, kind, tier, score, classifier source, child duration and exit code). No prompt text, no answers, no credentials.
 
 ### What it never does
 
@@ -465,7 +468,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
                     "kinds": { "research": "deepseek-pro", "review": "deepseek-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
-    "classifier": "claude-haiku-4-5",
+    "classifier": "claude-haiku-5-5",
     "child": {
       "baseUrl":  "https://api.palgu.ai/anthropic",
       "args":     ["--bare", "--permission-mode", "acceptEdits"],
@@ -501,7 +504,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `routes`: tier → model id the gateway serves, plus `routes.kinds`: kind → model for the non-critical tiers. `"claude"` means the main session.
 - `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
-- `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`).
+- `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `provider`: the gateway provider when the plugin's `gateway_provider` option is unset or `auto`: `palgu`, `openrouter`, `litellm` or `anthropic-compatible`. Unset, it is detected from the gateway URL (see [Setup](#setup)). It picks the default `routes`, `families`, the band's buttons and the child's auth; anything you set in `routes` or `families` still wins.
 - `child.baseUrl`: fallback for the gateway URL when the plugin's `gateway_url` option is unset. The key has no fallback; it comes only from the `gateway_key` option.
 - `child.auth`: `x-api-key` (`ANTHROPIC_API_KEY`) or `bearer` (`ANTHROPIC_AUTH_TOKEN`), set from the provider; set it yourself for a generic gateway that wants a bearer token. `child.identify`: send the `x-srooter-*` headers (on for Palgu and generic gateways).
@@ -516,6 +519,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `codex.auth`: `palgu` (default; your configured gateway's `/v1/responses` with your gateway key, whichever provider it is) or `chatgpt` (your own Codex login). `codex.baseUrl`: the Responses base URL if it is not the derived one (Palgu: `/anthropic` → `/v1`; OpenRouter and LiteLLM: `<gateway_url>/v1`). `codex.sandbox`: `read-only` (default), `workspace-write` or `danger-full-access`, see [Sandbox and approvals](#sandbox-and-approvals). `codex.allowOutsideGit`: add `--skip-git-repo-check` (default `false`). `codex.args`: extra flags; sandbox and approval flags in it are ignored.
 - `strategy`: the routing strategy to start with, a built-in (`complexity`, `cost`, `speed`, `quality`) or the name of one of your files; a `/route strategy` pick wins. See [Routing strategies](#routing-strategies-route-by-complexity-cost-speed-quality-or-your-own-rules).
 - `prices`: $ per million tokens for gateway models, for the [savings estimate](#how-much-it-saves), for example `{ "glm-5.3": { "input": 0.6, "output": 2.2 } }` (optional `cacheRead`, default a tenth of input, and `cacheWrite`). An entry here wins over Palgu's own quote. A model with no price on a gateway that is not Palgu is counted as unpriced.
+- `heartbeat`: continue the main session when it stops mid-task. `palgu` (default: Palgu decides when it is your gateway, the same classifier runs locally otherwise or when Palgu does not answer), `local` (never asks Palgu) or `off`. `heartbeatMax`: continues per prompt of yours (default 3).
 - `ui.band`: draw the band above the prompt (default `true`). `ui.tags`: which replies get the provenance tag, `routed` (default), `all` or `off`.
 
 ## Commands
@@ -525,6 +529,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/palgu login` | Sign up or sign in to Palgu from the terminal: approve a code in the browser, and the mod saves its Palgu key and routes at once |
 | `/palgu status` | Who the key belongs to and the org's plan |
 | `/palgu upgrade` | The Palgu plans and billing page |
+| `/palgu memory on`, `off`, `memory` | Index this project into Palgu memory in the background with the `palgu` CLI (uploads its source; off by default), stop, or say whether it is indexed and how fresh |
 | `/route update` | Check GitHub for a newer version and, if there is one, run `claude plugin marketplace update` and `claude plugin update` for you; restart Claude Code to load it |
 | `/route models` | The models Palgu serves right now and which are down; any of them can be pinned with `/route <model>`. The band keeps one button per family the mod knows. Without Palgu (or when it does not answer) the built-in list is used |
 | `/route strategies`, `/route strategy <name>` | List the routing strategies (complexity, cost, speed, quality and yours) or switch to one |
