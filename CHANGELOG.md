@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-11-13
+
+Palgu memory reaches every model, not only Palgu's index.
+
+### Added
+- Palgu memory recall (#24, srooter S7 `memory:read`): in a project where you ran `/palgu memory on`, each prompt of yours (four words or more, not a slash command) is searched in the project's Palgu memory (`GET /v1/cortex/search`, with the mod's key, at most 3 s). Up to 8 one-line pointers (recorded intent and ADRs first, then docs and code symbols with their files; at most 2,000 characters) go beside the prompt for the main session, as context the model reads after the prompt (the system prompt and its cache are untouched), and into the brief of a routed child before its task, so Claude, Palgu models and Codex all see the same memory. A failed or slow search adds nothing. The project's Palgu name comes from `palgu memory status`, read at session start and after the first index. Keys minted before srooter #2504 lack `memory:read`: run `/palgu login` again.
+
 ## [0.24.0] - 2026-11-10
 
 Palgu parity in Claude Code: the heartbeat and Palgu memory come to the mod, and Codex pins its model on Palgu.

@@ -6,7 +6,7 @@ const CONFIG = '{"primary":"claude"}'
 const GW = { options: { gateway_url: 'https://api.palgu.ai/anthropic', gateway_key: 'test-key' } }
 
 // Everything a session.start needs answered in Claude Code's place.
-function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string>; ownFetch?: boolean; submits?: string[] } = {}) {
+function stubSession(on, opts: { childEnv?: string; customHeaders?: string; score?: string; offline?: boolean; scores?: string[]; messages?: any[]; config?: string; logs?: string[]; fetch?: (url: string, init: any) => any; opened?: any[]; files?: Record<string, string>; ownFetch?: boolean; submits?: string[]; contexts?: string[][] } = {}) {
   const store = new Map<string, unknown>()
   on('session.start', () => ({ cwd: '/work' }))
   on('session.model', () => ({ value: 'claude-opus-5' }))
@@ -19,7 +19,7 @@ function stubSession(on, opts: { childEnv?: string; customHeaders?: string; scor
   on('command.register', () => ({ value: undefined }))
   on('ui.log', ($, e) => { opts.logs?.push(e.text ?? e.message ?? JSON.stringify(e)); return { value: undefined } })
   on('session.messages', () => ({ value: opts.messages ?? [] }))
-  on('prompt.submit', ($, e) => { if (e.origin?.kind === 'plugin') opts.submits?.push(e.text); return { text: e.text } })
+  on('prompt.submit', ($, e) => { if (e.origin?.kind === 'plugin') opts.submits?.push(e.text); else opts.contexts?.push([...(e.context ?? [])]); return { text: e.text } })
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ({ type: 'Text', props: {}, children: ['drawn by Claude Code'] }))
@@ -1302,4 +1302,92 @@ test('Palgu memory turned on in one project does not index another', GW, async (
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   await settle()
   expect(runs.filter((r) => r.argv[0] === 'palgu')).toEqual([])
+})
+
+// Palgu memory recalled into every route: the main session reads it beside the prompt, a child in its brief.
+const SEARCH = 'https://api.palgu.ai/v1/cortex/search'
+const STATUS_JSON = '{"indexed": true, "project": "work", "symbols": 12, "updated": "2026-11-10T09:00:00+00:00"}'
+const HITS = JSON.stringify({ project: 'work', indexed: true, hits: [{ kind: 'intent', ref: 'adr:ADR-001', title: 'ADR-001: Delegate routed turns to a child process', snippet: '', score: 0.8, meta: {} }, { kind: 'code', ref: 'ts:hooks.lib.loader.load', title: 'ts:hooks.lib.loader.load', snippet: 'hooks/lib/loader.js', score: 3, meta: { file: 'hooks/lib/loader.js' } }] })
+
+function memoryFetch(calls: any[], scores: string[]) {
+  let n = 0
+  return ($, e) => {
+    calls.push(e)
+    if (e.url.startsWith(SEARCH)) return { value: { ok: true, status: 200, headers: {}, text: HITS } }
+    if (e.url.includes('localhost:11434')) return { value: { ok: true, status: 200, headers: {}, text: '{"message":{"content":"' + scores[Math.min(n++, scores.length - 1)] + '"}}' } }
+    return { value: { ok: false, status: 404, headers: {}, text: '' } }
+  }
+}
+
+test('Palgu memory on: the main session reads what memory recalls beside the prompt, asked with the mod\'s key', GW, async ($, on) => {
+  const calls: any[] = [], contexts: string[][] = []
+  on('http.fetch', memoryFetch(calls, ['9 code']))
+  const store = stubSession(on, { ownFetch: true, contexts })
+  store.set('palgu-memory', { '/work': true })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: STATUS_JSON, stderr: '' } }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  await $.prompt.submit({ text: 'refactor the config loader to cache reads' })
+  const search = calls.find((c) => c.url.startsWith(SEARCH))
+  expect(search).toBeDefined()
+  expect(search.url).toContain('project=work')
+  expect(search.url).toContain('q=refactor%20the%20config%20loader')
+  expect(search.init.headers.authorization).toBe('Bearer test-key')
+  const block = contexts[contexts.length - 1].join('\n')
+  expect(block).toContain('Palgu memory for work')
+  expect(block).toContain('[intent] ADR-001')
+  expect(block).toContain('(hooks/lib/loader.js)')
+})
+
+test('Palgu memory on: a routed child gets the same recall in its brief', GW, async ($, on) => {
+  const calls: any[] = [], runs: any[] = []
+  on('http.fetch', memoryFetch(calls, ['2 code']))
+  const store = stubSession(on, { ownFetch: true })
+  store.set('palgu-memory', { '/work': true })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: e.argv[0] === 'palgu' ? STATUS_JSON : childJson('child answer'), stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  await $.prompt.submit({ text: 'add a docstring to the config loader' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  const child = runs.find((r) => r.argv[0] !== 'palgu')
+  expect(child).toBeDefined()
+  expect(child.init.stdin).toContain('Palgu memory for work')
+  expect(child.init.stdin.indexOf('Palgu memory for work') < child.init.stdin.indexOf('Task:')).toBe(true)
+})
+
+test('Palgu memory off (the default): nothing is searched and no context is added', GW, async ($, on) => {
+  const calls: any[] = [], contexts: string[][] = []
+  on('http.fetch', memoryFetch(calls, ['9 code']))
+  stubSession(on, { ownFetch: true, contexts })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: STATUS_JSON, stderr: '' } }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  await $.prompt.submit({ text: 'refactor the config loader to cache reads' })
+  expect(calls.some((c) => c.url.startsWith(SEARCH))).toBe(false)
+  expect(contexts[contexts.length - 1]).toEqual([])
+})
+
+test('Palgu memory: a failed search never holds up or fails the prompt', GW, async ($, on) => {
+  const contexts: string[][] = []
+  on('http.fetch', ($, e) => (e.url.startsWith(SEARCH) ? { deny: 'network down' } : { value: { ok: false, status: 404, headers: {}, text: '' } }))
+  const store = stubSession(on, { ownFetch: true, contexts })
+  store.set('palgu-memory', { '/work': true })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: STATUS_JSON, stderr: '' } }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  const out = await $.prompt.submit({ text: 'refactor the config loader to cache reads' })
+  expect(out.text).toBe('refactor the config loader to cache reads')
+  expect(contexts[contexts.length - 1]).toEqual([])
+})
+
+test('Palgu memory: a prompt sent before the project name is read still waits for it and gets the recall', GW, async ($, on) => {
+  const calls: any[] = [], contexts: string[][] = []
+  on('http.fetch', memoryFetch(calls, ['9 code']))
+  const store = stubSession(on, { ownFetch: true, contexts })
+  store.set('palgu-memory', { '/work': true })
+  on('process.run', () => new Promise((r) => setTimeout(() => r({ value: { exitCode: 0, stdout: STATUS_JSON, stderr: '' } }), 30)))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.prompt.submit({ text: 'refactor the config loader to cache reads' })
+  expect(contexts[contexts.length - 1].join('\n')).toContain('Palgu memory for work')
 })
