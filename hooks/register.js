@@ -39,7 +39,7 @@ let live = null, modelsAsk = 0
 // sessionTag: a random id per session, so Palgu's heartbeat budget is never shared between sessions.
 let beats = 0, promptSeq = 0, cwd = '', sessionTag = newInstallId()
 // The Palgu memory project of this folder (from `palgu memory status`) and this prompt's recall.
-let memoryProject = '', recalled = ''
+let memoryProject = '', recalled = '', projectRead = null
 const PLUGIN_NAME = 'mixture-of-models'
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
@@ -409,13 +409,15 @@ function untimed() {
 }
 
 function palguRecall($, query) {
-  const url = 'https://api.palgu.ai/v1/cortex/search?limit=8&project=' + encodeURIComponent(memoryProject) + '&q=' + encodeURIComponent(query)
-  return $.http.fetch(url, { method: 'GET', headers: { authorization: 'Bearer ' + key } }).catch(() => FAILED)
+  return $.http.fetch('https://api.palgu.ai/v1/cortex/search?limit=8&project=' + encodeURIComponent(memoryProject) + '&q=' + encodeURIComponent(query), { method: 'GET', headers: { authorization: 'Bearer ' + key } }).catch(() => FAILED)
 }
 
 async function recall($, text) {
   const query = recallQuery(text)
-  if (!query || !memoryProject || !signedInToPalgu() || !(await memoryHere($))) return ''
+  if (!query || !signedInToPalgu() || !(await memoryHere($))) return ''
+  // The first prompt can come before session.start's `palgu memory status` answered: wait for it, at most 3 s.
+  if (!memoryProject && projectRead) await Promise.race([projectRead, $.clock.sleep(3000).then(undefined, untimed)])
+  if (!memoryProject) return ''
   // A clock that cannot sleep leaves the search untimed rather than dropping it.
   const res = await Promise.race([palguRecall($, query), $.clock.sleep(3000).then(() => FAILED, untimed)])
   return recallBlock(res, memoryProject)
@@ -521,7 +523,7 @@ export function register(on, opts) {
     cwd = e.cwd || (await $.session.cwd())
     refreshModels($)
     indexProject($).catch(() => undefined)
-    memoryNow($).catch(() => undefined)
+    projectRead = memoryNow($).catch(() => undefined)
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
     const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')

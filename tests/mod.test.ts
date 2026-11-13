@@ -1380,3 +1380,14 @@ test('Palgu memory: a failed search never holds up or fails the prompt', GW, asy
   expect(out.text).toBe('refactor the config loader to cache reads')
   expect(contexts[contexts.length - 1]).toEqual([])
 })
+
+test('Palgu memory: a prompt sent before the project name is read still waits for it and gets the recall', GW, async ($, on) => {
+  const calls: any[] = [], contexts: string[][] = []
+  on('http.fetch', memoryFetch(calls, ['9 code']))
+  const store = stubSession(on, { ownFetch: true, contexts })
+  store.set('palgu-memory', { '/work': true })
+  on('process.run', () => new Promise((r) => setTimeout(() => r({ value: { exitCode: 0, stdout: STATUS_JSON, stderr: '' } }), 30)))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.prompt.submit({ text: 'refactor the config loader to cache reads' })
+  expect(contexts[contexts.length - 1].join('\n')).toContain('Palgu memory for work')
+})
