@@ -21,6 +21,7 @@ import { failedRun, isNewer, lastLine, latestVersion, updateText } from './lib/u
 import { VERSION } from './lib/version.js'
 import { continuePrompt, heartbeatBody, heartbeatMode, localVerdict, palguVerdict, shouldCheck, turnUsedTools } from './lib/heartbeat.js'
 import { indexDue, memoryLine, memoryOn, memoryStatus, setMemory } from './lib/memory.js'
+import { recallBlock, recallQuery, withRecall } from './lib/recall.js'
 
 // Every capability call in this module is written `$.noun.method(...)`, and `$` is handed only,
 // whole, to this file's own top-level functions. Network hosts are fixed https:// URLs written at
@@ -37,6 +38,8 @@ let live = null, modelsAsk = 0
 // The heartbeat's continues for the person's current prompt, and that prompt's number.
 // sessionTag: a random id per session, so Palgu's heartbeat budget is never shared between sessions.
 let beats = 0, promptSeq = 0, cwd = '', sessionTag = newInstallId()
+// The Palgu memory project of this folder (from `palgu memory status`) and this prompt's recall.
+let memoryProject = '', recalled = ''
 const PLUGIN_NAME = 'mixture-of-models'
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
@@ -235,7 +238,7 @@ async function codexTurn($, brief) {
 // is what leaves the machine, to the routed model's gateway, and only on a routed turn.
 async function runChild($, prompt) {
   const started = Date.now()
-  const brief = buildBrief(await $.session.messages(), prompt, cfg.child.contextMessages)
+  const brief = withRecall(buildBrief(await $.session.messages(), prompt, cfg.child.contextMessages), recalled)
   const out = decision.runner === 'codex' ? await codexTurn($, brief) : await claudeTurn($, brief)
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
   const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.reason || '' }
@@ -394,7 +397,28 @@ async function memoryHere($) {
 async function memoryNow($) {
   if (!(await memoryHere($))) return { on: false }
   const r = await $.process.run(['palgu', 'memory', 'status', '.', '--json'], { cwd, timeoutMs: 30000 }).catch(() => null)
-  return { on: true, status: r ? memoryStatus(r) : null, now: Date.now(), missing: !r }
+  const status = r ? memoryStatus(r) : null
+  if (status && status.indexed) memoryProject = status.project
+  return { on: true, status, now: Date.now(), missing: !r }
+}
+
+// What Palgu memory holds for this prompt (recall.js), asked with the mod's key (`memory:read`),
+// at most 3 s so a slow Palgu never holds up a prompt. '' when memory is off here or has nothing.
+function untimed() {
+  return new Promise(() => undefined)
+}
+
+function palguRecall($, query) {
+  const url = 'https://api.palgu.ai/v1/cortex/search?limit=8&project=' + encodeURIComponent(memoryProject) + '&q=' + encodeURIComponent(query)
+  return $.http.fetch(url, { method: 'GET', headers: { authorization: 'Bearer ' + key } }).catch(() => FAILED)
+}
+
+async function recall($, text) {
+  const query = recallQuery(text)
+  if (!query || !memoryProject || !signedInToPalgu() || !(await memoryHere($))) return ''
+  // A clock that cannot sleep leaves the search untimed rather than dropping it.
+  const res = await Promise.race([palguRecall($, query), $.clock.sleep(3000).then(() => FAILED, untimed)])
+  return recallBlock(res, memoryProject)
 }
 
 // One background `palgu memory index .` per project at most every INDEX_EVERY_MS; palgu itself
@@ -406,6 +430,7 @@ async function indexProject($) {
   await $.store.set('palgu-memory-index', { ...last, [cwd]: Date.now() })
   const r = await $.process.run(['palgu', 'memory', 'index', '.'], { cwd, timeoutMs: 600000 }).catch(failedRun)
   if (r.exitCode !== 0) $.ui.log('Palgu memory: indexing ' + cwd + ' failed: ' + lastLine(r))
+  else if (!memoryProject) await memoryNow($)
 }
 
 async function memoryCommand($, word) {
@@ -496,6 +521,7 @@ export function register(on, opts) {
     cwd = e.cwd || (await $.session.cwd())
     refreshModels($)
     indexProject($).catch(() => undefined)
+    memoryNow($).catch(() => undefined)
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
     const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')
@@ -514,8 +540,10 @@ export function register(on, opts) {
     beats = 0
     promptSeq += 1
     lastPrompt = e.text
-    await decide($, e.text)
-    return next(e)
+    // Palgu memory goes to whichever model answers: beside the prompt for the main session, in the brief for a child.
+    const [, block] = await Promise.all([decide($, e.text), e.command || e.isMeta ? '' : recall($, e.text).catch(() => '')])
+    recalled = block
+    return next(block ? { ...e, context: [...(e.context || []), block] } : e)
   }).catch(async ($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
