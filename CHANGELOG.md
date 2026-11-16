@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.1] - 2026-11-16
+
+### Added
+- `INSTALL.md`: setup written for a coding agent to follow, for Claude Code, Codex, Cursor, OpenCode, Antigravity, Aider, Continue and Goose. Each step has the command, a check that it worked, and what to ask the user (sign-in approval, consent before Palgu memory uploads source), plus troubleshooting. The README opens with "point your agent at INSTALL.md", and its "Other coding agents" section lists the install command per agent, including `agy plugin install "$(npm root -g)/mixture-of-models-claude-mod/integrations/antigravity"`. AGENTS.md sends an agent asked to install, not to develop, to INSTALL.md.
+
 ## [0.30.0] - 2026-11-16
 
 ### Added

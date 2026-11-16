@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "mixture-of-models",
   "displayName": "Mixture of Models",
-  "version": "0.30.0",
+  "version": "0.30.1",
   "description": "Palgu memory recalled into each prompt, the heartbeat that continues a turn that stopped mid-task, and Palgu's models as tools (search memory, hand a subtask to a Palgu model).",
   "author": { "name": "Ali Naqi Shaheen", "url": "https://github.com/alinaqi" },
   "homepage": "https://github.com/alinaqi/mixture-of-models-claude-mod",

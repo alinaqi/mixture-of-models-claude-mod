@@ -7,6 +7,8 @@
 [mit-badge]: https://img.shields.io/badge/License-MIT-green.svg
 [log-badge]: https://img.shields.io/badge/changelog-keep%20a%20changelog-blue
 
+> **Setting this up with a coding agent?** Point it at [INSTALL.md](INSTALL.md): "Follow INSTALL.md in alinaqi/mixture-of-models-claude-mod to set up Mixture of Models for me." It has every command, a check for each step, and what to ask you. Works for Claude Code, Codex, Cursor, OpenCode, Antigravity, Aider, Continue and Goose.
+
 Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
 
 Routes can also name a **model family**: `claude/sonnet` runs that Claude member on your own Claude login, `kimi/auto` lets the score pick a Kimi member, and `codex` hands the turn to the Codex CLI (`codex exec`) on Palgu or on your ChatGPT login. See [Families](#families-pick-a-member-or-let-the-tier-pick) and [Codex](#codex-as-a-child).
@@ -231,9 +233,28 @@ The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause 
 The mod runs inside Claude Code. For other agents, the `mom` CLI and a thin adapter per tool bring the same pieces: Palgu picks the model per request, Palgu memory is recalled into each prompt, and a turn that stops mid-task is continued ([ADR 0005](docs/adr/0005-other-coding-agents.md)).
 
 ```bash
-npm install -g github:alinaqi/mixture-of-models-claude-mod   # installs `mom`
-mom login
+npm install -g github:alinaqi/mixture-of-models-claude-mod   # installs `mom` and every agent's plugin files
+mom login                                                     # sign in to Palgu in the browser
 ```
+
+Then, for your agent:
+
+```bash
+# Codex
+mom setup codex --write && codex plugin marketplace add alinaqi/mixture-of-models-claude-mod && codex plugin add mixture-of-models@mixture-of-models
+codex -p palgu
+
+# Cursor (in the project folder; then Developer: Reload Window)
+mom setup cursor --write
+
+# OpenCode
+mom setup opencode --write
+
+# Antigravity
+agy plugin install "$(npm root -g)/mixture-of-models-claude-mod/integrations/antigravity"
+```
+
+Optional, per project, uploads its source to Palgu: `mom memory on`. Every command, with checks and troubleshooting: [INSTALL.md](INSTALL.md).
 
 | Agent | Status | Guide |
 | :- | :- | :- |
