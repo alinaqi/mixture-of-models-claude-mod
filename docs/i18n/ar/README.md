@@ -219,11 +219,11 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 
 | السطح | دور في الجلسة الرئيسية | دور موجَّه |
 | :- | :- | :- |
-| الشريط فوق المطالبة | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | `… · running glm-5.3 in a child…` أثناء عمله |
+| الشريط فوق المطالبة | `mixture-of-models · auto · last: claude-opus-5 · critical 9/10`<br>`0: help  1: auto  2: glm  3: deepseek  …  9: claude  off` | `… · running glm-5.3 in a child…` أثناء عمله |
 | مؤشر الانتظار (spinner) | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | حوار السؤال | أسئلة Claude نفسه | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` مع Allow and continue / Deny |
 | الرد في سجل المحادثة | دون تغيير (أو موسوم `⇢ claude-opus-5 · main session` مع `ui.tags: "all"`) | سطر باهت `⇢ glm-5.3 · child on gateway` فوق الرد، يبقى في سجل التمرير (`· child on your Claude subscription` لعضو من Claude، و `· Codex child` لـ Codex) |
-| السطر تحت الإجابة | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| السطر تحت الإجابة | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | نفسه |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`، ثم إشعار منبثق `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | نفسه |
 | `/route stats` | لوحة، "Mixture of models"، بأربعة تبويبات على مفاتيح الاختصار 1-4: **models** (أشرطة لكل نموذج، وحصته من الأدوار، والعنوان "N of M turns off Claude" و، باللون الأخضر، ما وفّره التوجيه)، و **kinds** (كل نوع وأي النماذج تولّته)، و **scores** (مدرّج تكراري من 1 إلى 10 ملوّن حسب المستوى، مع تعليم نقاط القطع)، و **recent** (آخر القرارات مع الدرجة والنوع والنموذج ووقت العملية الفرعية). ‏Esc يغلقها. | نفسه |

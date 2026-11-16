@@ -213,11 +213,11 @@ Claude und das Gateway sind beide jederzeit sichtbar:
 
 | Ort | Turn der Hauptsitzung | Gerouteter Turn |
 | :- | :- | :- |
-| Leiste über dem Prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | `… · running glm-5.3 in a child…`, solange es läuft |
+| Leiste über dem Prompt | `mixture-of-models · auto · last: claude-opus-5 · critical 9/10`<br>`0: help  1: auto  2: glm  3: deepseek  …  9: claude  off` | `… · running glm-5.3 in a child…`, solange es läuft |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Fragedialog | Claudes eigene Fragen | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` mit Allow and continue / Deny |
 | Antwort im Transkript | unverändert (oder markiert mit `⇢ claude-opus-5 · main session` bei `ui.tags: "all"`) | eine gedimmte Zeile `⇢ glm-5.3 · child on gateway` über der Antwort, die im Scrollback erhalten bleibt (`· child on your Claude subscription` für ein Claude-Mitglied, `· Codex child` für Codex) |
-| Zeile unter der Antwort | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| Zeile unter der Antwort | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | dasselbe |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, dann ein Toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | dasselbe |
 | `/route stats` | Ein Bereich, "Mixture of models", mit vier Tabs auf den Tasten 1-4: **models** (Balken pro Modell, Anteil der Turns, die Kopfzeile "N of M turns off Claude" und in Grün, was das Routing gespart hat), **kinds** (jede Art und welche Modelle sie übernommen haben), **scores** (ein Histogramm 1-10, nach Stufe eingefärbt, Grenzen markiert), **recent** (die letzten Entscheidungen mit Bewertung, Art, Modell und Child-Zeit). Esc schließt ihn. | dasselbe |

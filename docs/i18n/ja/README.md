@@ -213,11 +213,11 @@ Claude とゲートウェイの両方が、常に見える状態です:
 
 | 表示箇所 | メインセッションのターン | ルーティングされたターン |
 | :- | :- | :- |
-| プロンプトの上のバンド | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | 実行中は `… · running glm-5.3 in a child…` |
+| プロンプトの上のバンド | `mixture-of-models · auto · last: claude-opus-5 · critical 9/10`<br>`0: help  1: auto  2: glm  3: deepseek  …  9: claude  off` | 実行中は `… · running glm-5.3 in a child…` |
 | スピナー | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | 質問ダイアログ | Claude 自身の質問 | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` と、Allow and continue / Deny |
 | トランスクリプト内の返信 | 変化なし(`ui.tags: "all"` では `⇢ claude-opus-5 · main session` のタグ付き) | 返信の上に薄い `⇢ glm-5.3 · child on gateway` の行が付き、スクロールバックに残ります(Claude のメンバーなら `· child on your Claude subscription`、Codex なら `· Codex child`) |
-| 回答の下の行 | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| 回答の下の行 | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | 同じ |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`、続いてトースト `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 同じ |
 | `/route stats` | 「Mixture of models」というペインで、ホットキー 1-4 の 4 つのタブがあります: **models**(モデルごとのバー、ターンの割合、見出しの "N of M turns off Claude"(M ターン中 N ターンが Claude 以外)、そして緑色でルーティングによる節約額)、**kinds**(各種別と、それをどのモデルが受け持ったか)、**scores**(ティアで色分けされた 1-10 のヒストグラムと区切りの表示)、**recent**(スコア、種別、モデル、子プロセスの時間を含む直近の判定)。Esc で閉じます。 | 同じ |

@@ -33,8 +33,9 @@ test('bandText describes each state', async () => {
   expect(bandText({ ...base, pin: { mode: 'off' } })).toBe('mixture-of-models · off · everything on claude-opus-5')
   expect(bandText({ ...base, pin: { mode: 'model', model: 'kimi-k3.1-pro' }, decision: { label: 'pinned', model: 'kimi-k3.1-pro', source: 'pin' } })).toBe('mixture-of-models · pinned kimi-k3.1-pro')
   expect(bandText({ ...base, pin: { mode: 'label', label: 'coding' }, decision: { label: 'coding', model: 'glm-5.3', source: 'pin' } })).toBe('mixture-of-models · pinned coding → glm-5.3')
-  expect(bandText(base)).toBe('mixture-of-models · auto · last: glm-5.3 (coding via ollama)')
-  expect(bandText({ ...base, decision: { ...base.decision, score: 5, kind: 'code' } })).toBe('mixture-of-models · auto · last: glm-5.3 (coding 5/10 code via ollama)')
+  expect(bandText(base)).toBe('mixture-of-models · auto · last: glm-5.3 · coding')
+  expect(bandText({ ...base, decision: { ...base.decision, score: 5, kind: 'code' } })).toBe('mixture-of-models · auto · last: glm-5.3 · coding 5/10 code')
+  expect(bandText({ ...base, decision: { label: 'main', model: SESSION, source: 'session command' } })).toBe('mixture-of-models · auto · last: claude-opus-5 · main session (session command)')
   expect(bandText({ ...base, decision: { label: 'critical', model: '', source: 'default' } })).toBe('mixture-of-models · auto · no prompt yet')
   expect(bandText({ ...base, isWorking: true })).toBe('mixture-of-models · running glm-5.3 in a child…')
   expect(bandText({ ...base, isWorking: true, decision: { label: 'critical', model: SESSION, source: 'rule' } })).toBe('mixture-of-models · running claude-opus-5 in the main session…')
@@ -44,22 +45,21 @@ test('bandTree draws the text, the buttons with the active one bright, and keeps
   const pressed = []
   const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, theirs: { type: 'engine', ref: 1 } }, (arg) => pressed.push(arg))
   expect(tree.type).toBe('Box')
-  const row = tree.children[0]
-  expect(row.children[0]).toEqual({ type: 'Text', dimColor: true, children: ['mixture-of-models · auto · last: glm-5.3 (coding via ollama)  '] })
-  const buttons = row.children.slice(1)
+  expect(tree.children[0]).toEqual({ type: 'Text', dimColor: true, children: ['mixture-of-models · auto · last: glm-5.3 · coding'] })
+  const buttons = tree.children[1].children
   expect(buttons.map((b) => b.label)).toEqual(['help', 'auto', 'glm', 'deepseek', 'gemini', 'minimax', 'gpt', 'kimi', 'mercury', 'claude', 'off'])
   expect(buttons.map((b) => b.dimColor)).toEqual([true, false, true, true, true, true, true, true, true, true, true])
   expect(buttons.every((b) => b.plain === true)).toBe(true)
   buttons[7].onPress()
   expect(pressed).toEqual(['kimi'])
-  expect(tree.children[1]).toEqual({ type: 'engine', ref: 1 })
+  expect(tree.children[2]).toEqual({ type: 'engine', ref: 1 })
 })
 
 test('bandTree marks the pinned provider active and omits a missing "theirs"', async () => {
   const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin: { mode: 'model', model: 'kimi-k3.1-pro' }, theirs: undefined }, () => {})
-  const buttons = tree.children[0].children.slice(1)
+  const buttons = tree.children[1].children
   expect(buttons.map((b) => b.dimColor)).toEqual([true, true, true, true, true, true, true, false, true, true, true])
-  expect(tree.children.length).toBe(1)
+  expect(tree.children.length).toBe(2)
 })
 
 test('tagText names the child model or the main session', async () => {
@@ -73,9 +73,9 @@ test('tagTree puts a dim tag above what Claude Code drew', async () => {
 })
 
 test('reportText is the /route answer: state, mode and the current decision', async () => {
-  expect(reportText(base)).toBe('mixture-of-models live · mode auto · current route: glm-5.3 · coding via ollama · main session')
-  expect(reportText({ ...base, ready: false, pin: { mode: 'off' } })).toBe('mixture-of-models observe-only (no gateway key for the child) · mode off · current route: glm-5.3 · coding via ollama · main session')
-  expect(reportText({ ...base, disabled: true, pin: { mode: 'model', model: 'kimi-k3.1-pro' } })).toBe('mixture-of-models disabled (child session) · mode model kimi-k3.1-pro · current route: glm-5.3 · coding via ollama · main session')
+  expect(reportText(base)).toBe('mixture-of-models live · mode auto · current route: glm-5.3 · main session · coding via ollama')
+  expect(reportText({ ...base, ready: false, pin: { mode: 'off' } })).toBe('mixture-of-models observe-only (no gateway key for the child) · mode off · current route: glm-5.3 · main session · coding via ollama')
+  expect(reportText({ ...base, disabled: true, pin: { mode: 'model', model: 'kimi-k3.1-pro' } })).toBe('mixture-of-models disabled (child session) · mode model kimi-k3.1-pro · current route: glm-5.3 · main session · coding via ollama')
 })
 
 test('tagText says where a child ran: gateway, Claude subscription or Codex', async () => {
@@ -94,7 +94,7 @@ test('the band names a pinned family member, and a pinned member lights its fami
   const decision = { label: 'pinned', model: 'claude-sonnet-5-5', source: 'pin', family: 'claude', member: 'sonnet' }
   expect(bandText({ ...base, pin, decision })).toBe('mixture-of-models · pinned claude/sonnet → claude-sonnet-5-5')
   const tree = bandTree(el, { ...base, routes: DEFAULT_ROUTES, pin, decision }, () => {})
-  const lit = tree.children[0].children.slice(1).filter((b) => !b.dimColor).map((b) => b.label)
+  const lit = tree.children[1].children.filter((b) => !b.dimColor).map((b) => b.label)
   expect(lit).toEqual(['claude'])
 })
 
@@ -109,7 +109,7 @@ test('bandButtons on OpenRouter shows its families, named by family not by vendo
 test('bandTree takes the catalogue from the view', async () => {
   const catalogue = ['glm/5.3']
   const tree = bandTree(el, { ...base, routes: { simple: 'glm/5.3', critical: 'claude', kinds: {} }, catalogue }, () => {})
-  expect(tree.children[0].children.slice(1).map((b) => b.label)).toEqual(['help', 'auto', 'glm', 'claude', 'off'])
+  expect(tree.children[1].children.map((b) => b.label)).toEqual(['help', 'auto', 'glm', 'claude', 'off'])
 })
 
 test('the band and /route name a strategy other than the default', async () => {

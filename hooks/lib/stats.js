@@ -8,9 +8,12 @@ export function bumpStats(stats, day, model) {
 }
 
 export function statsLine(stats, day) {
-  const today = stats[day]
-  if (!today) return 'today: no routed turns yet'
-  return 'today: ' + Object.entries(today).map(([m, n]) => m + ' ×' + n).join(', ')
+  const counts = Object.entries(stats[day] || {})
+  const total = counts.reduce((sum, [, n]) => sum + n, 0)
+  if (!total) return 'today: no turns yet'
+  const off = counts.filter(([m]) => !m.startsWith('claude')).reduce((sum, [, n]) => sum + n, 0)
+  const share = off ? ' (' + Math.round((off / total) * 100) + '%)' : ''
+  return 'today: ' + total + (total === 1 ? ' turn, ' : ' turns, ') + off + ' off Claude' + share
 }
 
 export function appendLog(log, entry, cap) {

@@ -213,11 +213,11 @@ Claude 和网关始终都是可见的：
 
 | 位置 | 主会话轮次 | 被路由的轮次 |
 | :- | :- | :- |
-| 提示词上方的状态栏 | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | 运行期间显示 `… · running glm-5.3 in a child…` |
+| 提示词上方的状态栏 | `mixture-of-models · auto · last: claude-opus-5 · critical 9/10`<br>`0: help  1: auto  2: glm  3: deepseek  …  9: claude  off` | 运行期间显示 `… · running glm-5.3 in a child…` |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | 提问对话框 | Claude 自己的问题 | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)`，带 Allow and continue / Deny |
 | 对话记录中的回复 | 不变（在 `ui.tags: "all"` 下标记为 `⇢ claude-opus-5 · main session`） | 回复上方一行暗色的 `⇢ glm-5.3 · child on gateway`，保留在滚动记录中（Claude 成员为 `· child on your Claude subscription`，Codex 为 `· Codex child`） |
-| 回答下方的一行 | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| 回答下方的一行 | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | 相同 |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`，然后一条 toast：`Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 相同 |
 | `/route stats` | 一个名为 "Mixture of models" 的面板，有四个标签页，用热键 1-4 切换：**models**（每个模型的条形图、轮次占比、标题 "N of M turns off Claude"，以及以绿色显示的路由节省额）、**kinds**（每种类型以及处理它的模型）、**scores**（按层级着色的 1-10 直方图，标出分界线）、**recent**（最近的决策，含分数、类型、模型和子进程耗时）。按 Esc 关闭。 | 相同 |
