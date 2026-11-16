@@ -1,8 +1,8 @@
 // mom's effects: its files, the Palgu key, calls to Palgu, and the `palgu` CLI (ADR 0005).
 // Everything decide.js needs from the outside world comes from makeIo.
-import { mkdirSync, readFileSync, renameSync, writeFileSync, rmSync } from 'node:fs'
+import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { execFile, spawn } from 'node:child_process'
 import { isPalguKey } from '../../hooks/lib/palgu.js'
 import { memoryStatus } from '../../hooks/lib/memory.js'
@@ -35,6 +35,38 @@ export function removeFile(name) {
 export function loadKey() {
   const k = process.env.PALGU_API_KEY || (readJson('credentials.json', {}) || {}).key || ''
   return isPalguKey(k) ? k : ''
+}
+
+// Where each tool keeps the transcripts its hooks may point at. A transcript path comes from hook
+// input, so mom reads only a regular .jsonl file inside that folder (after resolving links).
+const TRANSCRIPT_ROOTS = { antigravity: ['.gemini', 'antigravity-cli'] }
+
+function transcriptFile(tool, path) {
+  const parts = TRANSCRIPT_ROOTS[tool]
+  if (!parts || !String(path).endsWith('.jsonl')) return ''
+  try {
+    const root = realpathSync(join(process.env.HOME || homedir(), ...parts)) + sep
+    const real = realpathSync(path)
+    return real.startsWith(root) && statSync(real).isFile() ? real : ''
+  } catch {
+    return ''
+  }
+}
+
+// The last `bytes` of a tool's transcript (the answer is near the end), or null when it may not
+// or cannot be read. Only that much is read, never the whole file.
+export function readTranscript(tool, path, bytes = 262144) {
+  const file = transcriptFile(tool, path)
+  if (!file) return null
+  const fd = openSync(file, 'r')
+  try {
+    const size = fstatSync(fd).size
+    const buf = Buffer.alloc(Math.min(size, bytes))
+    readSync(fd, buf, 0, buf.length, size - buf.length)
+    return buf.toString('utf8')
+  } finally {
+    closeSync(fd)
+  }
 }
 
 export async function call(path, init, ms) {

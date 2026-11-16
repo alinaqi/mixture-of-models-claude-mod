@@ -4,7 +4,8 @@
 import { parseEvent, render } from './lib/events.js'
 import { onAnswer, onPrompt, onStart, onStop } from './lib/decide.js'
 import { step } from './lib/session.js'
-import { loadKey, makeIo, stateEnv } from './io.js'
+import { lastAnswer } from './lib/transcript.js'
+import { loadKey, makeIo, readTranscript, stateEnv } from './io.js'
 
 const HANDLERS = { start: onStart, prompt: onPrompt, answer: onAnswer, stop: onStop }
 
@@ -14,10 +15,18 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-export async function runHook(tool) {
+// `event`: the event's name, for a tool whose hook input does not carry one (Antigravity).
+export async function runHook(tool, event) {
   try {
-    const ev = parseEvent(tool, await readStdin())
+    let ev = parseEvent(tool, await readStdin(), event)
     if (!ev) return
+    // A stop without the answer but with a transcript (Antigravity): the answer is its last
+    // response. A transcript mom may not or cannot read means nothing to judge: no continue.
+    if (ev.answer === null && ev.transcript) {
+      const text = readTranscript(tool, ev.transcript)
+      if (text === null) return
+      ev = { ...ev, answer: lastAnswer(text) }
+    }
     const result = await step(HANDLERS[ev.kind], ev, stateEnv(makeIo(tool, loadKey())))
     const out = render(tool, ev.kind, result)
     if (out) process.stdout.write(out)

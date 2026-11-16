@@ -15,7 +15,7 @@ const HELP = `mom — Mixture of Models for Codex, Cursor, OpenCode and other co
   mom setup cursor [--write]  this project's .cursor/hooks.json and .cursor/mcp.json
   mom setup opencode [--write]    Palgu provider and the plugin in opencode.json (backed up first)
   mom token                 print the Palgu key, for a tool's token command
-  mom hook <tool>           run as a tool's hook (stdin: the tool's hook JSON)
+  mom hook <tool> [event]   run as a tool's hook (stdin: the tool's hook JSON)
   mom mcp [tool]            MCP server on stdio: Palgu memory search, delegation, model list
 `
 
@@ -31,7 +31,7 @@ const COMMANDS = {
 
 async function main(argv) {
   const [name, ...rest] = argv
-  if (name === 'hook') return runHook(rest[0])
+  if (name === 'hook') return runHook(rest[0], rest[1])
   if (name === 'mcp') return runMcp(rest[0])
   if (!name || name === 'help' || name === '--help') return process.stdout.write(HELP)
   if (!COMMANDS[name]) {
