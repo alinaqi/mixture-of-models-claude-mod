@@ -226,6 +226,8 @@ Every routed turn is priced twice: at your session's Claude model (what the same
 - `/route status`: `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`, a running total across sessions.
 - `/route stats`: the same total, in green, on the models tab.
 
+In our own use, coding agents running around the clock used up a Claude Max 20x subscription's weekly limit in about three days on Claude alone; with Mixture of Models the same subscription lasted the full seven days. See [GUIDELINES.md](GUIDELINES.md#rough-savings-subscription-only-vs-mixture-of-models).
+
 It is an estimate, and it says so. Claude prices are the API list prices (Opus 5.5 $4 / $20 per million input / output tokens, Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50, Fable 5.1 $10 / $50; cache reads and 5-minute and 1-hour cache writes at their own rates), so on a claude.ai subscription it is the API-equivalent saving, not money back. It assumes the routed turn would have used the same number of tokens on Claude. A routed turn the mod cannot price (a gateway with no `router.prices` entry for that model, or a Codex child) claims no saving; `/route status` counts it as unpriced.
 
 The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto, `0` for help: a pane that says what the mod does, where it stands (mode, gateway, savings), what every button and command does, and how to connect Palgu, OpenRouter or LiteLLM. `/route help` opens it too. Turn the band off with `"ui": { "band": false }`.

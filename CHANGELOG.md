@@ -9,6 +9,9 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - `GUIDELINES.md` no longer presents pinning as part of normal use. Rule 1 is now "Let it decide. Don't pick models": the router picks, and a wrong route is fixed in the routing (strategy, thresholds, `routes.kinds`), not with a pin. The model-choice table is gone; a short "Overriding the router (rarely needed)" section lists the only reasons to pin (trying a model, comparing models, contract or data rules, debugging), how to pin in each agent and how to undo it.
 
+### Added
+- Rough savings, subscription only vs Mixture of Models, in `GUIDELINES.md` and the README: in our own around-the-clock agent use, a Claude Max 20x weekly limit ran out in about 3 days on Claude alone and lasted the full 7 days with Mixture of Models (more than half the Claude load routed away).
+
 ## [0.31.1] - 2026-11-16
 
 ### Added

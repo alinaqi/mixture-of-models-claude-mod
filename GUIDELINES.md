@@ -10,6 +10,19 @@ Mixture of Models does three things, and each agent gets as many of them as its 
 | **Palgu memory** | The project's recorded intent, docs and code symbols come back to the model when they matter | Recalled into each prompt: Claude Code, OpenCode, Codex, Antigravity. Searched on demand (`palgu_memory_search`): Cursor, Copilot, Antigravity |
 | **Heartbeat** | A turn that stops mid-task ("Let me check the tests.") is continued, at most 3 times per prompt | Every agent with hooks (not Aider, Continue, Goose) |
 
+## Rough savings: subscription only vs Mixture of Models
+
+From our own use, with coding agents running around the clock on a Claude Max 20x subscription:
+
+| | Weekly Claude limit lasts | Claude usage per day |
+| :- | :- | :- |
+| Subscription only | about 3 days, then the agents wait for the reset | 100% |
+| With Mixture of Models | the full 7 days | about 43% or less (3/7), since the same work fit in the week |
+
+So routing took **more than half** of the Claude load off the subscription: the same work runs all week instead of stopping on day 3, with no bigger plan. The routed turns are billed by Palgu at cheap-model rates and count against your Palgu budget (`mom status`, `/palgu status`).
+
+These numbers are rough. They depend on your work: lots of lookups, tests, docs and small edits route most of the load away, while security, architecture and production work stays on Claude by design. To see your own numbers, Claude Code prices every turn: `/route status` shows the running total (for example `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`) and `/route stats` breaks it down by model and kind. On a subscription that figure is what the same tokens would cost at API prices, not money back; the practical gain is the limit lasting longer.
+
 ## The ten rules that apply everywhere
 
 1. **Let it decide. Don't pick models.** Choosing the model is the system's job: Palgu (or the mod's classifier in Claude Code) scores every request and sends it to the cheapest model that can do it, keeps critical work on your strongest model, and falls back when a provider fails. Leave everything on `auto`. If a route looks wrong, fix the routing (a strategy or a threshold), not the model. Pinning exists only for the rare cases under [Overriding the router](#overriding-the-router-rarely-needed).
