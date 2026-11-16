@@ -96,8 +96,25 @@ export function wantsEdits(prompt) {
   return EDIT_ASK.test(text) && !NO_EDITS.test(text) && !SHOW_LEAD.test(text) && !ASKS_HOW.test(text)
 }
 
-// The continue prompt for a verdict, or '' for none.
-export function continuePrompt(verdict, prompt) {
+// An answer that ends waiting on work running elsewhere (a subagent, a background job, a merge on
+// GitHub): it announces what comes next, so it reads as a stop, but continuing it can only make the
+// model wait again. Only the end counts: the last 300 characters.
+const SUBJECT = '(?:it|they|that one|the (?:\\w+ ){0,2}?(?:agent|agents|translator|translators|job|jobs|build|run|suite|merge|task|tasks|check|checks|review|reviewer|workflow|ci|pipeline|deploy))'
+const WAITING = new RegExp([
+  '\\b(?:still )?waiting (?:for|on|until)\\b',
+  '\\bstill (?:running|working|in progress|pending)\\b',
+  '\\b(?:running|working) in the background\\b',
+  '\\b(?:once|when|as soon as|after) ' + SUBJECT + ' (?:reports?(?: back)?|finish(?:es)?|completes?|(?:is|are) done|returns?|lands?|comes? back|arrives?)\\b',
+  '\\b(?:i\'?ll|you\'?ll) be notified\\b',
+].join('|'), 'i')
+
+export function waitingOnBackground(answer) {
+  return WAITING.test(String(answer || '').trim().slice(-300))
+}
+
+// The continue prompt for a verdict, or '' for none. `answer`: the answer it judged, when known.
+export function continuePrompt(verdict, prompt, answer) {
+  if (answer && waitingOnBackground(answer)) return ''
   if (verdict.assessment === 'narration' && !wantsEdits(prompt)) return ''
   return verdict.reason || ''
 }

@@ -1,6 +1,6 @@
 {
   "name": "mixture-of-models",
-  "version": "0.33.0",
+  "version": "0.33.1",
   "description": "Palgu memory and the heartbeat that continues a turn that stopped mid-task, plus Palgu's models as tools (search memory, hand a subtask to a Palgu model).",
   "author": { "name": "Ali Naqi Shaheen", "url": "https://github.com/alinaqi" },
   "homepage": "https://github.com/alinaqi/mixture-of-models-claude-mod",
