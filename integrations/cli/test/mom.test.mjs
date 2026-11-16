@@ -67,6 +67,34 @@ test('mom setup codex prints the profile; --write writes ~/.codex/palgu.config.t
   assert.equal(readFileSync(path + '.bak', 'utf8'), 'mine = true\n')
 })
 
+test('mom setup opencode prints the config; --write merges into opencode.json and keeps a backup', () => {
+  const printed = JSON.parse(mom(['setup', 'opencode']).stdout)
+  assert.equal(printed.provider.palgu.options.baseURL, 'https://api.palgu.ai/anthropic/v1')
+  assert.match(printed.plugin[0], /integrations\/opencode\/plugin\.js$/)
+  const home = mkdtempSync(join(tmpdir(), 'mom-'))
+  const path = join(home, 'opencode.json')
+  const before = JSON.stringify({ theme: 'tokyo', provider: { other: { npm: 'x' } } })
+  writeFileSync(path, before)
+  const r = mom(['setup', 'opencode', '--write'], { home, env: { OPENCODE_CONFIG: path } })
+  assert.equal(r.status, 0)
+  const after = JSON.parse(readFileSync(path, 'utf8'))
+  assert.equal(after.theme, 'tokyo')
+  assert.deepEqual(Object.keys(after.provider), ['other', 'palgu'])
+  assert.equal(readFileSync(path + '.bak', 'utf8'), before)
+})
+
+test('mom setup opencode --write refuses a file it cannot read as JSON, and leaves it alone', () => {
+  const home = mkdtempSync(join(tmpdir(), 'mom-'))
+  const path = join(home, 'opencode.json')
+  writeFileSync(path, '{ // comments\n}')
+  const r = mom(['setup', 'opencode', '--write'], { home, env: { OPENCODE_CONFIG: path } })
+  assert.equal(r.status, 1)
+  assert.equal(readFileSync(path, 'utf8'), '{ // comments\n}')
+  const fresh = join(home, 'cfg', 'opencode', 'opencode.json')
+  assert.equal(mom(['setup', 'opencode', '--write'], { home, env: { XDG_CONFIG_HOME: join(home, 'cfg') } }).status, 0)
+  assert.equal(JSON.parse(readFileSync(fresh, 'utf8')).model, 'palgu/auto')
+})
+
 test('mom with no command or an unknown one prints help and fails', () => {
   assert.match(mom([]).stdout, /mom login/)
   assert.equal(mom(['frobnicate']).status, 2)

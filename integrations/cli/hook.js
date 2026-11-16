@@ -3,8 +3,8 @@
 // exits 0, so a broken mom never blocks a prompt or a stop.
 import { parseEvent, render } from './lib/events.js'
 import { onAnswer, onPrompt, onStart, onStop } from './lib/decide.js'
-import { mergeState, prune } from './lib/session.js'
-import { loadKey, makeIo, readJson, writeJson } from './io.js'
+import { step } from './lib/session.js'
+import { loadKey, makeIo, stateEnv } from './io.js'
 
 const HANDLERS = { start: onStart, prompt: onPrompt, answer: onAnswer, stop: onStop }
 
@@ -18,9 +18,7 @@ export async function runHook(tool) {
   try {
     const ev = parseEvent(tool, await readStdin())
     if (!ev) return
-    const io = makeIo(tool, loadKey())
-    const result = await HANDLERS[ev.kind](ev, readJson('state.json', {}) || {}, io)
-    writeJson('state.json', prune(mergeState(readJson('state.json', {}), result.state, ev), io.now))
+    const result = await step(HANDLERS[ev.kind], ev, stateEnv(makeIo(tool, loadKey())))
     const out = render(tool, ev.kind, result)
     if (out) process.stdout.write(out)
   } catch (err) {

@@ -10,6 +10,7 @@ import { codexProfile } from './lib/setup.js'
 import { setupCursor } from './setup-cursor.js'
 import { settingsOf } from './lib/session.js'
 import { call, indexInBackground, loadKey, palguStatus, readJson, removeFile, writeJson } from './io.js'
+import { setupOpencode } from './opencode.js'
 
 const fail = (text, code = 1) => ({ code, err: text + '\n' })
 const done = (text) => ({ code: 0, out: text + '\n' })
@@ -92,7 +93,8 @@ function writeCodexProfile() {
 
 export function setup(tool, write) {
   if (tool === 'cursor') return setupCursor(process.cwd(), write)
-  if (tool !== 'codex') return fail('mom setup codex|cursor [--write]', 2)
+  if (tool === 'opencode') return setupOpencode(write)
+  if (tool !== 'codex') return fail('mom setup codex|cursor|opencode [--write]', 2)
   if (!write) return done(codexProfile(VERSION).trim())
   return done('Wrote ' + writeCodexProfile() + '. Start Codex on Palgu with: codex -p palgu')
 }
