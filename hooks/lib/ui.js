@@ -38,7 +38,18 @@ function strategyNote(name, before, after) {
   return name && name !== 'complexity' ? before + name + after : ''
 }
 
+// A newer release: how to get it, then how to load it.
+function updateNote(u) {
+  if (!u || !u.latest) return ''
+  return ' · ' + u.latest + (u.installed ? ' installed: /reload-plugins' : ' available: /route update')
+}
+
 export function bandText(v) {
+  const text = stateText(v)
+  return v.isWorking ? text : text + updateNote(v.update)
+}
+
+function stateText(v) {
   if (v.disabled) return NAME + ' · inactive inside a child session'
   if (!v.ready) return NAME + ' · observe-only: no gateway key for the child'
   if (v.pin.mode === 'off') return NAME + ' · off · everything on ' + v.sessionModel

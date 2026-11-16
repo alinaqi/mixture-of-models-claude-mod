@@ -66,7 +66,7 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 > **خطافاتك لا تعمل داخل العملية الفرعية للبوابة.** تشغّل العملية الفرعية `claude -p --bare`، و `--bare` يتخطى كل خطاف (hook) من إعداداتك وإضافاتك، لذا فإن الخطاف الذي يحجب `.env` لا يحميه هناك، وما تقرؤه العملية الفرعية يذهب إلى نموذج البوابة. لا يعتمد المود على الخطافات لهذا: كل عملية Claude فرعية تحصل على قواعد منع الأذونات (deny rules) في Claude Code، التي يحتفظ بها `--bare`، لملفات `.env` و `.env.*` و `*.pem` و `*.key` و `id_rsa*` و `id_ed25519*` ومجلدات `secrets/` (قواعد Read تغطي أيضًا Grep و Glob). أضف قواعدك الخاصة عبر `router.child.deny`، مثلًا `["Read(**/credentials.json)"]`. الأوامر غير المسموح للعملية الفرعية بتشغيلها تصلك مع ذلك كحوار Allow / Deny. العملية الفرعية لـ Codex للقراءة فقط لكنها غير مشمولة بهذه القواعد: أبقِ الأسرار خارج أي مشروع توجّهه إلى Codex.
 
-**التحديثات.** شغّل `/route update`: يتحقق من وجود إصدار أحدث ويثبّته. أسواق الطرف الثالث لا تتحدث تلقائيًا افتراضيًا. فعّل ذلك مرة واحدة في `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update، أو حدّث يدويًا عبر `claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`. يسري الإصدار الجديد عند إعادة تشغيل Claude Code.
+**التحديثات.** عند بدء الجلسة يتحقق المود من GitHub من وجود إصدار أحدث (مرة كل 12 ساعة على الأكثر)، وإن وُجد، ينبّهك إليه مرة واحدة في إشعار toast وعلى الشريط: `0.33.0 available: /route update`. شغّل `/route update`: يثبّت الإصدار الجديد، ثم يعرض الشريط `0.33.0 installed: /reload-plugins`. أسواق الطرف الثالث لا تتحدث تلقائيًا افتراضيًا. فعّل ذلك مرة واحدة في `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update، أو حدّث يدويًا عبر `claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`. يسري الإصدار الجديد بعد `/reload-plugins` (أو إعادة التشغيل).
 
 **أسرع بداية، على Palgu:** شغّل `claude` ونفّذ `/palgu login`. يعرض رابطًا ورمزًا؛ وافق عليه في المتصفح (أنشئ حسابًا هناك إن كنت جديدًا) فيحفظ المود مفتاح Palgu الخاص به ويبدأ التوجيه من تلك اللحظة، بلا نسخ مفاتيح. يقول `/palgu status` من المسجّل دخوله، وعلى أي خطة وكم أُنفق من الميزانية، ويفتح `/palgu upgrade` الخطط والفوترة.
 
@@ -368,7 +368,7 @@ copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
 ### خوادم الشبكة التي تتصل بها هذه الإضافة
 
 - ‏`https://api.palgu.ai` — ‏Palgu، ثابت في الشيفرة: `/auth/device/code` و `/auth/token` عند `/palgu login`، و `/me` و `/me/org-settings` عند `/palgu status`، و `/v1/models/health` عند بدء الجلسة، وبعد `/palgu login` وعند `/route models` (مفتاح البوابة بصفة `x-api-key`؛ ولا يُرسل شيء آخر)، و `/v1/pricing/quote` بعد دور موجَّه حين تكون بوابتك Palgu ولا يوجد في `router.prices` مدخل للنموذج، و `/anthropic/heartbeat` حين تنهي الجلسة الرئيسية دورًا (النبض، أدناه)، و `/v1/cortex/search` عند كل مطالبة منك في مشروع شغّلت فيه `/palgu memory on` (استدعاء ذاكرة Palgu، أدناه).
-- ‏`https://raw.githubusercontent.com` — فقط عند `/route update`: طلب GET لـ `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` لقراءة الإصدار المنشور. لا يُرسل شيء.
+- ‏`https://raw.githubusercontent.com` — عند بدء الجلسة (مرة كل 12 ساعة على الأكثر، في الخلفية) وعند `/route update`: طلب GET لـ `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` لقراءة الإصدار المنشور. لا يُرسل شيء.
 - ‏`http://localhost:11434` — ‏Ollama محلي (`/api/chat`) يمنح كل مطالبة درجة. يبقى على جهازك؛ ويُتخطى حين لا يجيب شيء هناك.
 - ‏Anthropic، عبر `$.model.classify` الخاص بـ Claude Code ضمن خطتك أنت — فقط حين لا يجيب Ollama، لتقييم المطالبة.
 - عنوان البوابة الذي تضبطه في إعدادات الإضافة (`gateway_url`، مثلًا `https://api.palgu.ai/anthropic` أو `https://openrouter.ai/api` أو وكيل LiteLLM الخاص بك). يستطيع المستخدم ضبط عنوان بوابة مخصص في إعدادات الإضافة؛ ولا يُتصل إلا بذلك العنوان للأدوار الموجَّهة، والعملية الفرعية، لا المود، هي التي تتصل به. تستخدم عملية Codex الفرعية `/v1` في تلك البوابة (أو `router.codex.baseUrl` الذي تضبطه)، أو OpenAI عبر تسجيل دخولك أنت إلى Codex مع `codex.auth: "chatgpt"`. وتستخدم عملية `claude/<member>` الفرعية Anthropic عبر تسجيل دخولك أنت إلى Claude.
@@ -423,9 +423,10 @@ copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
 - فقط حين تشغّل `/palgu`، فإنه **يجلب** `https://api.palgu.ai` (`/auth/device/code`، `/auth/token`، `/me`) و **يشغّل** `claude plugin configure … --values-stdin` مرة واحدة لحفظ المفتاح الذي أصدره Palgu (راجع الجداول أدناه).
 - **يجلب** `http://localhost:11434/api/chat` عبر `$.http.fetch`، مرسلًا نص المطالبة ومعيار التقييم إلى Ollama محلي، لتقييم المطالبة. بلا بيانات اعتماد، ولا يغادر شيء الجهاز.
 - **يستدعي** `$.model.classify`، الذي يرسل نص المطالبة نفسه ومعيار التقييم إلى Anthropic عبر عميل API الخاص بـ Claude Code على حسابك أنت، حين لا يجيب Ollama.
+- عند بدء الجلسة، في الخلفية ومرة كل 12 ساعة على الأكثر، وعند `/route update`، **يجلب** `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` (طلب GET بسيط، لا يُرسل شيء) ليرى إن كان قد صدر إصدار أحدث، وينبّه إلى ذلك في إشعار toast وعلى الشريط.
 - فقط عند `/route update`، حين يدرج GitHub إصدارًا أحدث، **يشغّل** `claude plugin marketplace update` و `claude plugin update` لهذه الإضافة، بوصفهما نصًا ثابتًا.
 - **يشغّل** برنامجين عبر `$.process.run` للأدوار الموجَّهة: `claude` (‏Claude Code نفسه، بلا واجهة)، إما مع `ANTHROPIC_BASE_URL` والمفتاح الذي ضبطته (في `ANTHROPIC_API_KEY`، أو `ANTHROPIC_AUTH_TOKEN` لـ OpenRouter و LiteLLM، مع ضبط الآخر فارغًا) و، لـ Palgu والبوابات العامة، `ANTHROPIC_CUSTOM_HEADERS` مضبوطًا للتعريف بها (راجع [الترويسات التي ترسلها العملية الفرعية](#الترويسات-التي-ترسلها-العملية-الفرعية))، أو، لمسار `claude/<member>`، عبر تسجيل دخولك أنت إلى Claude مع مسح `ANTHROPIC_BASE_URL`؛ و، فقط لمسار `codex`، ‏`codex exec` (‏Codex CLI)، مع مفتاح بوابتك في `PALGU_API_KEY` (‏`OPENROUTER_API_KEY` على OpenRouter، و `LITELLM_API_KEY` على LiteLLM) أو عبر تسجيل دخولك أنت إلى Codex. كل عملية فرعية **ترسل** مطالبتك وموجزًا قصيرًا لنص الجلسة الأخير إلى نقطة النهاية الخاصة بها.
-- **يقرأ** `~/.claude/model-config.json`، وملفات استراتيجياتك، و `HOME` و `HOSTNAME` و `MAGGY_ROUTER_CHILD` و `ANTHROPIC_CUSTOM_HEADERS`، و **يخزن** تثبيت المسار، والأعداد اليومية، وآخر حكم، وأعداد الإخفاقات لكل نوع، وسجلًا لآخر 200 قرار (اليوم، النموذج، النوع، المستوى، الدرجة، مصدر المصنِّف، وقت العملية الفرعية ورمز خروجها؛ ولا نص مطالبات أبدًا) في مخزن الإضافة.
+- **يقرأ** `~/.claude/model-config.json`، وملفات استراتيجياتك، و `HOME` و `HOSTNAME` و `MAGGY_ROUTER_CHILD` و `ANTHROPIC_CUSTOM_HEADERS`، و **يخزن** تثبيت المسار، والأعداد اليومية، وآخر حكم، وأعداد الإخفاقات لكل نوع، وآخر تحقق من التحديثات، وسجلًا لآخر 200 قرار (اليوم، النموذج، النوع، المستوى، الدرجة، مصدر المصنِّف، وقت العملية الفرعية ورمز خروجها؛ ولا نص مطالبات أبدًا) في مخزن الإضافة.
 
 التفاصيل الكاملة تتبع؛ وسياسة الخصوصية موجودة في [PRIVACY.md](PRIVACY.md).
 
@@ -455,7 +456,7 @@ copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
 
 | من | الاستدعاء | العنوان | ما يُرسل | لماذا |
 | :- | :- | :- | :- | :- |
-| المود، في `/route update` | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`، ثابت في الشيفرة | لا شيء سوى طلب GET | يقرأ الإصدار المنشور لمقارنته بإصدارك. |
+| المود، عند بدء الجلسة (مرة كل 12 ساعة على الأكثر) وفي `/route update` | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`، ثابت في الشيفرة | لا شيء سوى طلب GET | يقرأ الإصدار المنشور لمقارنته بإصدارك. |
 | المود، في `/palgu login` | `$.http.fetch` | `https://api.palgu.ai/auth/device/code`، ثم `/auth/token`، ثابت في الشيفرة | معرّف العميل `mixture-of-models`، واسم الجهاز (`Claude Code on <HOSTNAME>`)، وإصدار المود ومعرّف تثبيت عشوائي يحتفظ به في مخزنه؛ ثم رمز الجهاز الذي أعطاه Palgu | تسجيل الدخول. يجيب Palgu بمفتاح لهذا الحاسوب. |
 | المود، عند بدء الجلسة، وبعد `/palgu login` وعند `/route models` | `$.http.fetch` | `https://api.palgu.ai/v1/models/health`، ثابت في الشيفرة | لا شيء سوى طلب GET ومفتاح البوابة بصفة `x-api-key`؛ فقط حين يكون `gateway_url` الخاص بك على `https://api.palgu.ai` | يقرأ أي النماذج يخدمها Palgu الآن وأيها متوقف، فتتبع قائمة النماذج Palgu بدلًا من إصدار. تُحفظ في مخزن المود للجلسة التالية. |
 | المود، في `turn.complete` بعد دور موجَّه على Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`، ثابت في الشيفرة | معرّف النموذج الموجَّه إليه وأعداد التوكنات الأربعة للعملية الفرعية (إدخال، إخراج، قراءة من التخزين المؤقت، كتابة إلى التخزين المؤقت)، ومفتاح البوابة بوصفه ترويسة Bearer؛ فقط حين يكون `gateway_url` الخاص بك على `https://api.palgu.ai` ولا يوجد في `router.prices` مدخل لذلك النموذج | يسعّر الدور لتقدير التوفير. بلا أي نص من المطالبة أو الإجابة. |
@@ -509,7 +510,7 @@ x-srooter-project: <the session folder's name>
 
 ### ما تخزنه
 
-في المخزن الخاص بالإضافة (`$.store`، تحت `~/.claude/plugins/store/`): معرّف تثبيت عشوائي لتسجيل الدخول إلى Palgu (`palgu-install-id`، كي يرى Palgu جهازًا واحدًا عبر عمليات تسجيل الدخول)، ومجلدات المشاريع المفعَّلة فيها ذاكرة Palgu ومتى فُهرس كلٌّ منها آخر مرة (مسار مجلده)، وآخر قائمة نماذج خدمها Palgu، وتثبيت `/route`، والأعداد اليومية لكل نموذج، وآخر حكم، وأعداد الإخفاقات لكل نوع، وسجلًا لآخر 200 قرار (اليوم، النموذج، النوع، المستوى، الدرجة، مصدر المصنِّف، مدة العملية الفرعية ورمز خروجها). لا نص مطالبات، ولا إجابات، ولا بيانات اعتماد.
+في المخزن الخاص بالإضافة (`$.store`، تحت `~/.claude/plugins/store/`): معرّف تثبيت عشوائي لتسجيل الدخول إلى Palgu (`palgu-install-id`، كي يرى Palgu جهازًا واحدًا عبر عمليات تسجيل الدخول)، ومجلدات المشاريع المفعَّلة فيها ذاكرة Palgu ومتى فُهرس كلٌّ منها آخر مرة (مسار مجلده)، وآخر قائمة نماذج خدمها Palgu، وتثبيت `/route`، والأعداد اليومية لكل نموذج، وآخر حكم، وأعداد الإخفاقات لكل نوع، وآخر تحقق من التحديثات (متى، والإصدار الذي أدرجه GitHub، والإصدار الذي أُبلغت به)، وسجلًا لآخر 200 قرار (اليوم، النموذج، النوع، المستوى، الدرجة، مصدر المصنِّف، مدة العملية الفرعية ورمز خروجها). لا نص مطالبات، ولا إجابات، ولا بيانات اعتماد.
 
 ### ما لا تفعله أبدا
 
@@ -590,7 +591,7 @@ x-srooter-project: <the session folder's name>
 | `/palgu status` | لمن ينتمي المفتاح وخطة المؤسسة |
 | `/palgu upgrade` | صفحة خطط Palgu والفوترة |
 | `/palgu memory on`، `off`، `memory` | فهرس هذا المشروع في ذاكرة Palgu في الخلفية عبر `palgu` CLI (يرفع شيفرته المصدرية؛ معطّل افتراضيًا) واستدعه إلى كل مطالبة، لـ Claude ولكل نموذج موجَّه إليه؛ أو أوقف ذلك؛ أو قل ما إذا كان مفهرسًا ومدى حداثته |
-| `/route update` | تحقق من GitHub من وجود إصدار أحدث، وإن وُجد، شغّل `claude plugin marketplace update` و `claude plugin update` نيابةً عنك؛ أعد تشغيل Claude Code لتحميله |
+| `/route update` | تحقق من GitHub من وجود إصدار أحدث، وإن وُجد، شغّل `claude plugin marketplace update` و `claude plugin update` نيابةً عنك؛ ثم يحمّله `/reload-plugins` |
 | `/route models` | النماذج التي يخدمها Palgu الآن وأيها متوقف؛ ويمكن تثبيت أي منها عبر `/route <model>`. يحتفظ الشريط بزر واحد لكل عائلة يعرفها المود. من دون Palgu (أو حين لا يجيب) تُستخدم القائمة المدمجة |
 | `/route strategies`، `/route strategy <name>` | اعرض استراتيجيات التوجيه (complexity و cost و speed و quality واستراتيجياتك) أو بدّل إلى إحداها |
 | `/route help` (أو `0` على الشريط) | ما يفعله المود، وأين يقف الآن، وكل زر وأمر، وكيف تربط مزوّدًا |

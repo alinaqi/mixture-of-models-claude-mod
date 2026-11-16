@@ -52,7 +52,7 @@ The most complete integration: per-turn routing with your own rules, memory in e
 - **Install Ollama for free classification.** With a local Ollama (`qwen2.5-coder:3b`), every prompt is scored at no cost; without it the mod asks `claude-haiku-5-5`.
 - **Let it approve commands through you.** When a routed child needs `git pull` or `npm install`, you get Claude Code's own dialog naming the exact command. Allow it there; do not add `--dangerously-skip-permissions` to `child.args` to avoid the prompt.
 - **Check your savings weekly.** `/route stats` (four tabs: models, kinds, scores, recent). A "kinds" row with many child failures means that kind should go elsewhere: change `routes.kinds`, then `/route reset`.
-- **Keep it current.** `/route update`, then restart Claude Code.
+- **Keep it current.** When the band says a new version is available, run `/route update`, then `/reload-plugins`.
 
 ### OpenCode (full parity)
 

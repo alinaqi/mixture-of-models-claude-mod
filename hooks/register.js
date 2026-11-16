@@ -17,7 +17,7 @@ import { addTurn, claudeCost, quoteBody, quotedCost, savingsLine, tableCost, tur
 import { helpTree } from './lib/help-pane.js'
 import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, strategyFiles, strategyPrompt } from './lib/strategies.js'
 import { liveCatalogue, liveModels, modelsText } from './lib/catalogue.js'
-import { failedRun, isNewer, lastLine, latestVersion, updateText } from './lib/update.js'
+import { checkDue, failedRun, isNewer, lastLine, latestVersion, updateNotice, updateText } from './lib/update.js'
 import { VERSION } from './lib/version.js'
 import { continuePrompt, heartbeatBody, heartbeatMode, localVerdict, palguVerdict, shouldCheck, turnUsedTools } from './lib/heartbeat.js'
 import { indexDue, memoryLine, memoryOn, memoryStatus, setMemory } from './lib/memory.js'
@@ -40,6 +40,8 @@ let live = null, modelsAsk = 0
 let beats = 0, promptSeq = 0, cwd = '', sessionTag = newInstallId()
 // The Palgu memory project of this folder (from `palgu memory status`) and this prompt's recall.
 let memoryProject = '', recalled = '', projectRead = null
+// A newer release: { latest, installed } once the session-start check or /route update saw one.
+let update = {}
 const PLUGIN_NAME = 'mixture-of-models'
 const FAILED = { ok: false, status: 0, text: '' }
 const PANES = { 'mom-help': 'Mixture of models · help', 'routing-stats': 'Mixture of models' }
@@ -508,14 +510,42 @@ async function priceTurn($, usage) {
 async function routeUpdate($, current) {
   const latest = latestVersion(await $.http.fetch('https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json', { method: 'GET' }).catch(() => null))
   if (!latest || !isNewer(latest, current)) return updateText({ current, latest })
+  const done = await installUpdate($, current, latest)
+  if (done.updated) update = { latest, installed: true }
+  return updateText(done)
+}
+
+async function installUpdate($, current, latest) {
   const market = await $.process.run(['claude', 'plugin', 'marketplace', 'update', 'mixture-of-models-claude-mod'], { timeoutMs: 120000 }).catch(failedRun)
-  if (market.exitCode !== 0) return updateText({ current, latest, updated: false, error: lastLine(market) })
+  if (market.exitCode !== 0) return { current, latest, updated: false, error: lastLine(market) }
   const plugin = await $.process.run(['claude', 'plugin', 'update', 'mixture-of-models@mixture-of-models-claude-mod'], { timeoutMs: 120000 }).catch(failedRun)
-  return updateText({ current, latest, updated: plugin.exitCode === 0, error: lastLine(plugin) })
+  return { current, latest, updated: plugin.exitCode === 0, error: lastLine(plugin) }
+}
+
+// Session start, in the background: is a newer release out? GitHub at most every 12 hours, waited
+// for at most 5 s; the toast once per version, the band until it is installed.
+async function checkForUpdate($) {
+  const cache = (await $.store.get('update-check')) || {}
+  const due = checkDue(cache, Date.now())
+  const latest = due ? await fetchLatest($) : cache.latest
+  const notice = updateNotice(VERSION, latest)
+  if (notice) update = { latest, installed: false }
+  const notify = Boolean(notice) && cache.notified !== latest
+  // A failed check is not remembered, so the next session asks again.
+  if ((due && latest) || notify) await $.store.set('update-check', { checkedAt: due && latest ? Date.now() : cache.checkedAt, latest, notified: notify ? latest : cache.notified })
+  if (notify) $.ui.toast(notice)
+}
+
+async function fetchLatest($) {
+  const res = await Promise.race([
+    $.http.fetch('https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json', { method: 'GET' }).catch(() => null),
+    $.clock.sleep(5000).then(() => null, untimed),
+  ])
+  return latestVersion(res)
 }
 
 function bandView(e, theirs) {
-  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.band, strategy: cfg.strategy.name, isWorking: e.props.isWorking, theirs }
+  return { disabled, ready: ready || runnerReady(), sessionModel, pin, decision, routes: cfg.routes, catalogue: cfg.band, strategy: cfg.strategy.name, isWorking: e.props.isWorking, update, theirs }
 }
 
 export function register(on, opts) {
@@ -531,6 +561,8 @@ export function register(on, opts) {
     refreshModels($)
     indexProject($).catch(() => undefined)
     projectRead = memoryNow($).catch(() => undefined)
+    update = {}
+    checkForUpdate($).catch(() => undefined)
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
     const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')

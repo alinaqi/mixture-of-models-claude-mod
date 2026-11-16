@@ -54,7 +54,7 @@ Mixture of Models 做三件事，每个 agent 能获得其中多少，取决于�
 - **安装 Ollama 以获得免费分类。** 有本地 Ollama（`qwen2.5-coder:3b`）时，每条提示词的打分都不花钱；没有它时，mod 会询问 `claude-haiku-5-5`。
 - **让它通过你来批准命令。** 当被路由的子进程需要 `git pull` 或 `npm install` 时，你会看到 Claude Code 自己的对话框，写明确切的命令。在那里批准即可；不要为了避开提示而在 `child.args` 中加入 `--dangerously-skip-permissions`。
 - **每周查看节省情况。** `/route stats`（四个标签页：models、kinds、scores、recent）。如果 "kinds" 中某一行有很多子进程失败，说明该类型应该交给别的模型：修改 `routes.kinds`，然后 `/route reset`。
-- **保持更新。** `/route update`，然后重启 Claude Code。
+- **保持更新。** 当状态栏提示有新版本可用时，运行 `/route update`，然后运行 `/reload-plugins`。
 
 ### OpenCode（功能完全对等）
 

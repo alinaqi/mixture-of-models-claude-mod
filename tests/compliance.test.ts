@@ -77,7 +77,8 @@ test('/route update asks GitHub for the version and runs only the two fixed upda
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const r = await $.command.run({ command: 'route', args: 'update' })
-  expect(urls).toEqual([LATEST])
+  // GitHub only: the session-start update check and /route update ask the same manifest.
+  expect([...new Set(urls)]).toEqual([LATEST])
   expect(runs.map((x) => x.argv)).toEqual([
     ['claude', 'plugin', 'marketplace', 'update', 'mixture-of-models-claude-mod'],
     ['claude', 'plugin', 'update', 'mixture-of-models@mixture-of-models-claude-mod'],

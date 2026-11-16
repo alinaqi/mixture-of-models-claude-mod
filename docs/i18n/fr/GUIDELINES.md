@@ -54,7 +54,7 @@ L'intégration la plus complète : routage par tour avec vos propres règles, m�
 - **Installez Ollama pour une classification gratuite.** Avec un Ollama local (`qwen2.5-coder:3b`), chaque prompt est évalué sans coût ; sans lui, le mod interroge `claude-haiku-5-5`.
 - **Laissez-le faire approuver les commandes par vous.** Quand un enfant routé a besoin de `git pull` ou `npm install`, vous obtenez la propre boîte de dialogue de Claude Code nommant la commande exacte. Autorisez-la là ; n'ajoutez pas `--dangerously-skip-permissions` à `child.args` pour éviter la question.
 - **Vérifiez vos économies chaque semaine.** `/route stats` (quatre onglets : models, kinds, scores, recent). Une ligne « kinds » avec de nombreux échecs d'enfant signifie que ce type devrait aller ailleurs : modifiez `routes.kinds`, puis `/route reset`.
-- **Gardez-le à jour.** `/route update`, puis redémarrez Claude Code.
+- **Gardez-le à jour.** Quand le bandeau indique qu'une nouvelle version est disponible, lancez `/route update`, puis `/reload-plugins`.
 
 ### OpenCode (parité complète)
 

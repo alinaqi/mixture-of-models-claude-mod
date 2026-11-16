@@ -54,7 +54,7 @@ Die vollständigste Integration: Routing pro Turn mit Ihren eigenen Regeln, Memo
 - **Installieren Sie Ollama für kostenlose Klassifizierung.** Mit einem lokalen Ollama (`qwen2.5-coder:3b`) wird jeder Prompt kostenlos bewertet; ohne fragt der Mod `claude-haiku-5-5`.
 - **Lassen Sie es Befehle über Sie freigeben.** Wenn ein gerouteter Child-Prozess `git pull` oder `npm install` braucht, bekommen Sie Claude Codes eigenen Dialog mit dem genauen Befehl. Erlauben Sie ihn dort; fügen Sie nicht `--dangerously-skip-permissions` zu `child.args` hinzu, um die Abfrage zu umgehen.
 - **Prüfen Sie Ihre Ersparnis wöchentlich.** `/route stats` (vier Tabs: models, kinds, scores, recent). Eine Zeile unter "kinds" mit vielen Child-Fehlschlägen bedeutet, dass diese Art woanders hin sollte: Ändern Sie `routes.kinds`, dann `/route reset`.
-- **Halten Sie es aktuell.** `/route update`, dann Claude Code neu starten.
+- **Halten Sie es aktuell.** Wenn das Band meldet, dass eine neue Version verfügbar ist, führen Sie `/route update` aus, dann `/reload-plugins`.
 
 ### OpenCode (voller Funktionsumfang)
 
