@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { HEARTBEAT_MODES, REASONS, turnUsedTools, wantsEdits, continuePrompt, assessStop, heartbeatBody, heartbeatMode, palguVerdict, shouldCheck } from '../hooks/lib/heartbeat.js'
+import { HEARTBEAT_MODES, REASONS, turnUsedTools, wantsEdits, continuePrompt, assessStop, waitingOnBackground, heartbeatBody, heartbeatMode, palguVerdict, shouldCheck } from '../hooks/lib/heartbeat.js'
 
 test('assessStop is Palgu\'s classifier: an announced action, an empty stop or a trailing colon is premature', async () => {
   expect(assessStop('Tests pass. Let me check the config loader next.', false)).toBe('premature')
@@ -103,4 +103,33 @@ test('continuePrompt: narration continues only when edits were asked for; premat
   expect(continuePrompt({ assessment: 'narration', reason: REASONS.narration }, 'show me a patch, don\'t edit')).toBe('')
   expect(continuePrompt({ assessment: 'premature', reason: REASONS.premature }, 'explain the loader')).toBe(REASONS.premature)
   expect(continuePrompt({ assessment: 'complete', reason: '' }, 'fix it')).toBe('')
+})
+
+// The four answers the heartbeat continued by mistake on 2026-11-16: each ends waiting on work running
+// in the background (subagents, a GitHub merge), so continuing could only make the model wait again.
+const WAITING = [
+  'Waiting for the translator to update the 15 translated files. Then I\'ll run the checks, open the PR, merge it, publish v0.33.0 and update your plugin.',
+  'I added the GitHub check to the English summary list and sent the same two edits to the translator. Once it reports back I\'ll check the result, then commit, merge, release v0.33.0 and update your plugin.',
+  'French is finished too, with all 12 files passing the checks. I\'ll check the other languages handled those links the same way. Still waiting on Japanese, German and Arabic.',
+  'Waiting for GitHub to finish the merge it already started; then I\'ll tag the release and update your plugin.',
+  'The suite is still running in the background. I\'ll report the results when it finishes.',
+  'Two agents are working on it; as soon as they finish I\'ll merge the branches.',
+]
+
+test('waitingOnBackground spots an answer that ends waiting on work running elsewhere', async () => {
+  for (const text of WAITING) expect(waitingOnBackground(text)).toBe(true)
+})
+
+test('waitingOnBackground leaves real mid-task stops alone', async () => {
+  expect(waitingOnBackground('Tests pass. Let me check the config loader next.')).toBe(false)
+  expect(waitingOnBackground('Next I\'ll update the README. Once that\'s done I\'ll run the tests.')).toBe(false)
+  expect(waitingOnBackground('I\'ll wire the hook into register.js now.')).toBe(false)
+  // Waiting mentioned early, then a plain announced action at the end: still a stop to heal.
+  expect(waitingOnBackground('The build was waiting for the lock file earlier, which I removed. ' + 'x'.repeat(500) + ' Let me run the tests.')).toBe(false)
+})
+
+test('continuePrompt never continues an answer that waits on background work, whoever judged it premature', async () => {
+  for (const text of WAITING) expect(continuePrompt({ assessment: 'premature', reason: REASONS.premature }, 'merge and release it', text)).toBe('')
+  expect(continuePrompt({ assessment: 'premature', reason: REASONS.premature }, 'fix it', 'Let me run the tests.')).toBe(REASONS.premature)
+  expect(continuePrompt({ assessment: 'premature', reason: REASONS.premature }, 'fix it')).toBe(REASONS.premature)
 })

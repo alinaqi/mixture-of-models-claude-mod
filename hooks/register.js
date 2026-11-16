@@ -482,7 +482,7 @@ async function heartbeat($, e) {
   const seq = promptSeq, asked = lastPrompt
   if (!shouldCheck(e, { mode, used: beats, max: cfg.heartbeat.max, child: Boolean(decision.child) })) return
   const verdict = await heartbeatVerdict($, e.answer, turnUsedTools(await $.session.messages()))
-  const text = continuePrompt(verdict, asked)
+  const text = continuePrompt(verdict, asked, e.answer)
   if (!text || seq !== promptSeq || beats >= cfg.heartbeat.max) return
   beats += 1
   $.prompt.submit({ text })

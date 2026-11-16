@@ -114,3 +114,10 @@ test('onStart tells the agent Palgu memory is on only where it is on and there i
   assert.equal((await onStart(ev('start'), {}, io())).note, '')
   assert.equal((await onStart(ev('start'), { memory: { '/work': true } }, io({ key: '' }))).note, '')
 })
+
+test('onStop does not continue an answer that ends waiting on background work, even when Palgu says continue', async () => {
+  const x = io({ async heartbeat() { return ok({ assessment: 'premature', should_continue: true, reason: REASONS.premature }) } })
+  const answer = 'Waiting for the translator to finish; then I\'ll run the checks and merge.'
+  const r = await onStop(ev('stop', { answer }), {}, x)
+  assert.equal(r.reason, '')
+})

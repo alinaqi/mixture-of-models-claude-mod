@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.33.1] - 2026-11-16
+
+### Fixed
+- The heartbeat continued answers that ended waiting on work running elsewhere ("Waiting for the translator to finish; then I'll merge it.", "Once it reports back I'll commit."): they announce the next step, so they read as a stop, but continuing them could only make the model wait again. On 2026-11-16 that sent four needless continue prompts in one session. An answer whose last 300 characters say it is waiting for, or will act once, a subagent, background job, merge, build, check or similar finishes is no longer continued, whatever Palgu's or the local classifier's verdict. Applies to the Claude Code mod and to `mom` (Codex, Cursor, Antigravity, Copilot).
+
 ## [0.33.0] - 2026-11-16
 
 ### Added
