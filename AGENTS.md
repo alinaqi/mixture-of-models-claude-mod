@@ -2,7 +2,7 @@
 
 A Claude Code **mod**: a plugin whose `hooks/register.js` registers in-process event handlers, plus `mom` (`integrations/cli`) and thin adapters for other coding agents (`integrations/*`, ADR 0005).
 
-**Asked to install or set up Mixture of Models for a user (not to change this code)?** Follow [INSTALL.md](INSTALL.md) instead of this file.
+**Asked to install or set up Mixture of Models for a user (not to change this code)?** Follow [INSTALL.md](INSTALL.md) instead of this file. Asked how to use it well? [GUIDELINES.md](GUIDELINES.md).
 
 ## Layout
 

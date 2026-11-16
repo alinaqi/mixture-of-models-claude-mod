@@ -156,7 +156,7 @@ Consent is per folder and shared by every agent that uses `mom`. `mom memory off
 
 ## Step 6. Tell the user what changed
 
-Report: which agent was set up, the files written (and their `.bak` backups), whether memory is on, and how to start (`codex -p palgu`, reload Cursor, restart Claude Code, and so on). Useful commands for them: `mom status`, `mom memory on|off|status`, `mom heartbeat palgu|local|off`.
+Report: which agent was set up, the files written (and their `.bak` backups), whether memory is on, and how to start (`codex -p palgu`, reload Cursor, restart Claude Code, and so on). Useful commands for them: `mom status`, `mom memory on|off|status`, `mom heartbeat palgu|local|off`. Point them to [GUIDELINES.md](GUIDELINES.md) for how to work with it in their agent.
 
 ## Troubleshooting
 
