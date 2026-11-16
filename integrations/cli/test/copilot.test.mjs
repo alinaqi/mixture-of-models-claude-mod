@@ -31,3 +31,29 @@ test('render answers Copilot: the memory note at session start, block with the r
   assert.equal(render('copilot', 'prompt', { context: 'x' }), '')
   assert.equal(render('copilot', 'stop', { reason: '' }), '')
 })
+
+// Seen live (Copilot CLI 1.0.112): ~/.copilot/session-state/<id>/events.jsonl, the answer in assistant.message data.content.
+test('lastAnswer reads Copilot\'s events.jsonl: the last assistant.message with text', async () => {
+  const { lastAnswer } = await import('../lib/transcript.js')
+  const events = [
+    { type: 'user.message', data: { content: 'fix it' } },
+    { type: 'assistant.message', data: { content: 'First' } },
+    { type: 'assistant.message', data: { content: 'Let me check the tests.' } },
+    { type: 'assistant.message', data: { content: '', toolRequests: [{}] } },
+    { type: 'assistant.turn_end', data: {} },
+    { type: 'hook.start', data: {} }
+  ]
+  assert.equal(lastAnswer(events.map((x) => JSON.stringify(x)).join('\n')), 'Let me check the tests.')
+})
+
+test('the Copilot plugin is on the mod\'s version; its hooks call mom with the event name; its MCP server is mom mcp copilot', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { VERSION } = await import('../../../hooks/lib/version.js')
+  const root = new URL('../../../integrations/copilot/', import.meta.url)
+  assert.equal(JSON.parse(readFileSync(new URL('plugin.json', root), 'utf8')).version, VERSION)
+  const hooks = JSON.parse(readFileSync(new URL('hooks.json', root), 'utf8'))
+  assert.equal(hooks.version, 1)
+  assert.deepEqual(Object.keys(hooks.hooks).sort(), ['agentStop', 'sessionStart', 'userPromptSubmitted'])
+  for (const [event, entries] of Object.entries(hooks.hooks)) assert.equal(entries[0].command, 'mom hook copilot ' + event)
+  assert.deepEqual(JSON.parse(readFileSync(new URL('.mcp.json', root), 'utf8')).mcpServers.palgu, { command: 'mom', args: ['mcp', 'copilot'] })
+})

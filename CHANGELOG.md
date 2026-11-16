@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-11-16
+
+Mixture of Models in GitHub Copilot CLI ([ADR 0005](docs/adr/0005-other-coding-agents.md), [integrations/copilot](integrations/copilot/README.md)).
+
+### Added
+- The Copilot CLI plugin (`integrations/copilot`: `plugin.json`, `hooks.json`, `.mcp.json`, skill `mixture-of-models`), installed with `copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot`. `agentStop` continues a turn that stopped mid-task (`decision: "block"`), reading the answer from the session's `events.jsonl`; `sessionStart` indexes memory-on folders and tells the agent memory is on; the `mom mcp` tools (memory search, delegation to Palgu, model list).
+- The transcript reader also reads Copilot's `events.jsonl` (`assistant.message` `data.content`), only under `~/.copilot` (or `$COPILOT_HOME`).
+
+### Fixed
+- `mom mcp` searched the wrong folder's memory under Copilot, which starts a plugin's MCP server in the plugin's folder; it now uses `COPILOT_SESSION_CWD`.
+
+### Verified live (Copilot CLI 1.0.112)
+- With the plugin loaded, a mid-task answer was continued and the agent went on with the work; `palgu_memory_search` returned this repository's Palgu memory. Repository hooks in `.github/hooks/` did not run under `copilot -p` in an untrusted folder; plugin hooks did.
+
 ## [0.30.1] - 2026-11-16
 
 ### Added

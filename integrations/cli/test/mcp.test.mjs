@@ -76,3 +76,10 @@ test('mom mcp answers garbage with a parse error and keeps going', async () => {
   assert.equal(lines[0].error.code, -32700)
   assert.deepEqual(lines[1], { jsonrpc: '2.0', id: 9, result: {} })
 })
+
+// Seen live (Copilot CLI 1.0.112): a plugin's MCP server starts in the plugin's folder; the session's folder is COPILOT_SESSION_CWD.
+test('mom mcp takes the project folder from COPILOT_SESSION_CWD when the client sets it', async () => {
+  const env = { PALGU_API_KEY: 'pk_test_123456789', COPILOT_SESSION_CWD: '/work/copilot-project' }
+  const { answers } = await session([init, call(2, 'palgu_memory_search', { query: 'config loader cache' })], env)
+  assert.match(text(answers.find((a) => a.id === 2)), /Palgu memory is off for \/work\/copilot-project/)
+})

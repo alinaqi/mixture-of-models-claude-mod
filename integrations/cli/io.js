@@ -39,13 +39,17 @@ export function loadKey() {
 
 // Where each tool keeps the transcripts its hooks may point at. A transcript path comes from hook
 // input, so mom reads only a regular .jsonl file inside that folder (after resolving links).
-const TRANSCRIPT_ROOTS = { antigravity: ['.gemini', 'antigravity-cli'] }
+const userHome = () => process.env.HOME || homedir()
+const TRANSCRIPT_ROOTS = {
+  antigravity: () => join(userHome(), '.gemini', 'antigravity-cli'),
+  copilot: () => process.env.COPILOT_HOME || join(userHome(), '.copilot')
+}
 
 function transcriptFile(tool, path) {
-  const parts = TRANSCRIPT_ROOTS[tool]
-  if (!parts || !String(path).endsWith('.jsonl')) return ''
+  const rootOf = TRANSCRIPT_ROOTS[tool]
+  if (!rootOf || !String(path).endsWith('.jsonl')) return ''
   try {
-    const root = realpathSync(join(process.env.HOME || homedir(), ...parts)) + sep
+    const root = realpathSync(rootOf()) + sep
     const real = realpathSync(path)
     return real.startsWith(root) && statSync(real).isFile() ? real : ''
   } catch {

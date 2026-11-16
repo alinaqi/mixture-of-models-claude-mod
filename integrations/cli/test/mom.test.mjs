@@ -133,3 +133,13 @@ test('mom memory status names mom\'s own command, not the Claude Code mod\'s', (
   assert.match(r.stdout, /mom memory on/)
   assert.doesNotMatch(r.stdout, /\/palgu memory on/)
 })
+
+test('mom hook copilot agentStop reads the answer from ~/.copilot/session-state and blocks a premature stop', () => {
+  const home = mkdtempSync(join(tmpdir(), 'mom-'))
+  const dir = join(home, '.copilot', 'session-state', 'cs1')
+  mkdirSync(dir, { recursive: true })
+  const transcript = join(dir, 'events.jsonl')
+  writeFileSync(transcript, [{ type: 'user.message', data: { content: 'fix it' } }, { type: 'assistant.message', data: { content: 'Now I\'ll run the full suite' } }].map((x) => JSON.stringify(x)).join('\n') + '\n')
+  const stop = JSON.stringify({ sessionId: 'cs1', cwd: '/w', transcriptPath: transcript, stopReason: 'end_turn', stop_hook_active: false })
+  assert.deepEqual(JSON.parse(mom(['hook', 'copilot', 'agentStop'], { home, input: stop }).stdout), { decision: 'block', reason: REASONS.premature })
+})

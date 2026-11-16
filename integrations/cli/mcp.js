@@ -25,7 +25,8 @@ async function projectOf(folder) {
 }
 
 async function memorySearch(args, ctx, key) {
-  const folder = pickFolder({ arg: args.folder, env: process.env.MOM_PROJECT_DIR, roots: ctx.roots, cwd: process.cwd() })
+  // MOM_PROJECT_DIR: set by `mom setup cursor`; COPILOT_SESSION_CWD: Copilot starts a plugin's server in the plugin's folder.
+  const folder = pickFolder({ arg: args.folder, env: process.env.MOM_PROJECT_DIR || process.env.COPILOT_SESSION_CWD, roots: ctx.roots, cwd: process.cwd() })
   if (!memoryOn((readJson('state.json', {}) || {}).memory, folder)) return say('Palgu memory is off for ' + folder + '. To use it, run `mom memory on` in that folder (it uploads the project\'s source to Palgu for indexing).')
   const query = searchQuery(args.query)
   if (!query) return say('palgu_memory_search needs a query (a string).', true)
