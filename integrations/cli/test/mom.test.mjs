@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, statSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -103,7 +103,9 @@ test('mom with no command or an unknown one prints help and fails', () => {
 
 test('mom hook antigravity Stop reads the answer from the transcript and continues a premature one', () => {
   const home = mkdtempSync(join(tmpdir(), 'mom-'))
-  const transcript = join(home, 'transcript_full.jsonl')
+  const dir = join(home, '.gemini', 'antigravity-cli', 'brain', 'cv1', '.system_generated', 'logs')
+  mkdirSync(dir, { recursive: true })
+  const transcript = join(dir, 'transcript_full.jsonl')
   writeFileSync(transcript, [{ type: 'USER_INPUT', content: 'fix it' }, { type: 'PLANNER_RESPONSE', content: 'Now I\'ll run the full suite' }].map((x) => JSON.stringify(x)).join('\n') + '\n')
   const stop = (o) => JSON.stringify({ hookEventName: 'Stop', conversationId: 'cv1', cwd: '/w', transcriptPath: transcript, terminationReason: 'NO_TOOL_CALL', error: '', ...o })
   const r = mom(['hook', 'antigravity', 'Stop'], { home, input: stop({}) })
@@ -111,4 +113,17 @@ test('mom hook antigravity Stop reads the answer from the transcript and continu
   writeFileSync(transcript, JSON.stringify({ type: 'PLANNER_RESPONSE', content: 'Done: 12 tests pass.' }) + '\n')
   assert.equal(mom(['hook', 'antigravity', 'Stop'], { home, input: stop({}) }).stdout, '')
   assert.equal(mom(['hook', 'antigravity', 'Stop'], { home, input: stop({ terminationReason: 'ERROR', error: 'quota' }) }).stdout, '')
+})
+
+test('mom hook antigravity skips a stop whose transcript is outside Antigravity\'s folder, not a .jsonl file, or missing', () => {
+  const home = mkdtempSync(join(tmpdir(), 'mom-'))
+  const outside = join(home, 'notes.jsonl')
+  const dir = join(home, '.gemini', 'antigravity-cli')
+  mkdirSync(dir, { recursive: true })
+  const wrongKind = join(dir, 'transcript.txt')
+  for (const f of [outside, wrongKind]) writeFileSync(f, JSON.stringify({ type: 'PLANNER_RESPONSE', content: 'Now I\'ll run the full suite' }) + '\n')
+  for (const path of [outside, wrongKind, join(dir, 'missing.jsonl'), join(dir, '..', '..', 'notes.jsonl')]) {
+    const stop = JSON.stringify({ hookEventName: 'Stop', conversationId: 'cv1', cwd: '/w', transcriptPath: path, terminationReason: 'NO_TOOL_CALL', error: '' })
+    assert.equal(mom(['hook', 'antigravity', 'Stop'], { home, input: stop }).stdout, '', path)
+  }
 })
