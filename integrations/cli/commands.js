@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { join } from 'node:path'
-import { deviceBody, newInstallId, parseBody, tokenBody, tokenStep } from '../../hooks/lib/palgu.js'
+import { budgetText, deviceBody, newInstallId, parseBody, tokenBody, tokenStep } from '../../hooks/lib/palgu.js'
 import { memoryLine, memoryOn, setMemory } from '../../hooks/lib/memory.js'
 import { VERSION } from '../../hooks/lib/version.js'
 import { codexProfile } from './lib/setup.js'
@@ -62,9 +62,9 @@ export async function memory(word, cwd) {
   if (word === 'on' && !loadKey()) return fail('Palgu memory needs a Palgu sign-in: run mom login first')
   if (word === 'on' || word === 'off') writeJson('state.json', { ...state, memory: setMemory(state.memory, cwd, word === 'on') })
   if (word === 'on') indexInBackground(cwd)
-  if (word === 'off') return done(memoryLine({ on: false }))
+  if (word === 'off') return done(memoryLine({ on: false }, 'mom memory on'))
   const status = await palguStatus(cwd)
-  return done(memoryLine({ on: memoryOn((readJson('state.json', {}) || {}).memory, cwd), status, now: Date.now(), missing: false }))
+  return done(memoryLine({ on: memoryOn((readJson('state.json', {}) || {}).memory, cwd), status, now: Date.now(), missing: false }, 'mom memory on'))
 }
 
 export function heartbeat(mode) {
@@ -78,8 +78,9 @@ export async function status(cwd) {
   const key = loadKey()
   const who = readJson('credentials.json', {}) || {}
   const line = key ? 'Palgu: signed in' + (who.email ? ' as ' + who.email : '') : 'Palgu: not signed in (mom login)'
+  const budget = key ? budgetText(await call('/me/org-settings', { headers: { authorization: 'Bearer ' + key } }, 8000).catch(() => null)) : ''
   const state = readJson('state.json', {}) || {}
-  return done([line, 'Heartbeat: ' + settingsOf(state).heartbeat, (await memory('status', cwd)).out.trim(), 'mom ' + VERSION].join('\n'))
+  return done([line + (budget ? ' · ' + budget : ''), 'Heartbeat: ' + settingsOf(state).heartbeat, (await memory('status', cwd)).out.trim(), 'mom ' + VERSION].join('\n'))
 }
 
 function writeCodexProfile() {

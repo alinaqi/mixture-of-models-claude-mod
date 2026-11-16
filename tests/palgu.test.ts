@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { CLIENT_ID, PALGU_BILLING, PALGU_GATEWAY, configureValues, isPalgu, isPalguKey, deviceBody, deviceName, newInstallId, parsePalguArg, startText, statusText, tokenBody, tokenStep } from '../hooks/lib/palgu.js'
+import { CLIENT_ID, PALGU_BILLING, PALGU_GATEWAY, budgetText, configureValues, isPalgu, isPalguKey, deviceBody, deviceName, newInstallId, parsePalguArg, startText, statusText, tokenBody, tokenStep } from '../hooks/lib/palgu.js'
 import { VERSION } from '../hooks/lib/version.js'
 
 const res = (status, body) => ({ status, ok: status < 300, headers: {}, text: JSON.stringify(body) })
@@ -93,4 +93,17 @@ test('isPalguKey takes one plain token and nothing else', async () => {
 test('tokenStep stops on a key that is not one plain token', async () => {
   expect(tokenStep(res(200, { access_token: 'two words here' }), 5)).toEqual({ state: 'stop', reason: 'Palgu answered without a usable key' })
   expect(tokenStep(res(200, { access_token: 'test-key-minted' }), 5).state).toBe('ok')
+})
+
+test('budgetText says what the org spent of its Palgu budget this period, from GET /me/org-settings', async () => {
+  const res = (budget) => ({ ok: true, status: 200, text: JSON.stringify({ routing: {}, budget }) })
+  expect(budgetText(res({ period: 'monthly', state: 'ok', limit_usd: 4500, spent_usd: 205.106856 }))).toBe('budget: $205.11 of $4,500.00 this month (5%)')
+  expect(budgetText(res({ period: 'weekly', state: 'ok', limit_usd: null, spent_usd: 12.5 }))).toBe('spent: $12.50 this week (no limit set)')
+  expect(budgetText(res({ period: 'monthly', state: 'exceeded', limit_usd: 100, spent_usd: 101 }))).toBe('budget: $101.00 of $100.00 this month (101%) · over budget')
+  expect(budgetText(res({ period: 'daily', state: 'ok', limit_usd: 10, spent_usd: 0 }))).toBe('budget: $0.00 of $10.00 today (0%)')
+  // no budget, a failed or malformed answer: nothing to say
+  expect(budgetText(res(null))).toBe('')
+  expect(budgetText({ ok: false, status: 403, text: '{}' })).toBe('')
+  expect(budgetText({ ok: true, status: 200, text: 'nope' })).toBe('')
+  expect(budgetText(res({ period: 'monthly', limit_usd: 10 }))).toBe('')
 })

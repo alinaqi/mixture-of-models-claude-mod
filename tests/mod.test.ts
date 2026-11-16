@@ -743,6 +743,7 @@ function palguFetch(calls: any[], pending = 1) {
     if (url.endsWith('/auth/token')) return polls++ < pending ? res(400, { error: 'authorization_pending' }) : res(200, { access_token: 'test-key-minted', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
     if (url.includes('localhost:11434')) return res(200, { message: { content: '2 code' } })
     if (url.endsWith('/me')) return res(200, { account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
+    if (url.endsWith('/me/org-settings')) return res(200, { budget: { period: 'monthly', state: 'ok', limit_usd: 4500, spent_usd: 205.106856 } })
     return res(404, {})
   }
 }
@@ -798,9 +799,10 @@ test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the 
   stubSession(on, { fetch: palguFetch(calls) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const status = await $.command.run({ command: 'palgu', args: 'status' })
-  expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade · Palgu memory: off · /palgu memory on indexes this project into Palgu (uploads its source)')
+  expect(status.text).toBe('Palgu: signed in as dev@acme.com (Acme, plan starter) · upgrade: /palgu upgrade · budget: $205.11 of $4,500.00 this month (5%) · Palgu memory: off · /palgu memory on indexes this project into Palgu (uploads its source)')
   const me = calls.find((c) => c.url === 'https://api.palgu.ai/me')
   expect(me.init.headers.authorization).toBe('Bearer test-key')
+  expect(calls.find((c) => c.url === 'https://api.palgu.ai/me/org-settings').init.headers.authorization).toBe('Bearer test-key')
   const upgrade = await $.command.run({ command: 'palgu', args: 'upgrade' })
   expect(upgrade.text).toContain('https://www.palgu.ai/billing')
 })

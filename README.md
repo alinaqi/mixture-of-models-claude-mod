@@ -26,7 +26,7 @@ No dashboard, no copying keys. After [installing the mod](#install), in Claude C
 | Command | What it does |
 | :- | :- |
 | `/palgu login` | Sign up or sign in, and connect this computer |
-| `/palgu status` | Who is signed in, the organisation and its plan |
+| `/palgu status` | Who is signed in, the organisation and its plan, and what it spent of its Palgu budget this period |
 | `/palgu upgrade` | Plans and billing (paid plans are bought on the web; your key picks up the new plan by itself) |
 
 How it works: Palgu's device sign-in (the same one `srooterctl` uses) mints an API key for this computer only. You can see and revoke it on Palgu's **Devices** page. The mod saves it in Claude Code's secure storage with `claude plugin configure --values-stdin`, so it never appears on a command line or in a settings file. Already have a key, or use another gateway? See [Setup](#setup).
@@ -58,7 +58,7 @@ or, inside a session, `/plugin install mixture-of-models --marketplace alinaqi/m
 
 **Updates.** Run `/route update`: it checks for a newer version and installs it. Third-party marketplaces do not auto-update by default. Turn it on once in `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update, or update by hand with `claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`. A new version takes effect when you restart Claude Code.
 
-**Fastest start, on Palgu:** start `claude` and run `/palgu login`. It shows a link and a code; approve it in the browser (sign up there if you are new) and the mod saves its own Palgu key and routes from that moment, no copying keys. `/palgu status` says who is signed in and on which plan, `/palgu upgrade` opens plans and billing.
+**Fastest start, on Palgu:** start `claude` and run `/palgu login`. It shows a link and a code; approve it in the browser (sign up there if you are new) and the mod saves its own Palgu key and routes from that moment, no copying keys. `/palgu status` says who is signed in, on which plan and how much of the budget is spent, `/palgu upgrade` opens plans and billing.
 
 Or give the child a gateway yourself: [OpenRouter](#openrouter), a [LiteLLM](#litellm) proxy, or any Anthropic-compatible endpoint that serves your model ids (tested with [palgu](https://www.palgu.ai); z.ai or Moonshot's Anthropic endpoints work the same way), see [Setup](#setup). Start `claude`, run `/route`. Until a gateway is configured the mod is observe-only and changes nothing.
 
@@ -328,7 +328,7 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 
 ### Network hosts this plugin contacts
 
-- `https://api.palgu.ai` — Palgu, fixed in the code: `/auth/device/code` and `/auth/token` on `/palgu login`, `/me` on `/palgu status`, `/v1/models/health` at session start, after `/palgu login` and on `/route models` (the gateway key as `x-api-key`; nothing else is sent), `/v1/pricing/quote` after a routed turn when your gateway is Palgu and `router.prices` has no entry for the model, `/anthropic/heartbeat` when the main session ends a turn (the heartbeat, below), and `/v1/cortex/search` on each prompt of yours in a project where you ran `/palgu memory on` (Palgu memory recall, below).
+- `https://api.palgu.ai` — Palgu, fixed in the code: `/auth/device/code` and `/auth/token` on `/palgu login`, `/me` and `/me/org-settings` on `/palgu status`, `/v1/models/health` at session start, after `/palgu login` and on `/route models` (the gateway key as `x-api-key`; nothing else is sent), `/v1/pricing/quote` after a routed turn when your gateway is Palgu and `router.prices` has no entry for the model, `/anthropic/heartbeat` when the main session ends a turn (the heartbeat, below), and `/v1/cortex/search` on each prompt of yours in a project where you ran `/palgu memory on` (Palgu memory recall, below).
 - `https://raw.githubusercontent.com` — only on `/route update`: a GET of `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` to read the published version. Nothing is sent.
 - `http://localhost:11434` — a local Ollama (`/api/chat`) that scores each prompt. It stays on your machine; skipped when nothing answers there.
 - Anthropic, through Claude Code's own `$.model.classify` on your own plan — only when Ollama does not answer, to score the prompt.
@@ -367,7 +367,7 @@ Each `$.process.run` call has its program and fixed flags written as literal tex
 ### Commands, tools, and agents added
 
 - `/route` — show the route state, pin a tier, model, family member or `codex`, switch strategy, open the stats or help pane, reset failure memory, or update the plugin (`/route update`).
-- `/palgu` — sign in to Palgu (`login`), say whose key is set and whether the project is in Palgu memory (`status`), link plans and billing (`upgrade`), or turn Palgu memory on or off for the project you are in (`memory on`, `memory off`, `memory`; each project folder needs its own `memory on`).
+- `/palgu` — sign in to Palgu (`login`), say whose key is set, what your org spent of its Palgu budget this period and whether the project is in Palgu memory (`status`), link plans and billing (`upgrade`), or turn Palgu memory on or off for the project you are in (`memory on`, `memory off`, `memory`; each project folder needs its own `memory on`).
 - The `routing-strategy` skill — helps write or explain a routing strategy file.
 - No tools, no agents, no MCP servers.
 
@@ -421,7 +421,7 @@ The mod's own calls, then the child process's:
 | The mod, at session start, after `/palgu login` and on `/route models` | `$.http.fetch` | `https://api.palgu.ai/v1/models/health`, fixed in the code | Nothing but the GET and the gateway key as `x-api-key`; only when your `gateway_url` is on `https://api.palgu.ai` | Reads which models Palgu serves now and which are down, so the model list follows Palgu instead of a release. Kept in the mod's store for the next session. |
 | The mod, in `turn.complete` after a routed turn on Palgu | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`, fixed in the code | The routed model id and the child's four token counts (input, output, cache read, cache write), and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` and `router.prices` has no entry for that model | Prices the turn for the savings estimate. No prompt or answer text. |
 | The mod, in `prompt.submit`, only where `/palgu memory on` was run | `$.http.fetch` | `https://api.palgu.ai/v1/cortex/search`, host and path fixed in the code | Your prompt (one line, at most 300 characters), the project's Palgu name, `limit=8`, and the gateway key as a Bearer header; only when your `gateway_url` is on `https://api.palgu.ai` | Palgu memory recall: pointers from the project's memory go beside the prompt for the main session and into a routed child's brief. |
-| The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is and the org's plan. |
+| The mod, in `/palgu status` | `$.http.fetch` | `https://api.palgu.ai/me` and `https://api.palgu.ai/me/org-settings`, fixed in the code | The gateway key, as a Bearer header, only when your `gateway_url` is on `https://api.palgu.ai` (another gateway's key is never sent) | Says whose key it is, the org's plan, and what the org spent of its Palgu budget this period. |
 | The mod, in `prompt.submit` | `$.http.fetch` | `http://localhost:11434/api/chat`, fixed in the code | The scoring rubric and the prompt text, as an Ollama chat request, no credentials | Free local classification. Skipped when nothing answers there. |
 | The mod, in `prompt.submit` | `$.model.classify` | Anthropic's API through Claude Code's own client and your own plan | The scoring rubric and the prompt text | Classification when Ollama is unavailable. Model: the `classifier` alias, `claude-haiku-5-5` by default. |
 | The child process (Claude Code itself), started in `turn.step` | Claude Code's normal API client | The `gateway_url` you set in the plugin's options (for example `https://api.palgu.ai/anthropic`, `https://openrouter.ai/api` or your LiteLLM proxy), with `gateway_key` as its `x-api-key` (Palgu, generic) or `Authorization: Bearer` (OpenRouter, LiteLLM) | Your prompt plus a brief of the last `contextMessages` exchanges of the session (text only, truncated), then whatever the child's own agent loop sends while it works | That is the point of the plugin: the turn runs on the gateway's model instead of the main session's. |

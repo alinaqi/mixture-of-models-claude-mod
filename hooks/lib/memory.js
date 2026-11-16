@@ -24,9 +24,10 @@ function ago(iso, now) {
   return mins < 48 * 60 ? Math.round(mins / 60) + 'h ago' : Math.round(mins / 1440) + 'd ago'
 }
 
-// m: { on, status, now, missing }
-export function memoryLine(m) {
-  if (!m.on) return 'Palgu memory: off · /palgu memory on indexes this project into Palgu (uploads its source)'
+// m: { on, status, now, missing }. `turnOn`: the command that turns it on where this is shown
+// (the mod's slash command, or `mom memory on` in a terminal).
+export function memoryLine(m, turnOn = '/palgu memory on') {
+  if (!m.on) return 'Palgu memory: off · ' + turnOn + ' indexes this project into Palgu (uploads its source)'
   if (m.missing) return 'Palgu memory: on, but the palgu CLI is not installed (https://www.palgu.ai/install)'
   if (!m.status) return 'Palgu memory: on · could not read the index status (is `palgu login` done?)'
   if (!m.status.indexed) return 'Palgu memory: on · ' + m.status.project + ' not indexed yet'
