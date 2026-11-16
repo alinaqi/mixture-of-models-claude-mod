@@ -30,7 +30,8 @@ function fromCodex(e, kind) {
 function fromCursor(e, kind) {
   if (kind === 'stop' && e.status !== 'completed') return null
   const roots = Array.isArray(e.workspace_roots) ? e.workspace_roots : []
-  const answer = kind === 'answer' ? String(e.text || '') : ''
+  // null: this event does not carry the answer (decide.js reads the one afterAgentResponse kept).
+  const answer = kind === 'answer' ? String(e.text || '') : kind === 'stop' ? null : ''
   return { kind, session: String(e.conversation_id || e.session_id || ''), cwd: String(roots[0] || ''), prompt: String(e.prompt || ''), answer, continued: Number(e.loop_count) > 0, recall: false }
 }
 

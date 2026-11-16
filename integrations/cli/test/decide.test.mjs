@@ -94,10 +94,17 @@ test('onAnswer saves the answer and onStop reads it when the stop event has none
   const x = io({ key: '' })
   let state = (await onPrompt(ev('prompt', { prompt: 'fix the loader', recall: false }), {}, x)).state
   state = (await onAnswer(ev('answer', { answer: 'Now I\'ll run the full suite' }), state, x)).state
-  const r = await onStop(ev('stop'), state, x)
+  const r = await onStop(ev('stop', { answer: null }), state, x)
   assert.equal(r.reason, REASONS.premature)
   assert.equal(r.state.sessions.s1.followup, REASONS.premature)
   assert.equal(r.state.sessions.s1.beats, 1)
+})
+
+test('onStop: an empty Codex answer is still a premature stop; a Cursor stop with no recorded answer is left alone', async () => {
+  const x = io({ key: '' })
+  assert.equal((await onStop(ev('stop', { answer: '' }), {}, x)).reason, REASONS.premature)
+  const state = (await onPrompt(ev('prompt', { prompt: 'fix the loader', recall: false }), {}, x)).state
+  assert.equal((await onStop(ev('stop', { answer: null }), state, x)).reason, '')
 })
 
 test('onStart tells the agent Palgu memory is on only where it is on and there is a key', async () => {

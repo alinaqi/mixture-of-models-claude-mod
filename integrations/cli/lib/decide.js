@@ -53,8 +53,9 @@ export async function onStop(ev, state, io) {
   const settings = settingsOf(state)
   if (settings.heartbeat === 'off') return { reason: '', state }
   const s = sessionOf(state, ev.session) || {}
-  const answer = ev.answer || s.answer || ''
-  if (!answer) return { reason: '', state }
+  // ev.answer null: the stop event lacks it (Cursor); without a kept answer there is nothing to judge.
+  const answer = ev.answer === null ? s.answer : ev.answer
+  if (typeof answer !== 'string') return { reason: '', state }
   const reason = continuePrompt(await verdict(answer, state, { ...io, session: ev.session }, settings.heartbeat), s.prompt)
   if (!reason) return { reason: '', state }
   const beat = takeBeat(state, ev.session, settings.heartbeatMax, io.now)

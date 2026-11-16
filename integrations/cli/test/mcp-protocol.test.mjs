@@ -67,6 +67,7 @@ test('parseLine: JSON-RPC 2.0 objects pass; anything else is a parse error or in
   assert.equal(parseLine('not json').reply.error.code, -32700)
   assert.equal(parseLine('[1,2]').reply.error.code, -32600)
   assert.equal(parseLine('{}').reply.error.code, -32600)
+  assert.deepEqual(parseLine('{"jsonrpc":"2.0","id":5,"method":{"toString":0}}').reply, { jsonrpc: '2.0', id: 5, error: { code: -32600, message: 'Invalid request' } })
   assert.deepEqual(parseLine('{"id":4,"method":"ping"}').reply, { jsonrpc: '2.0', id: 4, error: { code: -32600, message: 'Invalid request' } })
   assert.deepEqual(parseLine('   '), {})
 })

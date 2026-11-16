@@ -46,7 +46,7 @@ test('parseEvent reads Cursor sessionStart, beforeSubmitPrompt, afterAgentRespon
   const stop = parseEvent('cursor', cursor({ hook_event_name: 'stop', status: 'completed', loop_count: 1 }))
   assert.equal(stop.kind, 'stop')
   assert.equal(stop.continued, true)
-  assert.equal(stop.answer, '')
+  assert.equal(stop.answer, null)
 })
 
 test('parseEvent for Cursor: an aborted or failed stop is not a stop to heal; the session falls back to session_id', () => {

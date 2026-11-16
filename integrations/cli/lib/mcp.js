@@ -20,7 +20,8 @@ export function parseLine(line) {
   } catch {
     return { reply: failure(null, -32700, 'Parse error') }
   }
-  if (v && typeof v === 'object' && !Array.isArray(v) && v.jsonrpc === '2.0' && ('method' in v || 'id' in v)) return { msg: v }
+  const ok = v && typeof v === 'object' && !Array.isArray(v) && v.jsonrpc === '2.0' && ('method' in v ? typeof v.method === 'string' : 'id' in v)
+  if (ok) return { msg: v }
   const id = v && (typeof v.id === 'string' || typeof v.id === 'number') ? v.id : null
   return { reply: failure(id, -32600, 'Invalid request') }
 }
