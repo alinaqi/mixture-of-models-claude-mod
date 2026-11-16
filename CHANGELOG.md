@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.27.1] - 2026-11-16
+
+### Added
+- Setup guide for Aider, Continue and Goose (`integrations/gateway`): Palgu's OpenAI-compatible endpoint with `model: auto`, so Palgu picks the model per request. Aider 0.86.2 checked live through Palgu.
+
+### Fixed
+- Codex: pinning a model. Palgu pins the model a request names only when `x-srooter-pin` is present, and refuses `model: "auto"` with that header (403 `pin 'auto' not allowed by policy`); a model without the header is routed as usual. The guide and the skill said `MOM_PIN=<model> codex -p palgu`, which sends `auto` with the header; it is now `MOM_PIN=<model> codex -p palgu -m <model>`.
+
 ## [0.27.0] - 2026-11-16
 
 Mixture of Models in Cursor ([ADR 0005](docs/adr/0005-other-coding-agents.md)).

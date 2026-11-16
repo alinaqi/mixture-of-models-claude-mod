@@ -31,7 +31,7 @@ Codex asks you to review the plugin's hooks the first time (`/hooks`); they run 
 
 | | How | Codex feature |
 | :- | :- | :- |
-| **Routing** | `model = "auto"`: Palgu classifies each request and serves it from its tiers (trivial, small, medium, think). `MOM_PIN=<model> codex -p palgu` pins one model for the session. | `-p palgu` profile, `[model_providers.palgu]` with `auth = { command = "mom", args = ["token"] }` |
+| **Routing** | `model = "auto"`: Palgu classifies each request and serves it from its tiers (trivial, small, medium, think). `MOM_PIN=<model> codex -p palgu -m <model>` (the same model twice) pins one model for the session: Palgu pins the model a request names only when `x-srooter-pin` is present, and refuses `auto` with a pin (403). | `-p palgu` profile, `[model_providers.palgu]` with `auth = { command = "mom", args = ["token"] }` |
 | **Palgu memory** | `mom memory on` in a project folder indexes it (uploads its source to Palgu) and recalls up to 8 pointers from it into every prompt of four words or more. Off by default; consent is per folder and shared with the other tools `mom` serves. | `UserPromptSubmit` → `additionalContext` |
 | **Heartbeat** | A turn that ends mid-task ("Let me check the tests.") is continued, at most 3 times per prompt. Palgu decides (`POST /anthropic/heartbeat`); without a sign-in, the same classifier runs locally. `mom heartbeat off` turns it off. | `Stop` → `decision: "block"` |
 | **Indexing** | In a memory-on folder, `palgu memory index .` runs in the background at session start, at most every 10 minutes. | `SessionStart` |
