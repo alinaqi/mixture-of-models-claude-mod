@@ -80,3 +80,37 @@ test('onStart indexes in the background when memory is on and due, and learns th
   await onStart(ev('start'), {}, off)
   assert.equal(off.calls.length, 0)
 })
+
+test('onPrompt with recall off (Cursor) remembers the prompt and searches nothing', async () => {
+  const x = io()
+  const r = await onPrompt(ev('prompt', { prompt: 'refactor the config loader to cache reads', recall: false }), { memory: { '/work': true } }, x)
+  assert.equal(r.context, '')
+  assert.equal(x.calls.length, 0)
+  assert.equal(r.state.sessions.s1.prompt, 'refactor the config loader to cache reads')
+})
+
+test('onAnswer saves the answer and onStop reads it when the stop event has none (Cursor); the follow-up is remembered', async () => {
+  const { onAnswer } = await import('../lib/decide.js')
+  const x = io({ key: '' })
+  let state = (await onPrompt(ev('prompt', { prompt: 'fix the loader', recall: false }), {}, x)).state
+  state = (await onAnswer(ev('answer', { answer: 'Now I\'ll run the full suite' }), state, x)).state
+  const r = await onStop(ev('stop', { answer: null }), state, x)
+  assert.equal(r.reason, REASONS.premature)
+  assert.equal(r.state.sessions.s1.followup, REASONS.premature)
+  assert.equal(r.state.sessions.s1.beats, 1)
+})
+
+test('onStop: an empty Codex answer is still a premature stop; a Cursor stop with no recorded answer is left alone', async () => {
+  const x = io({ key: '' })
+  assert.equal((await onStop(ev('stop', { answer: '' }), {}, x)).reason, REASONS.premature)
+  const state = (await onPrompt(ev('prompt', { prompt: 'fix the loader', recall: false }), {}, x)).state
+  assert.equal((await onStop(ev('stop', { answer: null }), state, x)).reason, '')
+})
+
+test('onStart tells the agent Palgu memory is on only where it is on and there is a key', async () => {
+  const on = await onStart(ev('start'), { memory: { '/work': true } }, io())
+  assert.match(on.note, /Palgu memory is on for this project/)
+  assert.match(on.note, /palgu_memory_search/)
+  assert.equal((await onStart(ev('start'), {}, io())).note, '')
+  assert.equal((await onStart(ev('start'), { memory: { '/work': true } }, io({ key: '' }))).note, '')
+})

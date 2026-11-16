@@ -13,10 +13,26 @@ function withSession(state, id, value) {
   return { ...state, sessions: { ...((state && state.sessions) || {}), [id]: value } }
 }
 
-// A new prompt from the person: remember it (the heartbeat reads it) and reset the budget.
+// A new prompt from the person: remember it (the heartbeat reads it) and reset the budget. In
+// Cursor the heartbeat's continue arrives as a prompt too (`followup_message`); that one is not the
+// person's, so it keeps the prompt and the budget.
 export function beginPrompt(state, id, prompt, now) {
   const old = sessionOf(state, id)
+  if (old && old.followup && String(prompt).trim() === old.followup.trim()) return withSession(state, id, { ...old, followup: '', answer: undefined, at: now })
   return withSession(state, id, { prompt, beats: 0, n: old ? old.n + 1 : 1, at: now })
+}
+
+// The agent's last answer, for a tool whose stop event does not carry it (Cursor). The heartbeat
+// reads its end only.
+export function recordAnswer(state, id, text, now) {
+  const s = sessionOf(state, id) || { prompt: '', beats: 0, n: 1 }
+  return withSession(state, id, { ...s, answer: String(text || '').slice(-2000), at: now })
+}
+
+// The continue mom just sent, so the prompt it comes back as is known (beginPrompt).
+export function markFollowup(state, id, reason) {
+  const s = sessionOf(state, id)
+  return s ? withSession(state, id, { ...s, followup: reason }) : state
 }
 
 // One continue for this prompt, if the budget allows it.

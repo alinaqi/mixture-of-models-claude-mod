@@ -1,0 +1,12 @@
+{
+  "name": "mixture-of-models",
+  "owner": { "name": "Ali Naqi Shaheen" },
+  "metadata": { "description": "Mixture of Models for Cursor: Palgu memory, delegation to cheaper models, and the heartbeat" },
+  "plugins": [
+    {
+      "name": "mixture-of-models",
+      "source": "integrations/cursor",
+      "description": "Palgu memory search and delegation (MCP), the heartbeat (hooks), and a rule for when to use them"
+    }
+  ]
+}

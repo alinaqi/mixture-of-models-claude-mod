@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // mom: Mixture of Models for coding agents other than Claude Code (ADR 0005).
 import { runHook } from './hook.js'
+import { runMcp } from './mcp.js'
 import { heartbeat, login, logout, memory, setup, status, token } from './commands.js'
 
 const HELP = `mom — Mixture of Models for Codex, Cursor, OpenCode and other coding agents
@@ -11,8 +12,10 @@ const HELP = `mom — Mixture of Models for Codex, Cursor, OpenCode and other co
   mom memory on|off|status  Palgu memory for this project folder (on uploads its source to Palgu)
   mom heartbeat palgu|local|off   continue a turn that stopped mid-task (default palgu)
   mom setup codex [--write] Codex profile for Palgu (codex -p palgu)
+  mom setup cursor [--write]  this project's .cursor/hooks.json and .cursor/mcp.json
   mom token                 print the Palgu key, for a tool's token command
   mom hook <tool>           run as a tool's hook (stdin: the tool's hook JSON)
+  mom mcp [tool]            MCP server on stdio: Palgu memory search, delegation, model list
 `
 
 const COMMANDS = {
@@ -28,6 +31,7 @@ const COMMANDS = {
 async function main(argv) {
   const [name, ...rest] = argv
   if (name === 'hook') return runHook(rest[0])
+  if (name === 'mcp') return runMcp(rest[0])
   if (!name || name === 'help' || name === '--help') return process.stdout.write(HELP)
   if (!COMMANDS[name]) {
     process.stdout.write(HELP)

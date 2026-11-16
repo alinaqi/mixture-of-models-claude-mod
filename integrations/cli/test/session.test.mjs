@@ -44,3 +44,26 @@ test('mergeState keeps what other hook runs saved meanwhile: only this session, 
   assert.equal(out.projects['/w'], 'w')
   assert.equal(out.index['/w'], 5)
 })
+
+test('recordAnswer keeps the last answer of a session for the stop hook; a new prompt clears it', async () => {
+  const { recordAnswer } = await import('../lib/session.js')
+  let s = recordAnswer(beginPrompt({}, 'c1', 'fix it', 1), 'c1', 'Let me check.', 2)
+  assert.equal(sessionOf(s, 'c1').answer, 'Let me check.')
+  assert.equal(sessionOf(s, 'c1').prompt, 'fix it')
+  s = beginPrompt(s, 'c1', 'now the docs', 3)
+  assert.equal(sessionOf(s, 'c1').answer, undefined)
+  assert.equal(sessionOf(recordAnswer({}, 'c2', 'x'.repeat(5000), 1), 'c2').answer.length, 2000)
+})
+
+test('a prompt that is the heartbeat\'s own follow-up does not reset the budget or replace the prompt', async () => {
+  const { markFollowup } = await import('../lib/session.js')
+  let s = beginPrompt({}, 'c1', 'fix the loader', 1)
+  s = takeBeat(s, 'c1', 3, 2).state
+  s = markFollowup(s, 'c1', 'You stopped mid-task. Continue.')
+  s = beginPrompt(s, 'c1', 'You stopped mid-task. Continue.', 3)
+  assert.equal(sessionOf(s, 'c1').beats, 1)
+  assert.equal(sessionOf(s, 'c1').prompt, 'fix the loader')
+  assert.equal(sessionOf(s, 'c1').followup, '')
+  s = beginPrompt(s, 'c1', 'You stopped mid-task. Continue.', 4)
+  assert.equal(sessionOf(s, 'c1').beats, 0)
+})

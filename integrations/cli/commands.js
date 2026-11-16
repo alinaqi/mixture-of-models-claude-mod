@@ -7,6 +7,7 @@ import { deviceBody, newInstallId, parseBody, tokenBody, tokenStep } from '../..
 import { memoryLine, memoryOn, setMemory } from '../../hooks/lib/memory.js'
 import { VERSION } from '../../hooks/lib/version.js'
 import { codexProfile } from './lib/setup.js'
+import { setupCursor } from './setup-cursor.js'
 import { settingsOf } from './lib/session.js'
 import { call, indexInBackground, loadKey, palguStatus, readJson, removeFile, writeJson } from './io.js'
 
@@ -90,7 +91,8 @@ function writeCodexProfile() {
 }
 
 export function setup(tool, write) {
-  if (tool !== 'codex') return fail('mom setup codex [--write]', 2)
+  if (tool === 'cursor') return setupCursor(process.cwd(), write)
+  if (tool !== 'codex') return fail('mom setup codex|cursor [--write]', 2)
   if (!write) return done(codexProfile(VERSION).trim())
   return done('Wrote ' + writeCodexProfile() + '. Start Codex on Palgu with: codex -p palgu')
 }
