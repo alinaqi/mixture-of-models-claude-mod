@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.32.0] - 2026-11-16
+
+### Added
+- The user docs in five more languages: 简体中文, 日本語, Deutsch, Français and العربية (`docs/i18n/<lang>/`). README, INSTALL, GUIDELINES, GETTING_STARTED, PRIVACY, UNINSTALL and the six integration guides, 60 files. Every page has a language switcher at the top (also added to the English originals) and says that the English version is authoritative. Commands, code, model ids and text the software prints stay in English; links point to the translation in the same language where one exists, otherwise to the English file; Arabic pages render right to left. Checked by script: same code blocks and table rows as the English source, every relative link and anchor resolves.
+- `AGENTS.md`: keep the translations in step when a translated doc changes.
+
 ## [0.31.2] - 2026-11-16
 
 ### Changed

@@ -1,5 +1,7 @@
 # Getting started
 
+**English** · [简体中文](docs/i18n/zh-CN/GETTING_STARTED.md) · [日本語](docs/i18n/ja/GETTING_STARTED.md) · [Deutsch](docs/i18n/de/GETTING_STARTED.md) · [Français](docs/i18n/fr/GETTING_STARTED.md) · [العربية](docs/i18n/ar/GETTING_STARTED.md)
+
 ## 1. Check Claude Code
 
 ```bash

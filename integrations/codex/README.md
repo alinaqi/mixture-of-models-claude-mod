@@ -1,5 +1,7 @@
 # Mixture of Models for Codex
 
+**English** · [简体中文](../../docs/i18n/zh-CN/integrations/codex/README.md) · [日本語](../../docs/i18n/ja/integrations/codex/README.md) · [Deutsch](../../docs/i18n/de/integrations/codex/README.md) · [Français](../../docs/i18n/fr/integrations/codex/README.md) · [العربية](../../docs/i18n/ar/integrations/codex/README.md)
+
 Palgu picks the model for each request, Palgu memory is recalled into each prompt, and a turn that stops mid-task is continued. The same behaviour as the Claude Code mod, built on Codex's own plugins and hooks ([ADR 0005](../../docs/adr/0005-other-coding-agents.md)).
 
 Needs Codex 0.163 or later and Node 20 or later. Palgu memory also needs the [palgu CLI](https://www.palgu.ai/install) for indexing; it uses its own `palgu login` if you have one, else `mom`'s key.

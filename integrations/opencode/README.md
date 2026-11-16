@@ -1,5 +1,7 @@
 # Mixture of Models for OpenCode
 
+**English** · [简体中文](../../docs/i18n/zh-CN/integrations/opencode/README.md) · [日本語](../../docs/i18n/ja/integrations/opencode/README.md) · [Deutsch](../../docs/i18n/de/integrations/opencode/README.md) · [Français](../../docs/i18n/fr/integrations/opencode/README.md) · [العربية](../../docs/i18n/ar/integrations/opencode/README.md)
+
 The plugin picks the Palgu model for each prompt, adds Palgu memory to each prompt, continues a turn that stops mid-task, and adds `/route` and `/palgu`. OpenCode is the one tool besides Claude Code where the plugin can choose the model for each request, so it matches the Claude Code mod feature for feature ([ADR 0005](../../docs/adr/0005-other-coding-agents.md)).
 
 Requirements:

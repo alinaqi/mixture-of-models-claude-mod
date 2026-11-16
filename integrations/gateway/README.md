@@ -1,5 +1,7 @@
 # Mixture of Models in Aider, Continue and Goose
 
+**English** · [简体中文](../../docs/i18n/zh-CN/integrations/gateway/README.md) · [日本語](../../docs/i18n/ja/integrations/gateway/README.md) · [Deutsch](../../docs/i18n/de/integrations/gateway/README.md) · [Français](../../docs/i18n/fr/integrations/gateway/README.md) · [العربية](../../docs/i18n/ar/integrations/gateway/README.md)
+
 These agents have no hooks or plugins that `mom` can use, so they get Palgu's routing only: point them at Palgu's OpenAI-compatible endpoint with the model `auto`, and Palgu picks the model for each request ([ADR 0005](../../docs/adr/0005-other-coding-agents.md)). Palgu memory recall and the heartbeat are not available here.
 
 Every guide needs a Palgu key. With `mom` installed (`npm install -g github:alinaqi/mixture-of-models-claude-mod`), `mom login` once and then `mom token` prints it.

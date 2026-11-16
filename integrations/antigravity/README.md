@@ -1,5 +1,7 @@
 # Mixture of Models for Antigravity
 
+**English** · [简体中文](../../docs/i18n/zh-CN/integrations/antigravity/README.md) · [日本語](../../docs/i18n/ja/integrations/antigravity/README.md) · [Deutsch](../../docs/i18n/de/integrations/antigravity/README.md) · [Français](../../docs/i18n/fr/integrations/antigravity/README.md) · [العربية](../../docs/i18n/ar/integrations/antigravity/README.md)
+
 Palgu memory recalled into each prompt, the heartbeat that continues a turn that stopped mid-task, and Palgu's models as tools, in Google's Antigravity CLI (`agy`) ([ADR 0005](../../docs/adr/0005-other-coding-agents.md)).
 
 Checked live with agy 1.0.7.
