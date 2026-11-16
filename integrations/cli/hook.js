@@ -2,11 +2,11 @@
 // the state, prints the answer in the tool's shape. It fails open: any error prints nothing and
 // exits 0, so a broken mom never blocks a prompt or a stop.
 import { parseEvent, render } from './lib/events.js'
-import { onPrompt, onStart, onStop } from './lib/decide.js'
+import { onAnswer, onPrompt, onStart, onStop } from './lib/decide.js'
 import { mergeState, prune } from './lib/session.js'
 import { loadKey, makeIo, readJson, writeJson } from './io.js'
 
-const HANDLERS = { start: onStart, prompt: onPrompt, stop: onStop }
+const HANDLERS = { start: onStart, prompt: onPrompt, answer: onAnswer, stop: onStop }
 
 async function readStdin() {
   const chunks = []

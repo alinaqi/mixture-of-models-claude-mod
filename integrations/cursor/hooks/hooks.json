@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [{ "command": "mom hook cursor", "timeout": 10 }],
+    "beforeSubmitPrompt": [{ "command": "mom hook cursor", "timeout": 5 }],
+    "afterAgentResponse": [{ "command": "mom hook cursor", "timeout": 5 }],
+    "stop": [{ "command": "mom hook cursor", "timeout": 15, "loop_limit": 3 }]
+  }
+}

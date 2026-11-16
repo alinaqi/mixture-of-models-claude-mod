@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "mixture-of-models": { "command": "mom", "args": ["mcp", "cursor"] }
+  }
+}

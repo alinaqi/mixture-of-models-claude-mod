@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-11-16
+
+Mixture of Models in Cursor ([ADR 0005](docs/adr/0005-other-coding-agents.md)).
+
+### Added
+- `mom mcp [tool]`: a zero-dependency MCP server on stdio (JSON-RPC 2.0; `initialize`, `ping`, `tools/list`, `tools/call`, and the client's roots), tool-neutral so other agents can use it too. Its tools are `palgu_memory_search {query, folder?}`, which recalls from the project's Palgu memory where `mom memory on` was run; `palgu_delegate {prompt, model?}`, which runs a self-contained subtask on Palgu (`POST /v1/chat/completions`, `model: "auto"` or a pin through `x-srooter-pin`, 120 s at most); and `palgu_models`, which lists the models Palgu serves now. Without a key, each tool answers with how to sign in and makes no call.
+- The Cursor plugin (`integrations/cursor`, marketplace in `.cursor-plugin/marketplace.json`). `beforeSubmitPrompt` records the prompt. `afterAgentResponse` keeps the answer, because Cursor's `stop` does not carry it. `stop` continues a turn that stopped mid-task with `followup_message`, at most 3 times per prompt (`loop_limit: 3` too), and never a turn that was aborted or failed. `sessionStart` indexes memory-on folders and tells the agent that memory is on. A rule says when to search memory and what to delegate (low-risk, self-contained work, never security-sensitive work or secrets).
+- `mom setup cursor [--write]` prints or merges mom's entries into the project's `.cursor/hooks.json` and `.cursor/mcp.json`. It keeps other hooks and servers, saves a `.bak` of a file it changes, and refuses a file that is not JSON.
+
+### Changed
+- The heartbeat recognizes its own continue when a tool sends it back as a prompt (Cursor's `followup_message`), so the continue keeps the person's prompt and the budget.
+
 ## [0.26.0] - 2026-11-16
 
 Mixture of Models outside Claude Code, starting with Codex ([ADR 0005](docs/adr/0005-other-coding-agents.md)).
