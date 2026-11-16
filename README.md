@@ -9,7 +9,7 @@
 
 > **Setting this up with a coding agent?** Point it at [INSTALL.md](INSTALL.md): "Follow INSTALL.md in alinaqi/mixture-of-models-claude-mod to set up Mixture of Models for me." It has every command, a check for each step, and what to ask you. Works for Claude Code, Codex, Cursor, OpenCode, Antigravity, GitHub Copilot CLI, Aider, Continue and Goose.
 >
-> **Installed?** [GUIDELINES.md](GUIDELINES.md) has the best practices for each agent: when to pin, how to word prompts so routing and memory work, what to delegate, and what to do when a route looks wrong.
+> **Installed?** [GUIDELINES.md](GUIDELINES.md) has the best practices for each agent: let the system pick the models, how to word prompts so routing and memory work, what to delegate, and what to do when a route looks wrong.
 
 Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
 
@@ -225,6 +225,8 @@ Every routed turn is priced twice: at your session's Claude model (what the same
 - Under each routed answer: `· saved ~$0.39`.
 - `/route status`: `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`, a running total across sessions.
 - `/route stats`: the same total, in green, on the models tab.
+
+In our own use, coding agents running around the clock used up a Claude Max 20x subscription's weekly limit in about three days on Claude alone; with Mixture of Models the same subscription lasted the full seven days. See [GUIDELINES.md](GUIDELINES.md#rough-savings-subscription-only-vs-mixture-of-models).
 
 It is an estimate, and it says so. Claude prices are the API list prices (Opus 5.5 $4 / $20 per million input / output tokens, Sonnet 5.5 $2 / $10, Haiku 5.5 $0.10 / $0.50, Fable 5.1 $10 / $50; cache reads and 5-minute and 1-hour cache writes at their own rates), so on a claude.ai subscription it is the API-equivalent saving, not money back. It assumes the routed turn would have used the same number of tokens on Claude. A routed turn the mod cannot price (a gateway with no `router.prices` entry for that model, or a Codex child) claims no saving; `/route status` counts it as unpriced.
 

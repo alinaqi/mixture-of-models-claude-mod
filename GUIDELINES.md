@@ -10,9 +10,22 @@ Mixture of Models does three things, and each agent gets as many of them as its 
 | **Palgu memory** | The project's recorded intent, docs and code symbols come back to the model when they matter | Recalled into each prompt: Claude Code, OpenCode, Codex, Antigravity. Searched on demand (`palgu_memory_search`): Cursor, Copilot, Antigravity |
 | **Heartbeat** | A turn that stops mid-task ("Let me check the tests.") is continued, at most 3 times per prompt | Every agent with hooks (not Aider, Continue, Goose) |
 
+## Rough savings: subscription only vs Mixture of Models
+
+From our own use, with coding agents running around the clock on a Claude Max 20x subscription:
+
+| | Weekly Claude limit lasts | Claude usage per day |
+| :- | :- | :- |
+| Subscription only | about 3 days, then the agents wait for the reset | 100% |
+| With Mixture of Models | the full 7 days | about 43% or less (3/7), since the same work fit in the week |
+
+So routing took **more than half** of the Claude load off the subscription: the same work runs all week instead of stopping on day 3, with no bigger plan. The routed turns are billed by Palgu at cheap-model rates and count against your Palgu budget (`mom status`, `/palgu status`).
+
+These numbers are rough. They depend on your work: lots of lookups, tests, docs and small edits route most of the load away, while security, architecture and production work stays on Claude by design. To see your own numbers, Claude Code prices every turn: `/route status` shows the running total (for example `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`) and `/route stats` breaks it down by model and kind. On a subscription that figure is what the same tokens would cost at API prices, not money back; the practical gain is the limit lasting longer.
+
 ## The ten rules that apply everywhere
 
-1. **Leave routing on `auto`.** Palgu (or the mod's classifier in Claude Code) picks the model per request. Pin a model only for a reason you can name: a long-context review, a model you are evaluating, a provider that is down. Then unpin.
+1. **Let it decide. Don't pick models.** Choosing the model is the system's job: Palgu (or the mod's classifier in Claude Code) scores every request and sends it to the cheapest model that can do it, keeps critical work on your strongest model, and falls back when a provider fails. Leave everything on `auto`. If a route looks wrong, fix the routing (a strategy or a threshold), not the model. Pinning exists only for the rare cases under [Overriding the router](#overriding-the-router-rarely-needed).
 2. **Write one task per prompt, and say what it is.** The router scores the prompt you send. "Add a `--json` flag to `mom status` and a test for it" routes to a cheap coding model; "fix it" after a long thread is scored without the context the thread carries. Name the file, function or command.
 3. **Put the important words first.** Memory recall searches with the first 300 characters of the prompt, on one line. A prompt under four words, or a slash command, recalls nothing. "The heartbeat continues answers it should not: in `hooks/lib/heartbeat.js` …" recalls the heartbeat ADR and code; a paragraph of background followed by the question may not.
 4. **Turn memory on in the projects you come back to, and only those.** `mom memory on` (or `/palgu memory on` in Claude Code and OpenCode) uploads the folder's source to Palgu for indexing. It is off by default, per folder, and shared by every agent that uses `mom`, so turning it on once serves Codex, Cursor, OpenCode, Antigravity and Copilot alike. Leave it off for client code you may not upload.
@@ -22,23 +35,6 @@ Mixture of Models does three things, and each agent gets as many of them as its 
 8. **Never put secrets in a prompt you route or delegate.** Prompts go to Palgu and the provider that serves them. Keys stay in `~/.config/mixture-of-models/credentials.json`, `PALGU_API_KEY` or Claude Code's secure storage; no config file needs one.
 9. **Let the heartbeat work, and stop it when it should not.** It continues a turn that announced work and stopped, at most 3 times per prompt of yours, and never a turn you aborted. If it continues something you meant to end, say what you want ("stop here, just summarise") or turn it off: `mom heartbeat off` (`/palgu heartbeat off` in OpenCode, `"heartbeat": "off"` in the `router` block in Claude Code). `mom heartbeat local` keeps it but never asks Palgu.
 10. **Watch the budget, not just the bill.** `mom status` and `/palgu status` show what your organisation spent of its Palgu budget this period ("budget: $205.11 of $4,500.00 this month (5%)"). Claude Code also shows what routing saved under each routed answer and in `/route stats`.
-
-## Choosing a model when you do pin
-
-What we have seen on Palgu (see the README's *Which Palgu models work* for the dates and test):
-
-| Work | Good pick | Why |
-| :- | :- | :- |
-| Everyday edits, tests, docs, config | `auto`, or `glm-5.3` | The default cheap coding model; passed every agentic test |
-| Research, code review, reading a big codebase | `deepseek-pro` | 1M-token context; the mod's default for the `research` and `review` kinds |
-| Fast, short answers | `gemini-3.8-flash` | Palgu's own pick for trivial requests |
-| Hard reasoning you still want off Claude | `gpt-6-sol` (or `gpt/auto` in Claude Code) | Palgu's `think` tier |
-| Agentic loops with many tool calls | avoid `minimax-m2.5` | It kept retrying refused commands until it ran out of turns |
-| Kimi | pin only when Moonshot is not overloaded | A busy Moonshot answers `429 engine_overloaded`; the child retries at most twice, then the main model answers |
-
-A pinned model that is down answers 503. `/route models` (Claude Code), `palgu_models` (MCP agents) or `GET https://api.palgu.ai/v1/models/health` lists what is up.
-
-To pin on a raw Palgu endpoint, set the model **and** send `x-srooter-pin`. A model name alone is still routed, and `auto` with a pin is refused (403).
 
 ## Per agent
 
@@ -58,9 +54,8 @@ The most complete integration: per-turn routing with your own rules, memory in e
 
 ### OpenCode (full parity)
 
-- Use `palgu/auto` as your model. Palgu picks per request; `/route <model>` pins for every session and `/route auto` unpins.
+- Use `palgu/auto` as your model and leave it there: Palgu picks per request.
 - For the mod's own routing rules, give the plugin `routes` or `critical` (for example `["…/plugin.js", { "critical": "claude-opus" }]`): then security and "use claude" prompts go to the critical model and the rest by tier.
-- A model you pick yourself in OpenCode's model menu is left alone; that is the quickest way to take one task off routing.
 - `/palgu memory on`, `/palgu status` and `/route status` answer in a toast, at Palgu's cheapest tier.
 - Debugging a surprise route: `MOM_DEBUG=1` logs each decision (model ids and pins, never prompts or the key) to `~/.config/mixture-of-models/opencode.log`.
 
@@ -68,7 +63,6 @@ The most complete integration: per-turn routing with your own rules, memory in e
 
 - Start it with `codex -p palgu`. Plain `codex` uses your normal Codex config and none of Palgu's routing, though the plugin's memory and heartbeat still run.
 - Approve the plugin's hooks once in `/hooks`; `codex exec` does not run hooks that were never approved interactively.
-- Pin for a session with the same model twice: `MOM_PIN=deepseek-pro codex -p palgu -m deepseek-pro`.
 - Codex has no custom slash commands: run `mom status`, `mom memory on` and `mom heartbeat …` in a terminal (the plugin's skill tells Codex to suggest them).
 
 ### Cursor
@@ -100,7 +94,7 @@ Routing only: no memory, no heartbeat.
 
 - Use model `auto` (`openai/auto` in Aider) against `https://api.palgu.ai/v1`, with the key from `mom token` in an environment variable, not a committed config.
 - Aider's architect mode (`--architect --editor-model openai/auto`) sends planning and editing as separate requests, and Palgu routes each one: planning can go to a stronger tier while edits stay cheap.
-- In Continue, keep autocomplete on a small pinned model of its own; Palgu's routing is meant for chat turns.
+- In Continue, give autocomplete a small, fast model of its own; Palgu's routing is meant for chat turns.
 
 ## Using several agents on one project
 
@@ -111,6 +105,29 @@ Everything `mom` keeps is per folder and shared, so you can switch agents mid-pr
 - Heartbeat mode (`mom heartbeat …`).
 
 A good split: plan and review in Claude Code (critical turns on Claude, the rest routed), do bulk edits in OpenCode or Codex on `auto`, and let Cursor or Copilot hand repetitive subtasks to `palgu_delegate`. The memory index all of them read is the same one.
+
+## Overriding the router (rarely needed)
+
+You should not need this. A pin turns routing off for every request until you remove it, so you lose the savings and the fallback when that provider is down. The only good reasons are ones the router cannot know about:
+
+- **Trying a model out:** you want to see how one model does on your own work.
+- **Comparing models:** a benchmark or an A/B run needs the same model every time.
+- **Contract or data rules:** a client's code may only go to certain providers.
+- **Debugging a bad answer:** you want to know whether the model or the prompt was the problem.
+
+Not reasons to pin: a wrong route (change the strategy, `router.thresholds` or `routes.kinds` in Claude Code, so routing stays automatic), a slow answer (try `/route strategy speed`), or a single prompt you want on Claude (say "use claude" in it).
+
+How, and how to undo it:
+
+| Agent | Pin | Back to automatic |
+| :- | :- | :- |
+| Claude Code | `/route <model>` | `/route auto` |
+| OpenCode | `/route <model>`, or pick a model in the model menu | `/route auto`, or pick `palgu/auto` |
+| Codex | `MOM_PIN=<model> codex -p palgu -m <model>` (the same model twice) | `codex -p palgu` |
+| Cursor, Antigravity, Copilot | ask for `palgu_delegate` with `model: "<id>"` for that subtask | the default is `auto` |
+| Raw endpoint (Aider, Continue, Goose) | set the model **and** send `x-srooter-pin` (a model name alone is still routed; `auto` with a pin is refused, 403) | model `auto`, no header |
+
+`/route models` (Claude Code), `palgu_models` or `GET https://api.palgu.ai/v1/models/health` lists the models that are up. Remove the pin as soon as you are done: `/route status` shows whether one is on.
 
 ## When something looks wrong
 
