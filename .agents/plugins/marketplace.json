@@ -1,0 +1,12 @@
+{
+  "name": "mixture-of-models",
+  "interface": { "displayName": "Mixture of Models" },
+  "plugins": [
+    {
+      "name": "mixture-of-models",
+      "source": { "source": "local", "path": "./integrations/codex" },
+      "policy": { "installation": "AVAILABLE" },
+      "category": "Coding"
+    }
+  ]
+}

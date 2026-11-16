@@ -226,6 +226,24 @@ It is an estimate, and it says so. Claude prices are the API list prices (Opus 5
 
 The band's buttons have digit hotkeys: with an empty prompt, type `3` and pause to pin Kimi, `1` to go back to auto, `0` for help: a pane that says what the mod does, where it stands (mode, gateway, savings), what every button and command does, and how to connect Palgu, OpenRouter or LiteLLM. `/route help` opens it too. Turn the band off with `"ui": { "band": false }`.
 
+## Other coding agents
+
+The mod runs inside Claude Code. For other agents, the `mom` CLI and a thin adapter per tool bring the same pieces: Palgu picks the model per request, Palgu memory is recalled into each prompt, and a turn that stops mid-task is continued ([ADR 0005](docs/adr/0005-other-coding-agents.md)).
+
+```bash
+npm install -g github:alinaqi/mixture-of-models-claude-mod   # installs `mom`
+mom login
+```
+
+| Agent | Status | Guide |
+| :- | :- | :- |
+| Codex (CLI, 0.163+) | Plugin: memory recall, heartbeat, indexing; `codex -p palgu` routes through Palgu | [integrations/codex](integrations/codex/README.md) |
+| Cursor | Planned: hooks (heartbeat), MCP server (memory, delegation), rule | |
+| OpenCode | Planned: plugin with full parity (per-request model choice, memory, heartbeat) | |
+| Aider, Goose, Continue | Planned: setup guides (Palgu routes; no hooks to add memory or the heartbeat) | |
+
+Palgu memory consent (`mom memory on`) is per project folder and shared by every agent that uses `mom`. It is separate from the mod's `/palgu memory on`.
+
 ## Requirements
 
 - Claude Code **v2.1.287 or later** (`claude --version`). Mods do not load on older builds; `claude update`.

@@ -1,18 +1,28 @@
 {
   "name": "mixture-of-models-claude-mod",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
-  "description": "Claude Code mod: route cheap work to GLM/Kimi through a child Claude Code, keep critical work on your subscription",
+  "description": "Mixture of Models: route cheap work to cheaper models, recall Palgu memory and continue stalled turns, in Claude Code (a mod) and in Codex, Cursor, OpenCode and other coding agents (the mom CLI)",
   "license": "MIT",
   "repository": "github:alinaqi/mixture-of-models-claude-mod",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node scripts/test-pure.mjs",
+    "test": "node scripts/test-pure.mjs && node --test integrations/cli/test/*.test.mjs",
     "test:mod": "claude plugin test",
     "validate": "claude plugin validate --strict .",
-    "changelog": "node scripts/check-changelog.mjs"
-  }
+    "changelog": "node scripts/check-changelog.mjs",
+    "test:cli": "node --test integrations/cli/test/*.test.mjs"
+  },
+  "bin": {
+    "mom": "integrations/cli/mom.js"
+  },
+  "files": [
+    "hooks/lib",
+    "integrations",
+    "README.md",
+    "LICENSE"
+  ]
 }
