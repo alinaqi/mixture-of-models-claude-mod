@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.31.1] - 2026-11-16
+
+### Added
+- `GUIDELINES.md`: best practices for using Mixture of Models in Claude Code, OpenCode, Codex, Cursor, Antigravity, GitHub Copilot CLI and Aider/Continue/Goose: ten rules for every agent (leave routing on `auto`, one task per prompt, key words first for memory recall, memory only where you may upload, keep critical work and secrets off cheap models), which model to pin for what, per-agent tips, using several agents on one project, and a table of symptoms and fixes. Linked from the README, INSTALL.md and AGENTS.md; `INSTALL.md` and `GUIDELINES.md` now ship in the npm package.
+
 ## [0.31.0] - 2026-11-16
 
 Mixture of Models in GitHub Copilot CLI ([ADR 0005](docs/adr/0005-other-coding-agents.md), [integrations/copilot](integrations/copilot/README.md)).
