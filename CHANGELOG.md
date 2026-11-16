@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.32.1] - 2026-11-16
+
+### Changed
+- The band above the prompt puts the status on its own line and the buttons on the line below. Side by side, a narrow terminal squeezed the status into a column a few words wide.
+- The band's status is shorter: `last: glm-5.3 · coding 5/10 code`, or `last: claude-opus-5 · main session (session command)` for a turn kept on the main session. The classifier's name stays in the route line.
+- The line under each answer says where the turn ran before why, and says it once: `route: claude-opus-4-8 · main session · session command · 17.8M in / 79.7k out · cache 99%` instead of `· main via session command · … · main session`. Token counts over a million show in millions.
+- Today's count in that line is one figure, `today: 115 turns, 32 off Claude (28%)`, instead of every model used today; `/route stats` still has the per-model breakdown.
+
 ## [0.32.0] - 2026-11-16
 
 ### Added

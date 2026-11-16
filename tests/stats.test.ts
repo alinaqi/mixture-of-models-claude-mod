@@ -15,8 +15,11 @@ test('bumpStats counts routes per day and statsLine prints them', async () => {
   stats = bumpStats(stats, '2026-10-08', 'glm-5.3')
   stats = bumpStats(stats, '2026-10-08', 'kimi-k3.1-pro')
   expect(stats['2026-10-08']).toEqual({ 'glm-5.3': 2, 'kimi-k3.1-pro': 1 })
-  expect(statsLine(stats, '2026-10-08')).toBe('today: glm-5.3 ×2, kimi-k3.1-pro ×1')
-  expect(statsLine(stats, '2026-10-09')).toBe('today: no routed turns yet')
+  expect(statsLine(stats, '2026-10-08')).toBe('today: 3 turns, 3 off Claude (100%)')
+  expect(statsLine(stats, '2026-10-09')).toBe('today: no turns yet')
+  const mixed = { d: { 'claude-opus-5-5': 74, 'glm-5.3': 20, 'kimi-k3': 12, 'claude-opus-4-8': 9 } }
+  expect(statsLine(mixed, 'd')).toBe('today: 115 turns, 32 off Claude (28%)')
+  expect(statsLine({ d: { 'claude-opus-5': 1 } }, 'd')).toBe('today: 1 turn, 0 off Claude')
 })
 
 test('appendLog keeps the newest entries up to the cap', async () => {

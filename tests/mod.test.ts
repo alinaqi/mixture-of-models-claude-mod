@@ -243,7 +243,7 @@ test('every turn gets a route line, main-session turns included', GW, async ($, 
   const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
   expect(done.text).toContain('claude-opus-5')
   expect(done.text).toContain('main session')
-  expect(done.text).toContain('today: claude-opus-5 ×1')
+  expect(done.text).toContain('today: 1 turn, 0 off Claude')
 })
 
 test('a long multi-service integration task scores mid-range and goes to the coding tier', GW, async ($, on) => {
@@ -449,7 +449,7 @@ test('a teammate notification never starts a child, even at a low score', GW, as
   expect(runs).toBe(0)
   expect(seen).toEqual(['claude-opus-5'])
   const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
-  expect(done.text).toContain('via notification')
+  expect(done.text).toContain('main session · notification')
 })
 
 test('an operator command stays on the main session even when a model is pinned', GW, async ($, on) => {

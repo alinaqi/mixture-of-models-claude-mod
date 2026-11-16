@@ -2,7 +2,7 @@
 // reply. Pure: elements come in as a parameter, trees go out as data.
 
 import { GATEWAY_MODELS } from './config.js'
-import { routeModels, summaryLine, tierText } from './routing.js'
+import { routeModels, summaryLine } from './routing.js'
 
 const NAME = 'mixture-of-models'
 
@@ -28,7 +28,9 @@ function activeArg(pin) {
 
 function lastDecision(d) {
   if (!d.model) return 'no prompt yet'
-  return 'last: ' + d.model + ' (' + tierText(d) + ')'
+  if (d.label === 'main') return 'last: ' + d.model + ' · main session (' + d.source + ')'
+  const score = d.score ? ' ' + d.score + '/10' + (d.kind ? ' ' + d.kind : '') : ''
+  return 'last: ' + d.model + ' · ' + d.label + score
 }
 
 // The default strategy goes unnamed, so the band reads as it always did.
@@ -52,8 +54,10 @@ export function bandTree(el, v, onPin) {
   const buttons = bandButtons(v.routes, v.catalogue).map((b) =>
     el.Button({ key: b.key, label: b.label, hotkey: b.hotkey, plain: true, dimColor: b.arg !== active, onPress: () => onPin(b.arg) }),
   )
-  const row = el.Box({ flexDirection: 'row', columnGap: 2, children: [el.Text({ dimColor: true, children: [bandText(v) + '  '] }), ...buttons] })
-  return el.Box({ flexDirection: 'column', children: [row, v.theirs].filter(Boolean) })
+  // The status on its own line, the buttons below it: side by side, a narrow terminal squeezed the status.
+  const status = el.Text({ dimColor: true, children: [bandText(v)] })
+  const row = el.Box({ flexDirection: 'row', columnGap: 2, children: buttons })
+  return el.Box({ flexDirection: 'column', children: [status, row, v.theirs].filter(Boolean) })
 }
 
 const WHERE = { subscription: ' · child on your Claude subscription', codex: ' · Codex child' }

@@ -213,11 +213,11 @@ Claude et la passerelle sont tous deux visibles, en permanence :
 
 | Emplacement | Tour de la session principale | Tour routé |
 | :- | :- | :- |
-| Bandeau au-dessus du prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | `… · running glm-5.3 in a child…` pendant l'exécution |
+| Bandeau au-dessus du prompt | `mixture-of-models · auto · last: claude-opus-5 · critical 9/10`<br>`0: help  1: auto  2: glm  3: deepseek  …  9: claude  off` | `… · running glm-5.3 in a child…` pendant l'exécution |
 | Indicateur d'activité | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Boîte de dialogue de question | Les propres questions de Claude | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` avec Allow and continue / Deny |
 | Réponse dans la transcription | inchangée (ou étiquetée `⇢ claude-opus-5 · main session` avec `ui.tags: "all"`) | une ligne atténuée `⇢ glm-5.3 · child on gateway` au-dessus de la réponse, conservée dans l'historique (`· child on your Claude subscription` pour un membre Claude, `· Codex child` pour Codex) |
-| Ligne sous la réponse | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| Ligne sous la réponse | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | idem |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, puis une notification `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | idem |
 | `/route stats` | Un panneau, « Mixture of models », avec quatre onglets sur les raccourcis 1-4 : **models** (barres par modèle, part des tours, le titre « N of M turns off Claude » et, en vert, ce que le routage a économisé), **kinds** (chaque type et les modèles qui l'ont pris), **scores** (un histogramme de 1 à 10 coloré par palier, seuils marqués), **recent** (les dernières décisions avec score, type, modèle et durée de l'enfant). Échap le ferme. | idem |

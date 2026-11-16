@@ -60,16 +60,21 @@ test('summaryLine reports a main-session turn with context size and cache share'
   // input_tokens excludes cached tokens: context = 1.3k + 11k + 0 = 12.3k, of which 11k (89%) came from cache
   const usage = { input_tokens: 1_300, output_tokens: 800, cache_read_input_tokens: 11_000, cache_creation_input_tokens: 0, model: 'claude-opus-5' }
   const line = summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'rule' }, usage)
-  expect(line).toBe('route: claude-opus-5 · critical via rule · 12.3k in / 0.8k out · cache 89% · main session')
+  expect(line).toBe('route: claude-opus-5 · main session · critical via rule · 12.3k in / 0.8k out · cache 89%')
 })
 
 test('summaryLine survives a usage with no tokens', async () => {
   const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, model: 'x' }
-  expect(summaryLine({ label: 'simple', model: 'x', source: 'pin' }, usage)).toBe('route: x · simple via pin · 0.0k in / 0.0k out · cache 0% · main session')
+  expect(summaryLine({ label: 'simple', model: 'x', source: 'pin' }, usage)).toBe('route: x · main session · simple via pin · 0.0k in / 0.0k out · cache 0%')
+})
+
+test('summaryLine gives a turn kept on the main session its reason once, and big token counts in millions', async () => {
+  const usage = { input_tokens: 4900, cache_read_input_tokens: 17800000, cache_creation_input_tokens: 0, output_tokens: 79700 }
+  expect(summaryLine({ label: 'main', model: 'claude-opus-4-8', source: 'session command' }, usage)).toBe('route: claude-opus-4-8 · main session · session command · 17.8M in / 79.7k out · cache 100%')
 })
 
 test('summaryLine works without usage', async () => {
-  expect(summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'pin' }, null)).toBe('route: claude-opus-5 · critical via pin · main session')
+  expect(summaryLine({ label: 'critical', model: 'claude-opus-5', source: 'pin' }, null)).toBe('route: claude-opus-5 · main session · critical via pin')
 })
 
 test('summaryLine shows the blast score and the kind when the classifier gave them', async () => {
@@ -135,7 +140,7 @@ test('summaryLine names the family and the member, and marks an auto pick', asyn
   const d = { label: 'coding', score: 5, kind: 'code', model: 'claude-sonnet-5-5', source: 'ollama', family: 'claude', member: 'sonnet', auto: true, child: { ms: 9_000, exitCode: 0 } }
   expect(summaryLine(d, null)).toBe('route: claude-sonnet-5-5 (claude/auto → sonnet) · coding 5/10 code via ollama · child 9s')
   const pinned = { label: 'pinned', model: 'kimi-k3.1-pro-highspeed', source: 'pin', family: 'kimi', member: 'highspeed', auto: false }
-  expect(summaryLine(pinned, null)).toBe('route: kimi-k3.1-pro-highspeed (kimi/highspeed) · pinned via pin · main session')
+  expect(summaryLine(pinned, null)).toBe('route: kimi-k3.1-pro-highspeed (kimi/highspeed) · main session · pinned via pin')
   const codex = { label: 'coding', model: 'codex', source: 'pin', family: 'codex', member: '', auto: false, child: { ms: 3_000, exitCode: 0 } }
   expect(summaryLine(codex, null)).toBe('route: codex (codex/default) · coding via pin · child 3s')
 })

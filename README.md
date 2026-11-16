@@ -211,11 +211,11 @@ Claude and the gateway are both visible, all the time:
 
 | Surface | Main-session turn | Routed turn |
 | :- | :- | :- |
-| Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 (critical via rule)  0: help  1: auto  2: glm  3: kimi  …  7: claude  8: off` | `… · running glm-5.3 in a child…` while it runs |
+| Band above the prompt | `mixture-of-models · auto · last: claude-opus-5 · critical 9/10`<br>`0: help  1: auto  2: glm  3: deepseek  …  9: claude  off` | `… · running glm-5.3 in a child…` while it runs |
 | Spinner | `Thinking…` | `Thinking · via glm-5.3 (child)…` |
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
-| Line under the answer | `route: claude-opus-5 · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · main session · today: claude-opus-5 ×3, glm-5.3 ×5` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
+| Line under the answer | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | same |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
 | `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |

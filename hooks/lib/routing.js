@@ -54,7 +54,7 @@ export function parseRouteArg(arg, routes, catalogue) {
 }
 
 function fmtTokens(n) {
-  return (n / 1000).toFixed(1) + 'k'
+  return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : (n / 1000).toFixed(1) + 'k'
 }
 
 // The API's input_tokens excludes cached tokens, so the context size is the three summed.
@@ -89,6 +89,11 @@ function usageNote(usage) {
   return ' · ' + fmtTokens(contextTokens(usage)) + ' in / ' + fmtTokens(usage.output_tokens) + ' out · cache ' + cachePercent(usage) + '%'
 }
 
+// Why a turn ran where it did: a turn kept on the main session gives its reason, a scored one its tier.
+function reasonText(d) {
+  return d.label === 'main' ? d.source : tierText(d)
+}
+
 // ` (claude/sonnet)`, or ` (claude/auto → sonnet)` when the tier picked the member.
 function familyNote(d) {
   if (!d.family) return ''
@@ -102,7 +107,7 @@ export function tierText(decision) {
 }
 
 export function summaryLine(decision, usage) {
-  const head = 'route: ' + decision.model + familyNote(decision) + ' · ' + tierText(decision)
-  if (decision.child) return head + childNote(decision.child)
-  return head + usageNote(usage) + ' · main session'
+  const head = 'route: ' + decision.model + familyNote(decision)
+  if (decision.child) return head + ' · ' + tierText(decision) + childNote(decision.child)
+  return head + ' · main session · ' + reasonText(decision) + usageNote(usage)
 }
