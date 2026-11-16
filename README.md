@@ -240,7 +240,7 @@ mom login
 | Codex (CLI, 0.163+) | Plugin: memory recall, heartbeat, indexing; `codex -p palgu` routes through Palgu | [integrations/codex](integrations/codex/README.md) |
 | Cursor | Plugin (or `mom setup cursor`): MCP server for Palgu memory search and delegation to Palgu models (`mom mcp`), heartbeat and indexing through hooks, a rule for when to delegate. No per-turn routing: Cursor's hooks cannot change the model | [integrations/cursor](integrations/cursor/README.md) |
 | OpenCode | Planned: plugin with full parity (per-request model choice, memory, heartbeat) | |
-| Aider, Goose, Continue | Planned: setup guides (Palgu routes; no hooks to add memory or the heartbeat) | |
+| Aider, Continue, Goose | Palgu routes (`model: auto`); no hooks, so no memory recall or heartbeat. Aider checked live | [integrations/gateway](integrations/gateway/README.md) |
 
 Palgu memory consent (`mom memory on`) is per project folder and shared by every agent that uses `mom`. It is separate from the mod's `/palgu memory on`.
 
