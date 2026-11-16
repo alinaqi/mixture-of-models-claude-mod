@@ -20,10 +20,14 @@ function useModel(rt, message, model) {
   if (rt.known.includes(model)) message.model = { ...message.model, modelID: model }
 }
 
-// A person's own pick of a Palgu model (not auto, not one this plugin set) is kept.
+// A person's own pick of a Palgu model (not auto, not one this plugin set) is kept, turn after turn.
 async function route(rt, s, message, text) {
   const picked = message.model.modelID
-  if (picked !== AUTO && picked !== s.model) return useModel(rt, message, picked)
+  if (picked !== AUTO && (picked !== s.model || picked === s.manual)) {
+    s.manual = picked
+    return useModel(rt, message, picked)
+  }
+  s.manual = ''
   const d = await decide(rt, s, text)
   rt.deps.log({ session: message.sessionID, route: d.model, label: d.label, reason: d.reason })
   useModel(rt, message, d.model)
@@ -41,6 +45,7 @@ export async function onMessage(rt, input, output) {
   const s = track(rt, message.sessionID)
   const text = textOf(output.parts)
   const continuing = Boolean(s.continuing) && text === s.continuing
+  s.gen += 1
   s.continuing = ''
   s.turn = s.echo ? 'echo' : continuing ? 'continue' : 'person'
   s.echo = false

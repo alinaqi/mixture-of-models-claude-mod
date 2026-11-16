@@ -16,7 +16,9 @@ export async function onConfig(rt, cfg) {
   rt.known = knownModels(cfg, rt.opts.provider)
   const provider = (cfg.provider || {})[rt.opts.provider] || {}
   rt.baseURL = String((provider.options || {}).baseURL || '')
-  cfg.command = { ...structuredClone(COMMANDS), ...(cfg.command || {}) }
+  const theirs = cfg.command || {}
+  rt.owned = new Set(Object.keys(COMMANDS).filter((name) => !(name in theirs)))
+  cfg.command = { ...structuredClone(COMMANDS), ...theirs }
 }
 
 function routeStatus(rt) {
@@ -51,7 +53,7 @@ export function echoText(line) {
 }
 
 export async function onCommand(rt, input, output) {
-  const run = HANDLERS[input.command]
+  const run = rt.owned.has(input.command) && HANDLERS[input.command]
   if (!run || !output || !Array.isArray(output.parts)) return
   const line = (await run(rt, input.arguments || '')) || PALGU_USAGE
   track(rt, input.sessionID).echo = true

@@ -30,13 +30,22 @@ function continueBody(turn, text) {
   return { ...(turn.agent ? { agent: turn.agent } : {}), ...(turn.model ? { model: turn.model } : {}), parts: [{ type: 'text', text }] }
 }
 
+// onStop, unless a message arrived while it ran: then nothing is saved for this session.
+function unlessStale(s, gen) {
+  return async (ev, state, io) => {
+    const r = await onStop(ev, state, io)
+    return s.gen === gen ? r : { reason: '', state: {} }
+  }
+}
+
 async function idled(rt, id) {
   const s = track(rt, id)
+  const gen = s.gen
   if (!id || s.turn === 'echo') return
   const turn = await turnOf(rt, id)
-  if (!turn || !turn.answer) return
-  const r = await step(onStop, { session: id, cwd: rt.deps.directory, answer: turn.answer }, rt.deps.stateEnv())
-  if (!r.reason) return
+  if (!turn || !turn.answer || s.gen !== gen) return
+  const r = await step(unlessStale(s, gen), { session: id, cwd: rt.deps.directory, answer: turn.answer }, rt.deps.stateEnv())
+  if (!r.reason || s.gen !== gen) return
   s.continuing = r.reason
   rt.deps.log({ session: id, heartbeat: r.reason })
   await rt.deps.client.session.promptAsync({ path: { id }, body: continueBody(turn, r.reason) })

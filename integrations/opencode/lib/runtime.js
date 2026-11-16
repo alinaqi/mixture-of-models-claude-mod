@@ -4,12 +4,13 @@
 import { routingOptions } from './route.js'
 
 export function makeRuntime(deps) {
-  return { deps, opts: routingOptions(deps.options), known: [], baseURL: '', sessions: new Map() }
+  return { deps, opts: routingOptions(deps.options), known: [], baseURL: '', owned: new Set(), sessions: new Map() }
 }
 
-// { model, turn: 'person'|'continue'|'echo', continuing, echo }
+// { model, manual (a model the person picked), turn: 'person'|'continue'|'echo', gen (messages
+// seen, so a heartbeat verdict can tell it is stale), continuing, echo }
 export function track(rt, id) {
-  if (!rt.sessions.has(id)) rt.sessions.set(id, { model: '', turn: '', continuing: '', echo: false })
+  if (!rt.sessions.has(id)) rt.sessions.set(id, { model: '', manual: '', turn: '', gen: 0, continuing: '', echo: false })
   return rt.sessions.get(id)
 }
 
