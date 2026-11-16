@@ -1,0 +1,7 @@
+{
+  "mixture-of-models": {
+    "SessionStart": [{ "type": "command", "command": "mom hook antigravity SessionStart", "timeout": 10 }],
+    "PreInvocation": [{ "type": "command", "command": "mom hook antigravity PreInvocation", "timeout": 10 }],
+    "Stop": [{ "type": "command", "command": "mom hook antigravity Stop", "timeout": 15 }]
+  }
+}

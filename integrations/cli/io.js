@@ -37,6 +37,16 @@ export function loadKey() {
   return isPalguKey(k) ? k : ''
 }
 
+// The end of a file, at most `bytes` (a transcript can be large; the answer is near the end).
+export function readTail(path, bytes = 262144) {
+  try {
+    const buf = readFileSync(path)
+    return buf.subarray(Math.max(0, buf.length - bytes)).toString('utf8')
+  } catch {
+    return ''
+  }
+}
+
 export async function call(path, init, ms) {
   const res = await fetch(PALGU + path, { ...init, signal: AbortSignal.timeout(ms) })
   return { ok: res.ok, status: res.status, text: await res.text() }

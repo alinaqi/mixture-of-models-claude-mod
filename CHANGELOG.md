@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.29.0] - 2026-11-16
+
+Mixture of Models in Google's Antigravity CLI ([ADR 0005](docs/adr/0005-other-coding-agents.md), [integrations/antigravity](integrations/antigravity/README.md)).
+
+### Added
+- The Antigravity plugin (`integrations/antigravity`: `plugin.json`, `hooks.json`, `mcp_config.json`, `rules/AGENTS.md`), installed with `agy plugin install` from the folder `npm install -g` puts on disk. `PreInvocation` on a turn's first model call adds Palgu memory as an `ephemeralMessage`; `Stop` continues a turn that stopped mid-task (`decision: "continue"`); `SessionStart` indexes memory-on folders; the `mom mcp` tools (memory search, delegation to Palgu models, model list) with an always-on rule.
+- `mom hook <tool> [event]`: the event's name from the command line, for a tool whose hook input may not carry it.
+- The heartbeat reads the answer from the tool's transcript when its stop event has none (Antigravity's JSONL, `PLANNER_RESPONSE` steps; at most the last 256 KB).
+
+### Verified live (agy 1.0.7, Gemini API key)
+- The memory block reached the model as the turn's first step, a mid-task answer was continued once with Palgu's verdict and the next answer was left alone, and session start indexed the folder. `agy plugin validate --strict` reports only that `mom` is not on this machine's PATH.
+- Antigravity's input differs from its docs: it carries `hookEventName` and `cwd`, the continue flag is `continuationActive`, and an answered turn stops with `NO_TOOL_CALL`, not `model_stop`.
+
 ## [0.28.0] - 2026-11-16
 
 Mixture of Models in OpenCode, with the same features as the Claude Code mod ([ADR 0005](docs/adr/0005-other-coding-agents.md), [integrations/opencode](integrations/opencode/README.md)).

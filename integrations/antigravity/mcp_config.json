@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "palgu": { "command": "mom", "args": ["mcp", "antigravity"] }
+  }
+}

@@ -100,3 +100,15 @@ test('mom with no command or an unknown one prints help and fails', () => {
   assert.equal(mom(['frobnicate']).status, 2)
   assert.equal(existsSync(MOM), true)
 })
+
+test('mom hook antigravity Stop reads the answer from the transcript and continues a premature one', () => {
+  const home = mkdtempSync(join(tmpdir(), 'mom-'))
+  const transcript = join(home, 'transcript_full.jsonl')
+  writeFileSync(transcript, [{ type: 'USER_INPUT', content: 'fix it' }, { type: 'PLANNER_RESPONSE', content: 'Now I\'ll run the full suite' }].map((x) => JSON.stringify(x)).join('\n') + '\n')
+  const stop = (o) => JSON.stringify({ hookEventName: 'Stop', conversationId: 'cv1', cwd: '/w', transcriptPath: transcript, terminationReason: 'NO_TOOL_CALL', error: '', ...o })
+  const r = mom(['hook', 'antigravity', 'Stop'], { home, input: stop({}) })
+  assert.deepEqual(JSON.parse(r.stdout), { decision: 'continue', reason: REASONS.premature })
+  writeFileSync(transcript, JSON.stringify({ type: 'PLANNER_RESPONSE', content: 'Done: 12 tests pass.' }) + '\n')
+  assert.equal(mom(['hook', 'antigravity', 'Stop'], { home, input: stop({}) }).stdout, '')
+  assert.equal(mom(['hook', 'antigravity', 'Stop'], { home, input: stop({ terminationReason: 'ERROR', error: 'quota' }) }).stdout, '')
+})
