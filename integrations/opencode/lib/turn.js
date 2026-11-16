@@ -61,7 +61,9 @@ function keyHeader(rt, key) {
   return rt.baseURL.includes('/anthropic') ? { 'x-api-key': key } : { authorization: 'Bearer ' + key }
 }
 
-// OpenCode's own small requests (a session title, a summary) go to Palgu unpinned.
+// OpenCode's own small requests (a session title, a summary) go to Palgu unpinned. Compaction
+// keeps the session's model on purpose: it reads the whole conversation, which a cheap tier's
+// context window may not hold.
 const HELPERS = ['title', 'summary']
 
 export async function onHeaders(rt, input, output) {
