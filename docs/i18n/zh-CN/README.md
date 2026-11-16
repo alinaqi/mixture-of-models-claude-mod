@@ -64,7 +64,7 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 > **你的 hook 不会在网关子进程中运行。** 子进程运行 `claude -p --bare`，而 `--bare` 会跳过你设置和插件中的所有 hook，所以一个拦截 `.env` 的 hook 在那里起不到保护作用，子进程读取的内容会发送给网关模型。mod 在这方面不依赖 hook：每个 Claude 子进程都会获得 Claude Code 的权限拒绝规则（`--bare` 会保留这些规则），覆盖 `.env` 和 `.env.*` 文件、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*` 以及 `secrets/` 文件夹（Read 规则同时覆盖 Grep 和 Glob）。可以用 `router.child.deny` 添加你自己的规则，例如 `["Read(**/credentials.json)"]`。子进程无权运行的命令仍会以 Allow / Deny 对话框的形式交给你。Codex 子进程是只读的，但不受这些规则保护：不要在路由给 Codex 的项目中放置密钥。
 
-**更新。** 运行 `/route update`：它会检查是否有新版本并安装。第三方 marketplace 默认不会自动更新。可以在 `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update 中开启一次，或者手动更新：`claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`。新版本在重启 Claude Code 后生效。
+**更新。** 会话启动时，mod 会在 GitHub 上检查是否有新版本（最多每 12 小时一次），如果有，会通过一条 toast 和状态栏提示一次：`0.33.0 available: /route update`。运行 `/route update`：它会安装新版本，之后状态栏会显示 `0.33.0 installed: /reload-plugins`。第三方 marketplace 默认不会自动更新。可以在 `/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update 中开启一次，或者手动更新：`claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod`。新版本在运行 `/reload-plugins`（或重启）后生效。
 
 **最快的开始方式，使用 Palgu：** 启动 `claude` 并运行 `/palgu login`。它会显示一个链接和一个代码；在浏览器中批准（如果你是新用户，就在那里注册），mod 会保存自己的 Palgu 密钥并从那一刻起开始路由，无需复制密钥。`/palgu status` 显示登录的是谁、使用什么套餐以及预算已花费多少，`/palgu upgrade` 打开套餐和计费页面。
 
@@ -362,7 +362,7 @@ virtual key 只能访问它被允许的模型；401 或未知模型会导致子�
 ### 本插件联系的网络主机
 
 - `https://api.palgu.ai` — Palgu，固定写在代码中：`/palgu login` 时访问 `/auth/device/code` 和 `/auth/token`，`/palgu status` 时访问 `/me` 和 `/me/org-settings`，在会话开始时、`/palgu login` 之后以及 `/route models` 时访问 `/v1/models/health`（以 `x-api-key` 发送网关密钥；不发送其他任何内容），当你的网关是 Palgu 且 `router.prices` 中没有该模型的条目时，在被路由的轮次之后访问 `/v1/pricing/quote`，当主会话结束一个轮次时访问 `/anthropic/heartbeat`（心跳，见下文），在你运行过 `/palgu memory on` 的项目中，对你的每条提示词访问 `/v1/cortex/search`（Palgu 记忆召回，见下文）。
-- `https://raw.githubusercontent.com` — 仅在 `/route update` 时：对 `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` 发起 GET，以读取已发布的版本。不发送任何内容。
+- `https://raw.githubusercontent.com` — 在会话启动时（最多每 12 小时一次，在后台）以及 `/route update` 时：对 `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` 发起 GET，以读取已发布的版本。不发送任何内容。
 - `http://localhost:11434` — 本地 Ollama（`/api/chat`），为每条提示词打分。数据留在你的机器上；如果那里没有响应则跳过。
 - Anthropic，通过 Claude Code 自己的 `$.model.classify`，使用你自己的套餐 — 仅当 Ollama 没有响应时，用于为提示词打分。
 - 你在插件设置中设置的网关 URL（`gateway_url`，例如 `https://api.palgu.ai/anthropic`、`https://openrouter.ai/api` 或你的 LiteLLM 代理）。用户可以在插件设置中设置自定义网关 URL；被路由的轮次只会联系该 URL，而且联系它的是子进程，不是 mod。Codex 子进程使用该网关的 `/v1`（或你设置的 `router.codex.baseUrl`），或在 `codex.auth: "chatgpt"` 下使用你自己 Codex 登录的 OpenAI。`claude/<member>` 子进程使用你自己 Claude 登录的 Anthropic。
@@ -417,9 +417,10 @@ virtual key 只能访问它被允许的模型；401 或未知模型会导致子�
 - 仅当你运行 `/palgu` 时，它会**请求** `https://api.palgu.ai`（`/auth/device/code`、`/auth/token`、`/me`），并**运行**一次 `claude plugin configure … --values-stdin` 来保存 Palgu 生成的密钥（见下方表格）。
 - 它用 `$.http.fetch` **请求** `http://localhost:11434/api/chat`，把提示词文本和评分规则发送给本地 Ollama，为提示词打分。不含凭据，没有数据离开本机。
 - 当 Ollama 没有响应时，它会**调用** `$.model.classify`，通过 Claude Code 自己的 API 客户端、使用你自己的账号，把同样的提示词文本和评分规则发送给 Anthropic。
+- 在会话启动时（在后台，最多每 12 小时一次）以及 `/route update` 时，它会**获取** `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`（一次普通 GET，不发送任何内容），以查看是否有更新的版本，如果有，会通过 toast 和状态栏告知。
 - 仅在 `/route update` 时，且 GitHub 列出了更新的版本时，它会以固定文本**运行**针对本插件的 `claude plugin marketplace update` 和 `claude plugin update`。
 - 对于被路由的轮次，它用 `$.process.run` **运行**两个程序：`claude`（Claude Code 本身，无头模式），要么带着 `ANTHROPIC_BASE_URL` 和你配置的密钥（放在 `ANTHROPIC_API_KEY` 中，或者对 OpenRouter 和 LiteLLM 放在 `ANTHROPIC_AUTH_TOKEN` 中，另一个设为空），并且对 Palgu 和通用网关设置 `ANTHROPIC_CUSTOM_HEADERS` 来标识自身（参见[子进程发送的请求头](#子进程发送的请求头)），要么对于 `claude/<member>` 路由，在你自己的 Claude 登录上运行并清除 `ANTHROPIC_BASE_URL`；以及仅对于 `codex` 路由运行的 `codex exec`（Codex CLI），把你的网关密钥放在 `PALGU_API_KEY` 中（OpenRouter 上为 `OPENROUTER_API_KEY`，LiteLLM 上为 `LITELLM_API_KEY`），或使用你自己的 Codex 登录。每个子进程都会把你的提示词和最近会话文本的简短摘要**发送**到它的端点。
-- 它**读取** `~/.claude/model-config.json`、你的策略文件、`HOME`、`HOSTNAME`、`MAGGY_ROUTER_CHILD` 和 `ANTHROPIC_CUSTOM_HEADERS`，并在插件存储中**存储**路由固定、每日计数、最近一次判定、按类型的失败计数以及最近 200 次决策的日志（日期、模型、类型、层级、分数、分类器来源、子进程耗时和退出码；从不包含提示词文本）。
+- 它**读取** `~/.claude/model-config.json`、你的策略文件、`HOME`、`HOSTNAME`、`MAGGY_ROUTER_CHILD` 和 `ANTHROPIC_CUSTOM_HEADERS`，并在插件存储中**存储**路由固定、每日计数、最近一次判定、按类型的失败计数、最近一次更新检查以及最近 200 次决策的日志（日期、模型、类型、层级、分数、分类器来源、子进程耗时和退出码；从不包含提示词文本）。
 
 详细内容如下；隐私政策见 [PRIVACY.md](PRIVACY.md)。
 
@@ -449,7 +450,7 @@ mod 从不处理 `tool.call` 或 `tool.check`，因此它从不批准、拒绝�
 
 | 谁 | 调用 | 地址 | 发送什么 | 为什么 |
 | :- | :- | :- | :- | :- |
-| mod，在 `/route update` 中 | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`，固定写在代码中 | 只有 GET 请求本身 | 读取已发布的版本，与你的版本比较。 |
+| mod，在会话启动时（最多每 12 小时一次）以及在 `/route update` 中 | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`，固定写在代码中 | 只有 GET 请求本身 | 读取已发布的版本，与你的版本比较。 |
 | mod，在 `/palgu login` 中 | `$.http.fetch` | `https://api.palgu.ai/auth/device/code`，然后是 `/auth/token`，固定写在代码中 | 客户端 id `mixture-of-models`、设备名称（`Claude Code on <HOSTNAME>`）、mod 的版本，以及它保存在存储中的一个随机安装 id；然后是 Palgu 给出的设备代码 | 登录。Palgu 返回一个用于这台电脑的密钥。 |
 | mod，在会话开始时、`/palgu login` 之后以及 `/route models` 时 | `$.http.fetch` | `https://api.palgu.ai/v1/models/health`，固定写在代码中 | 只有 GET 请求和作为 `x-api-key` 的网关密钥；仅当你的 `gateway_url` 位于 `https://api.palgu.ai` 上时 | 读取 Palgu 当前提供哪些模型、哪些不可用，使模型列表跟随 Palgu 而不是跟随版本发布。保存在 mod 的存储中供下一个会话使用。 |
 | mod，在 Palgu 上的被路由轮次之后的 `turn.complete` 中 | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`，固定写在代码中 | 被路由的模型 id 和子进程的四项 token 计数（输入、输出、缓存读取、缓存写入），以及作为 Bearer 请求头的网关密钥；仅当你的 `gateway_url` 位于 `https://api.palgu.ai` 上，且 `router.prices` 中没有该模型的条目时 | 为节省估算给该轮次定价。不含提示词或回答文本。 |
@@ -503,7 +504,7 @@ x-srooter-project: <the session folder's name>
 
 ### 存储的内容
 
-在插件自己的存储中（`$.store`，位于 `~/.claude/plugins/store/` 下）：一个用于 Palgu 登录的随机安装 id（`palgu-install-id`，让 Palgu 在多次登录中看到同一台设备）、开启了 Palgu 记忆的项目文件夹及每个文件夹上次索引的时间（其文件夹路径）、Palgu 最近提供的模型列表、`/route` 固定、每个模型的每日计数、最近一次判定、按类型的失败计数，以及最近 200 次决策的日志（日期、模型、类型、层级、分数、分类器来源、子进程耗时和退出码）。不存储提示词文本、回答或凭据。
+在插件自己的存储中（`$.store`，位于 `~/.claude/plugins/store/` 下）：一个用于 Palgu 登录的随机安装 id（`palgu-install-id`，让 Palgu 在多次登录中看到同一台设备）、开启了 Palgu 记忆的项目文件夹及每个文件夹上次索引的时间（其文件夹路径）、Palgu 最近提供的模型列表、`/route` 固定、每个模型的每日计数、最近一次判定、按类型的失败计数、最近一次更新检查（时间、GitHub 列出的版本，以及已提示过你的版本），以及最近 200 次决策的日志（日期、模型、类型、层级、分数、分类器来源、子进程耗时和退出码）。不存储提示词文本、回答或凭据。
 
 ### 它绝不会做的事
 
@@ -584,7 +585,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 | `/palgu status` | 密钥属于谁以及组织的套餐 |
 | `/palgu upgrade` | Palgu 套餐和计费页面 |
 | `/palgu memory on`、`off`、`memory` | 用 `palgu` CLI 在后台把此项目索引到 Palgu 记忆中（会上传源代码；默认关闭），并把它召回到每条提示词中，供 Claude 和每个被路由的模型使用；停止；或显示它是否已被索引以及索引有多新 |
-| `/route update` | 在 GitHub 上检查是否有更新的版本，如果有，替你运行 `claude plugin marketplace update` 和 `claude plugin update`；重启 Claude Code 以加载新版本 |
+| `/route update` | 在 GitHub 上检查是否有更新的版本，如果有，替你运行 `claude plugin marketplace update` 和 `claude plugin update`；然后 `/reload-plugins` 会加载新版本 |
 | `/route models` | Palgu 当前提供的模型以及哪些不可用；其中任何一个都可以用 `/route <model>` 固定。状态栏为 mod 知道的每个家族保留一个按钮。没有 Palgu（或它没有响应）时使用内置列表 |
 | `/route strategies`、`/route strategy <name>` | 列出路由策略（complexity、cost、speed、quality 以及你的策略），或切换到其中一个 |
 | `/route help`（或状态栏上的 `0`） | mod 做什么、当前状态、每个按钮和命令，以及如何连接提供方 |

@@ -64,7 +64,7 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 > **あなたのフックはゲートウェイの子プロセスでは実行されません。** 子プロセスは `claude -p --bare` で動き、`--bare` は設定やプラグインのフックをすべてスキップします。そのため `.env` をブロックするフックがあっても子プロセスではそれを守らず、子プロセスが読んだものはゲートウェイのモデルに送られます。mod はこの点をフックに頼りません: すべての Claude の子プロセスには、`--bare` でも維持される Claude Code のパーミッション deny ルールが渡されます。対象は `.env` と `.env.*` ファイル、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*`、`secrets/` フォルダーです(Read ルールは Grep と Glob にも適用されます)。独自のルールは `router.child.deny` で追加できます(例: `["Read(**/credentials.json)"]`)。子プロセスに実行が許可されていないコマンドは、引き続き Allow / Deny ダイアログとしてあなたに届きます。Codex の子プロセスは読み取り専用ですが、これらのルールの対象外です: Codex にルーティングするプロジェクトにはシークレットを置かないでください。
 
-**アップデート。** `/route update` を実行すると、新しいバージョンを確認してインストールします。サードパーティのマーケットプレイスはデフォルトでは自動アップデートされません。`/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update で一度有効にするか、`claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod` で手動で更新してください。新しいバージョンは Claude Code を再起動すると有効になります。
+**アップデート。** セッション開始時に mod は GitHub で新しいバージョンを確認し(最大 12 時間ごと)、あればトーストとバンドで一度だけ知らせます: `0.33.0 available: /route update`。`/route update` を実行すると新しいバージョンをインストールし、その後バンドに `0.33.0 installed: /reload-plugins` と表示されます。サードパーティのマーケットプレイスはデフォルトでは自動アップデートされません。`/plugin` → Marketplaces → `mixture-of-models-claude-mod` → Enable auto-update で一度有効にするか、`claude plugin marketplace update mixture-of-models-claude-mod && claude plugin update mixture-of-models@mixture-of-models-claude-mod` で手動で更新してください。新しいバージョンは `/reload-plugins`(または再起動)の後に有効になります。
 
 **最速の始め方(Palgu):** `claude` を起動して `/palgu login` を実行します。リンクとコードが表示されるので、ブラウザーで承認します(初めての場合はそこでサインアップします)。すると mod が自分用の Palgu キーを保存し、その瞬間からルーティングを開始します。キーのコピーは不要です。`/palgu status` は誰がどのプランでサインインしているか、予算をどれだけ使ったかを示し、`/palgu upgrade` はプランと請求のページを開きます。
 
@@ -362,7 +362,7 @@ OpenRouter のスラッグには `/` が含まれるため、OpenRouter での�
 ### このプラグインが接続するネットワークホスト
 
 - `https://api.palgu.ai` — Palgu。コードに固定されています: `/palgu login` で `/auth/device/code` と `/auth/token`、`/palgu status` で `/me` と `/me/org-settings`、セッション開始時・`/palgu login` の後・`/route models` で `/v1/models/health`(ゲートウェイのキーを `x-api-key` として送り、それ以外は何も送りません)、ゲートウェイが Palgu で `router.prices` にそのモデルのエントリがない場合はルーティングされたターンの後に `/v1/pricing/quote`、メインセッションがターンを終えたときに `/anthropic/heartbeat`(ハートビート、後述)、`/palgu memory on` を実行したプロジェクトではあなたの各プロンプトで `/v1/cortex/search`(Palgu メモリの想起、後述)。
-- `https://raw.githubusercontent.com` — `/route update` のときのみ: 公開バージョンを読むために `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` を GET します。何も送信しません。
+- `https://raw.githubusercontent.com` — セッション開始時(最大 12 時間ごと、バックグラウンドで)と `/route update` のとき: 公開バージョンを読むために `/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` を GET します。何も送信しません。
 - `http://localhost:11434` — 各プロンプトをスコア付けするローカルの Ollama(`/api/chat`)。あなたのマシンから出ません。そこで何も応答しない場合はスキップされます。
 - Anthropic。あなた自身のプランで、Claude Code 自身の `$.model.classify` を通じて — Ollama が応答しない場合にのみ、プロンプトのスコア付けのため。
 - プラグイン設定で指定したゲートウェイ URL(`gateway_url`。例: `https://api.palgu.ai/anthropic`、`https://openrouter.ai/api`、あなたの LiteLLM プロキシ)。ユーザーはプラグイン設定でカスタムのゲートウェイ URL を設定できます。ルーティングされたターンで接続するのはその URL だけで、接続するのは mod ではなく子プロセスです。Codex の子プロセスは、そのゲートウェイの `/v1`(または設定した `router.codex.baseUrl`)を使うか、`codex.auth: "chatgpt"` の場合はあなた自身の Codex ログインで OpenAI を使います。`claude/<member>` の子プロセスは、あなた自身の Claude ログインで Anthropic を使います。
@@ -417,9 +417,10 @@ OpenRouter のスラッグには `/` が含まれるため、OpenRouter での�
 - `/palgu` を実行したときのみ、`https://api.palgu.ai`(`/auth/device/code`、`/auth/token`、`/me`)に **フェッチ** し、Palgu が発行したキーを保存するために `claude plugin configure … --values-stdin` を一度 **実行** します(下の表を参照)。
 - プロンプトをスコア付けするため、`$.http.fetch` で `http://localhost:11434/api/chat` に **フェッチ** し、プロンプトのテキストとスコア付けのルーブリックをローカルの Ollama に送ります。認証情報はなく、何もマシンの外に出ません。
 - Ollama が応答しない場合、`$.model.classify` を **呼び出し**、同じプロンプトのテキストとルーブリックを、Claude Code 自身の API クライアントを通じてあなた自身のアカウントで Anthropic に送ります。
+- セッション開始時(バックグラウンドで、最大 12 時間ごと)と `/route update` のときに、新しいバージョンが出ているかを確認するため `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json` を **フェッチ** し(単純な GET、何も送信しません)、あればトーストとバンドで知らせます。
 - `/route update` のときのみ、GitHub に新しいバージョンがある場合に、このプラグインに対して `claude plugin marketplace update` と `claude plugin update` を固定のテキストとして **実行** します。
 - ルーティングされたターンのために、`$.process.run` で 2 つのプログラムを **実行** します: `claude`(Claude Code 自身をヘッドレスで)。これは、`ANTHROPIC_BASE_URL` と設定したキー(`ANTHROPIC_API_KEY`、OpenRouter と LiteLLM では `ANTHROPIC_AUTH_TOKEN` に入れ、もう一方は空に設定)に加え、Palgu と汎用ゲートウェイでは識別用に設定した `ANTHROPIC_CUSTOM_HEADERS`([子プロセスが送信するヘッダー](#子プロセスが送信するヘッダー) を参照)を使うか、`claude/<member>` のルートでは `ANTHROPIC_BASE_URL` をクリアしてあなた自身の Claude ログインで動きます。そして `codex` のルートでのみ `codex exec`(Codex CLI)。これはゲートウェイのキーを `PALGU_API_KEY`(OpenRouter では `OPENROUTER_API_KEY`、LiteLLM では `LITELLM_API_KEY`)に入れるか、あなた自身の Codex ログインで動きます。各子プロセスは、あなたのプロンプトと直近のセッションテキストの短いブリーフをそれぞれのエンドポイントに **送信** します。
-- `~/.claude/model-config.json`、あなたの戦略ファイル、`HOME`、`HOSTNAME`、`MAGGY_ROUTER_CHILD`、`ANTHROPIC_CUSTOM_HEADERS` を **読み取り**、ルートのピン、日ごとのカウント、最後の判定、種別ごとの失敗回数、直近 200 件の判定のログ(日付、モデル、種別、ティア、スコア、分類器のソース、子プロセスの時間と終了コード。プロンプトのテキストは含まない)をプラグインストアに **保存** します。
+- `~/.claude/model-config.json`、あなたの戦略ファイル、`HOME`、`HOSTNAME`、`MAGGY_ROUTER_CHILD`、`ANTHROPIC_CUSTOM_HEADERS` を **読み取り**、ルートのピン、日ごとのカウント、最後の判定、種別ごとの失敗回数、最後のアップデート確認、直近 200 件の判定のログ(日付、モデル、種別、ティア、スコア、分類器のソース、子プロセスの時間と終了コード。プロンプトのテキストは含まない)をプラグインストアに **保存** します。
 
 詳細は以下のとおりです。プライバシーポリシーは [PRIVACY.md](PRIVACY.md) にあります。
 
@@ -449,7 +450,7 @@ mod 自身の呼び出し、続いて子プロセスの呼び出し:
 
 | 誰が | 呼び出し | アドレス | 送信内容 | 理由 |
 | :- | :- | :- | :- | :- |
-| mod、`/route update` で | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`。コードに固定 | GET のみ | 公開バージョンを読み、あなたのバージョンと比較します。 |
+| mod、セッション開始時(最大 12 時間ごと)と `/route update` で | `$.http.fetch` | `https://raw.githubusercontent.com/alinaqi/mixture-of-models-claude-mod/main/.claude-plugin/plugin.json`。コードに固定 | GET のみ | 公開バージョンを読み、あなたのバージョンと比較します。 |
 | mod、`/palgu login` で | `$.http.fetch` | `https://api.palgu.ai/auth/device/code`、次に `/auth/token`。コードに固定 | クライアント ID `mixture-of-models`、デバイス名(`Claude Code on <HOSTNAME>`)、mod のバージョン、ストアに保持するランダムなインストール ID。続いて Palgu から受け取ったデバイスコード | サインイン。Palgu はこのコンピューター用のキーを返します。 |
 | mod、セッション開始時・`/palgu login` の後・`/route models` で | `$.http.fetch` | `https://api.palgu.ai/v1/models/health`。コードに固定 | GET と、`x-api-key` としてのゲートウェイのキーのみ。`gateway_url` が `https://api.palgu.ai` 上にある場合のみ | Palgu が現在提供しているモデルとダウンしているモデルを読み、モデル一覧がリリースではなく Palgu に追従するようにします。次のセッションのために mod のストアに保持します。 |
 | mod、Palgu 上のルーティングされたターンの後の `turn.complete` で | `$.http.fetch` | `https://api.palgu.ai/v1/pricing/quote`。コードに固定 | ルーティング先のモデル ID と子プロセスの 4 つのトークン数(入力、出力、キャッシュ読み取り、キャッシュ書き込み)、Bearer ヘッダーとしてのゲートウェイのキー。`gateway_url` が `https://api.palgu.ai` 上にあり、`router.prices` にそのモデルのエントリがない場合のみ | 節約額の推定のためにターンを値付けします。プロンプトや回答のテキストは送りません。 |
@@ -503,7 +504,7 @@ x-srooter-project: <the session folder's name>
 
 ### 保存するもの
 
-プラグイン自身のストア(`$.store`、`~/.claude/plugins/store/` 配下)に: Palgu サインイン用のランダムなインストール ID(`palgu-install-id`。サインインをまたいで Palgu が同じ 1 台のデバイスとして認識するため)、Palgu メモリがオンになっているプロジェクトフォルダーとそれぞれの最終インデックス作成日時(フォルダーのパス)、Palgu が最後に提供したモデル一覧、`/route` のピン、モデルごとの日ごとのカウント、最後の判定、種別ごとの失敗回数、直近 200 件の判定のログ(日付、モデル、種別、ティア、スコア、分類器のソース、子プロセスの所要時間と終了コード)。プロンプトのテキスト、回答、認証情報は保存しません。
+プラグイン自身のストア(`$.store`、`~/.claude/plugins/store/` 配下)に: Palgu サインイン用のランダムなインストール ID(`palgu-install-id`。サインインをまたいで Palgu が同じ 1 台のデバイスとして認識するため)、Palgu メモリがオンになっているプロジェクトフォルダーとそれぞれの最終インデックス作成日時(フォルダーのパス)、Palgu が最後に提供したモデル一覧、`/route` のピン、モデルごとの日ごとのカウント、最後の判定、種別ごとの失敗回数、最後のアップデート確認(日時、GitHub に掲載されていたバージョン、あなたに通知したバージョン)、直近 200 件の判定のログ(日付、モデル、種別、ティア、スコア、分類器のソース、子プロセスの所要時間と終了コード)。プロンプトのテキスト、回答、認証情報は保存しません。
 
 ### 決してしないこと
 
@@ -584,7 +585,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 | `/palgu status` | キーの持ち主と組織のプラン |
 | `/palgu upgrade` | Palgu のプランと請求のページ |
 | `/palgu memory on`、`off`、`memory` | `palgu` CLI でこのプロジェクトをバックグラウンドで Palgu メモリにインデックスし(ソースをアップロードします。デフォルトはオフ)、Claude とルーティングされるすべてのモデルについて、すべてのプロンプトに想起させます。停止します。またはインデックス済みかどうかと鮮度を示します |
-| `/route update` | GitHub で新しいバージョンを確認し、あれば `claude plugin marketplace update` と `claude plugin update` を代わりに実行します。読み込むには Claude Code を再起動してください |
+| `/route update` | GitHub で新しいバージョンを確認し、あれば `claude plugin marketplace update` と `claude plugin update` を代わりに実行します。その後 `/reload-plugins` で読み込まれます |
 | `/route models` | Palgu が現在提供しているモデルと、ダウンしているモデル。どれも `/route <model>` でピン留めできます。バンドは mod が知っているファミリーごとに 1 つのボタンを保持します。Palgu がない場合(または応答しない場合)は組み込みの一覧が使われます |
 | `/route strategies`、`/route strategy <name>` | ルーティング戦略(complexity、cost、speed、quality、あなたの戦略)を一覧表示するか、切り替えます |
 | `/route help`(またはバンドで `0`) | mod が何をするか、現在の状態、すべてのボタンとコマンド、プロバイダーへの接続方法 |

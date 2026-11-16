@@ -738,6 +738,8 @@ function palguFetch(calls: any[], pending = 1) {
   let polls = 0
   const res = (status: number, body: unknown) => ({ ok: status < 300, status, headers: {}, text: JSON.stringify(body) })
   return (url: string, init: any) => {
+    // The session-start update check asks GitHub, not Palgu: it is not a Palgu call.
+    if (url === MANIFEST) return { ok: false, status: 404, headers: {}, text: '' }
     calls.push({ url, init })
     if (url.endsWith('/auth/device/code')) return res(200, { device_code: 'dc-secret', user_code: 'WDJB-MJHT', verification_uri: 'https://www.palgu.ai/connect', verification_uri_complete: 'https://www.palgu.ai/connect?code=WDJB-MJHT', expires_in: 600, interval: 5 })
     if (url.endsWith('/auth/token')) return polls++ < pending ? res(400, { error: 'authorization_pending' }) : res(200, { access_token: 'test-key-minted', account: { email: 'dev@acme.com' }, org: { name: 'Acme', plan: 'starter' } })
@@ -819,7 +821,7 @@ test('/palgu status never sends another gateway\'s key to Palgu', { options: { g
 test('/palgu login reports a gateway that refuses the client instead of polling', async ($, on) => {
   const clock = mock.clock(on)
   const calls: any[] = []
-  stubSession(on, { fetch: (url: string, init: any) => { calls.push(url); return { ok: false, status: 400, headers: {}, text: '{"error":"invalid_client"}' } } })
+  stubSession(on, { fetch: (url: string, init: any) => { if (url !== MANIFEST) calls.push(url); return { ok: false, status: 400, headers: {}, text: '{"error":"invalid_client"}' } } })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const shown = await $.command.run({ command: 'palgu', args: 'login' })
   expect(shown.text).toMatch(/could not start/i)
@@ -1039,7 +1041,38 @@ test('/route update installs a newer published version through claude plugin com
     ['claude', 'plugin', 'marketplace', 'update', 'mixture-of-models-claude-mod'],
     ['claude', 'plugin', 'update', 'mixture-of-models@mixture-of-models-claude-mod'],
   ])
-  expect(out.text).toBe('Updated mixture-of-models ' + VERSION + ' → 9.9.9. Restart Claude Code to load it; see the CHANGELOG for what changed.')
+  expect(out.text).toBe('Updated mixture-of-models ' + VERSION + ' → 9.9.9. Run /reload-plugins to load it; see the CHANGELOG for what changed.')
+})
+
+test('a newer release is announced once at session start, and the band says how to get it and load it', GW, async ($, on) => {
+  const toasts: string[] = []
+  stubSession(on, { fetch: published('9.9.9') })
+  on('ui.toast', ($, e) => { toasts.push(e.text); return { value: undefined } })
+  on('process.run', () => ({ value: { exitCode: 0, stdout: 'ok', stderr: '' } }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  expect(toasts.filter((t) => t.includes('9.9.9'))).toEqual(['mixture-of-models 9.9.9 is out (you have ' + VERSION + '): run /route update, then /reload-plugins.'])
+  const band = async (text: RegExp) => {
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    const found = await ui.find({ type: 'Text', text })
+    await ui.unmount()
+    return found
+  }
+  expect(await band(/9\.9\.9 available: \/route update/)).toBeDefined()
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  expect(toasts.filter((t) => t.includes('9.9.9')).length).toBe(1)
+  await $.command.run({ command: 'route', args: 'update' })
+  expect(await band(/9\.9\.9 installed: \/reload-plugins/)).toBeDefined()
+})
+
+test('no update notice when the mod is current', GW, async ($, on) => {
+  const toasts: string[] = []
+  stubSession(on, { fetch: published(VERSION) })
+  on('ui.toast', ($, e) => { toasts.push(e.text); return { value: undefined } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await settle()
+  expect(toasts.filter((t) => t.includes('/route update')).length).toBe(0)
 })
 
 test('/route update runs nothing when the mod is current, and says how to update when it fails', GW, async ($, on) => {

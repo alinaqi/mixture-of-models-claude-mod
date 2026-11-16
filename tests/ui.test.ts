@@ -27,6 +27,12 @@ test('bandButtons shows the routed providers, then every gateway family, framed 
   ])
 })
 
+test('bandText adds a newer version, and once it is installed, how to load it', async () => {
+  expect(bandText({ ...base, update: { latest: '9.9.9', installed: false } })).toBe('mixture-of-models · auto · last: glm-5.3 · coding · 9.9.9 available: /route update')
+  expect(bandText({ ...base, update: { latest: '9.9.9', installed: true } })).toBe('mixture-of-models · auto · last: glm-5.3 · coding · 9.9.9 installed: /reload-plugins')
+  expect(bandText({ ...base, isWorking: true, update: { latest: '9.9.9', installed: false } })).toBe('mixture-of-models · running glm-5.3 in a child…')
+})
+
 test('bandText describes each state', async () => {
   expect(bandText({ ...base, disabled: true })).toBe('mixture-of-models · inactive inside a child session')
   expect(bandText({ ...base, ready: false })).toBe('mixture-of-models · observe-only: no gateway key for the child')

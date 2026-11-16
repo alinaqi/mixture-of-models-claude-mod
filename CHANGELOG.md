@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.33.0] - 2026-11-16
+
+### Added
+- A new release is announced. At session start, in the background, the mod reads the published version from GitHub (at most every 12 hours, waiting at most 5 s; a failed check is not remembered). When it is newer, a toast says so once per version (`mixture-of-models 0.33.0 is out (you have 0.32.1): run /route update, then /reload-plugins.`) and the band keeps `· 0.33.0 available: /route update` until it is installed, then `· 0.33.0 installed: /reload-plugins`.
+
+### Changed
+- `/route update` says to run `/reload-plugins` to load the new version instead of restarting Claude Code.
+- The privacy and network sections say GitHub is also asked at session start.
+
 ## [0.32.1] - 2026-11-16
 
 ### Changed

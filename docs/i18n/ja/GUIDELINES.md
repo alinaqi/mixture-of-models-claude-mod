@@ -54,7 +54,7 @@ Mixture of Models は 3 つのことを行い、各エージェントはその�
 - **無料で分類するために Ollama をインストールする。** ローカルの Ollama(`qwen2.5-coder:3b`)があれば、すべてのプロンプトが無料でスコア付けされます。ない場合、mod は `claude-haiku-5-5` に問い合わせます。
 - **コマンドの承認はあなた経由で行わせる。** ルーティングされた子プロセスが `git pull` や `npm install` を必要とするとき、正確なコマンドを示した Claude Code 自身のダイアログが表示されます。そこで許可してください。確認を避けるために `child.args` に `--dangerously-skip-permissions` を追加しないでください。
 - **節約額を毎週確認する。** `/route stats`(4 つのタブ: models、kinds、scores、recent)。子プロセスの失敗が多い "kinds" の行は、その種別を別の送り先にすべきことを意味します: `routes.kinds` を変更し、`/route reset` を実行してください。
-- **最新に保つ。** `/route update` を実行し、Claude Code を再起動します。
+- **最新に保つ。** バンドに新しいバージョンが利用可能と表示されたら、`/route update` を実行し、続いて `/reload-plugins` を実行します。
 
 ### OpenCode(完全な機能互換)
 
