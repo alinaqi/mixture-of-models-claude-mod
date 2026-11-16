@@ -1,5 +1,7 @@
 # Guidelines: getting the most out of Mixture of Models
 
+**English** · [简体中文](docs/i18n/zh-CN/GUIDELINES.md) · [日本語](docs/i18n/ja/GUIDELINES.md) · [Deutsch](docs/i18n/de/GUIDELINES.md) · [Français](docs/i18n/fr/GUIDELINES.md) · [العربية](docs/i18n/ar/GUIDELINES.md)
+
 How to work with Mixture of Models day to day, in each coding agent. Setting it up is in [INSTALL.md](INSTALL.md); this file assumes it is installed and you are signed in to Palgu.
 
 Mixture of Models does three things, and each agent gets as many of them as its plugin system allows:

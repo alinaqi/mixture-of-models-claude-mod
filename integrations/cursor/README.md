@@ -1,5 +1,7 @@
 # Mixture of Models for Cursor
 
+**English** · [简体中文](../../docs/i18n/zh-CN/integrations/cursor/README.md) · [日本語](../../docs/i18n/ja/integrations/cursor/README.md) · [Deutsch](../../docs/i18n/de/integrations/cursor/README.md) · [Français](../../docs/i18n/fr/integrations/cursor/README.md) · [العربية](../../docs/i18n/ar/integrations/cursor/README.md)
+
 Search Palgu memory, send self-contained subtasks to cheaper models through Palgu, and continue a turn that stops mid-task. It works the way the Claude Code mod does, through what Cursor offers: hooks, an MCP server and a rule ([ADR 0005](../../docs/adr/0005-other-coding-agents.md)).
 
 Needs Node 20 or later and the `mom` CLI on the `PATH` Cursor sees. Palgu memory also needs the [palgu CLI](https://www.palgu.ai/install) for indexing. It uses its own `palgu login` if you have one, else `mom`'s key.

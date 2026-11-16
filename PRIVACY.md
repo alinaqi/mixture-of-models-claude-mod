@@ -1,5 +1,7 @@
 # Privacy policy
 
+**English** · [简体中文](docs/i18n/zh-CN/PRIVACY.md) · [日本語](docs/i18n/ja/PRIVACY.md) · [Deutsch](docs/i18n/de/PRIVACY.md) · [Français](docs/i18n/fr/PRIVACY.md) · [العربية](docs/i18n/ar/PRIVACY.md)
+
 mixture-of-models is a Claude Code plugin that runs entirely on your machine. There is no server operated by the author, no account, and no telemetry.
 
 ## What the plugin sends, and to whom

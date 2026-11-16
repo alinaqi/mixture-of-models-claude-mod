@@ -1,5 +1,7 @@
 # Mixture of Models for GitHub Copilot CLI
 
+**English** · [简体中文](../../docs/i18n/zh-CN/integrations/copilot/README.md) · [日本語](../../docs/i18n/ja/integrations/copilot/README.md) · [Deutsch](../../docs/i18n/de/integrations/copilot/README.md) · [Français](../../docs/i18n/fr/integrations/copilot/README.md) · [العربية](../../docs/i18n/ar/integrations/copilot/README.md)
+
 The heartbeat that continues a turn that stopped mid-task, Palgu memory, and Palgu's models as tools, in GitHub Copilot CLI ([ADR 0005](../../docs/adr/0005-other-coding-agents.md)).
 
 Checked live with Copilot CLI 1.0.112.

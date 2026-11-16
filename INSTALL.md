@@ -1,5 +1,7 @@
 # Install Mixture of Models (instructions for a coding agent)
 
+**English** · [简体中文](docs/i18n/zh-CN/INSTALL.md) · [日本語](docs/i18n/ja/INSTALL.md) · [Deutsch](docs/i18n/de/INSTALL.md) · [Français](docs/i18n/fr/INSTALL.md) · [العربية](docs/i18n/ar/INSTALL.md)
+
 You are a coding agent asked to set up Mixture of Models. Follow this file top to bottom. Every step has a command to run and a check that tells you it worked. Do the steps for the agent the user asked for; if they did not say, set it up for yourself (the agent reading this).
 
 What it gives the user: Palgu picks a model for each request (cheaper models for simple work), Palgu memory of the project is recalled into prompts, and a turn that stops mid-task is continued. Repository: https://github.com/alinaqi/mixture-of-models-claude-mod

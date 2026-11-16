@@ -1,5 +1,7 @@
 # mixture-of-models-claude-mod
 
+**English** · [简体中文](docs/i18n/zh-CN/README.md) · [日本語](docs/i18n/ja/README.md) · [Deutsch](docs/i18n/de/README.md) · [Français](docs/i18n/fr/README.md) · [العربية](docs/i18n/ar/README.md)
+
 [![ci][ci-badge]][ci] [![License: MIT][mit-badge]](LICENSE) [![Changelog][log-badge]](CHANGELOG.md)
 
 [ci]: https://github.com/alinaqi/mixture-of-models-claude-mod/actions/workflows/ci.yml
