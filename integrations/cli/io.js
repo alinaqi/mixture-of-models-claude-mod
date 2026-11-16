@@ -42,9 +42,16 @@ export async function call(path, init, ms) {
   return { ok: res.ok, status: res.status, text: await res.text() }
 }
 
-function palguStatus(cwd) {
+// The palgu CLI uses its own sign-in (`palgu login`); without one, it falls back to SROOTER_API_KEY,
+// which is mom's key, so `mom login` alone is enough to index.
+function palguEnv() {
+  const key = loadKey()
+  return key && !process.env.SROOTER_API_KEY ? { ...process.env, SROOTER_API_KEY: key } : process.env
+}
+
+function palguStatus(cwd, ms = 15000) {
   return new Promise((resolve) => {
-    execFile('palgu', ['memory', 'status', '.', '--json'], { cwd, timeout: 15000 }, (err, stdout) => {
+    execFile('palgu', ['memory', 'status', '.', '--json'], { cwd, timeout: ms, env: palguEnv() }, (err, stdout) => {
       resolve(memoryStatus({ exitCode: err ? (err.code === 1 ? 1 : 2) : 0, stdout: String(stdout || '') }))
     })
   })
@@ -52,7 +59,7 @@ function palguStatus(cwd) {
 
 export function indexInBackground(cwd) {
   try {
-    spawn('palgu', ['memory', 'index', '.'], { cwd, detached: true, stdio: 'ignore' }).on('error', () => undefined).unref()
+    spawn('palgu', ['memory', 'index', '.'], { cwd, detached: true, stdio: 'ignore', env: palguEnv() }).on('error', () => undefined).unref()
   } catch {
     // no palgu CLI: memory status says so
   }
@@ -61,8 +68,9 @@ export function indexInBackground(cwd) {
 export function makeIo(tool, key) {
   return {
     tool, key, now: Date.now(),
+    // At most 5 s: the prompt hook has 10 s in all, and the search needs up to 3.
     async projectName(cwd) {
-      const s = await palguStatus(cwd)
+      const s = await palguStatus(cwd, 5000)
       return s && s.indexed ? s.project : ''
     },
     search: (project, q) => call('/v1/cortex/search?limit=8&project=' + encodeURIComponent(project) + '&q=' + encodeURIComponent(q), { headers: { authorization: 'Bearer ' + key } }, 3000),

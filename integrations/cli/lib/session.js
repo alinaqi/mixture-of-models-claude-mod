@@ -37,3 +37,20 @@ export function settingsOf(state) {
   const max = Number(s.heartbeatMax)
   return { heartbeat: HEARTBEAT.includes(s.heartbeat) ? s.heartbeat : 'palgu', heartbeatMax: Number.isInteger(max) && max >= 0 ? max : 3 }
 }
+
+function entry(map, key) {
+  return map && key in map ? { [key]: map[key] } : {}
+}
+
+// A hook run read the state at its start; others may have saved since (another session's
+// heartbeat, `mom memory off`). Re-read at the end, only this run's session and folder entries
+// are taken from it; consent and settings always stay as they are on disk.
+export function mergeState(current, mine, ev) {
+  const cur = current || {}
+  return {
+    ...cur,
+    sessions: { ...(cur.sessions || {}), ...entry(mine.sessions, ev.session) },
+    projects: { ...(cur.projects || {}), ...entry(mine.projects, ev.cwd) },
+    index: { ...(cur.index || {}), ...entry(mine.index, ev.cwd) }
+  }
+}

@@ -29,3 +29,18 @@ test('settingsOf: heartbeat palgu with at most 3 continues by default; off or lo
   assert.deepEqual(settingsOf({ settings: { heartbeat: 'off', heartbeatMax: 1 } }), { heartbeat: 'off', heartbeatMax: 1 })
   assert.deepEqual(settingsOf({ settings: { heartbeat: 'nonsense', heartbeatMax: -2 } }), { heartbeat: 'palgu', heartbeatMax: 3 })
 })
+
+test('mergeState keeps what other hook runs saved meanwhile: only this session, folder and index entry are taken from this run', async () => {
+  const { mergeState } = await import('../lib/session.js')
+  const before = { memory: { '/w': true }, sessions: { s1: { prompt: 'a', beats: 0, n: 1, at: 1 } } }
+  const mine = { ...before, sessions: { s1: { prompt: 'a', beats: 1, n: 1, at: 2 } }, projects: { '/w': 'w' }, index: { '/w': 5 } }
+  // meanwhile: memory turned off, another session continued, settings changed
+  const current = { memory: {}, settings: { heartbeat: 'off' }, sessions: { s1: { prompt: 'a', beats: 0, n: 1, at: 1 }, s2: { prompt: 'b', beats: 2, n: 1, at: 3 } } }
+  const out = mergeState(current, mine, { session: 's1', cwd: '/w' })
+  assert.deepEqual(out.memory, {})
+  assert.deepEqual(out.settings, { heartbeat: 'off' })
+  assert.equal(out.sessions.s1.beats, 1)
+  assert.equal(out.sessions.s2.beats, 2)
+  assert.equal(out.projects['/w'], 'w')
+  assert.equal(out.index['/w'], 5)
+})
