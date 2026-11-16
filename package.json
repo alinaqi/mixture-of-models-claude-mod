@@ -1,6 +1,6 @@
 {
   "name": "mixture-of-models-claude-mod",
-  "version": "0.27.1",
+  "version": "0.28.0",
   "private": true,
   "type": "module",
   "description": "Mixture of Models: route cheap work to cheaper models, recall Palgu memory and continue stalled turns, in Claude Code (a mod) and in Codex, Cursor, OpenCode and other coding agents (the mom CLI)",
@@ -10,7 +10,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node scripts/test-pure.mjs && node --test integrations/cli/test/*.test.mjs",
+    "test": "node scripts/test-pure.mjs && node --test integrations/cli/test/*.test.mjs integrations/opencode/test/*.test.mjs",
     "test:mod": "claude plugin test",
     "validate": "claude plugin validate --strict .",
     "changelog": "node scripts/check-changelog.mjs",
@@ -18,6 +18,10 @@
   },
   "bin": {
     "mom": "integrations/cli/mom.js"
+  },
+  "exports": {
+    "./opencode": "./integrations/opencode/plugin.js",
+    "./server": "./integrations/opencode/plugin.js"
   },
   "files": [
     "hooks/lib",

@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-11-16
+
+Mixture of Models in OpenCode, with the same features as the Claude Code mod ([ADR 0005](docs/adr/0005-other-coding-agents.md), [integrations/opencode](integrations/opencode/README.md)).
+
+### Added
+- The OpenCode plugin (`integrations/opencode/plugin.js`, V1 server plugin API, OpenCode 1.19+):
+  - Routing. Each prompt sent to `palgu/auto` goes to Palgu's router (`auto`), unless one of these applies: a `/route <model>` pin, or, when the plugin options set `critical` or `routes`, the mod's rules and its local Ollama classifier put the prompt in a tier that has a model. The plugin sets the model on the user message (`chat.message`) and sends `x-srooter-pin`, `x-srooter-client: mixture-of-models-opencode/<version>` and `x-srooter-project` on each request (`chat.headers`). A Palgu model you pick yourself is kept. OpenCode's title and summary requests are never pinned.
+  - Palgu memory recall is added to each message's system text in folders with memory on. Consent is the same as `mom memory on` and is shared with Codex.
+  - The heartbeat. On `session.idle`, a turn that stopped mid-task gets the continue prompt (`client.session.promptAsync`), at most 3 times per prompt, decided by Palgu's verdict or the local classifier. The plugin's own continue prompt does not reset the budget. A verdict that arrives after your next prompt is dropped.
+  - Indexing in the background on `session.created`.
+  - `/route [auto|<model>|status]` and `/palgu memory|heartbeat|status`, registered through the `config` hook and handled in `command.execute.before`, with a TUI toast. If you already have a command with the same name, yours is kept and the plugin leaves it alone.
+  - Every hook fails open. With `MOM_DEBUG=1`, a log records the routing decisions without keys or prompts.
+- `mom setup opencode [--write]` prints Palgu as an Anthropic-compatible OpenCode provider (`auto` plus the models Palgu serves now), sets `palgu/auto` as the default model, and adds the plugin entry, or merges all of that into `opencode.json` after backing the file up. Every other key, provider and plugin option is kept. The key is never written: `{env:PALGU_API_KEY}`, or the plugin adds mom's key on requests to Palgu.
+- `package.json` `exports`: `./opencode` and `./server` (the entry OpenCode reads from a package) both point to the plugin.
+
+### Changed
+- `mom hook` and the OpenCode plugin share one state step (`step` in `integrations/cli/lib/session.js`): run a handler, then merge its result into the state file.
+
+### Verified live
+- On OpenCode 1.19.5 (`opencode serve` and `opencode run`, with a temporary config pointing at Palgu):
+  - A "use claude …" prompt went to Palgu pinned to the configured critical model, and Palgu reported `x-palgu-served-model: deepseek-pro`.
+  - Unpinned prompts went out as `auto`.
+  - After `/route gemini-3.8`, the next prompt was served by `gemini-3.8-flash`.
+  - The recalled memory block for this repository reached the model's system text.
+  - "Let me check the tests next." was continued once, and after that turn's complete answer the heartbeat let it stop.
+  - The session start ran `palgu memory index .`.
+  - The key was sent only by the plugin, with an empty `apiKey`.
+
 ## [0.27.1] - 2026-11-16
 
 ### Added

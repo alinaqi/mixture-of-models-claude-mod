@@ -67,3 +67,14 @@ test('a prompt that is the heartbeat\'s own follow-up does not reset the budget 
   s = beginPrompt(s, 'c1', 'You stopped mid-task. Continue.', 4)
   assert.equal(sessionOf(s, 'c1').beats, 0)
 })
+
+test('step runs a handler on the saved state and saves its result merged into what is on disk now', async () => {
+  const { step } = await import('../lib/session.js')
+  let disk = { memory: { '/w': true }, sessions: {} }
+  const store = { read: () => disk, write: (s) => { disk = s } }
+  const handler = async (ev, state, io) => ({ out: state.memory['/w'] && io.now, state: { ...state, sessions: { [ev.session]: { prompt: 'p', beats: 0, n: 1, at: io.now } } } })
+  const r = await step(handler, { session: 's1', cwd: '/w' }, { io: { now: 7 }, ...store })
+  assert.equal(r.out, 7)
+  assert.equal(disk.sessions.s1.at, 7)
+  assert.deepEqual(disk.memory, { '/w': true })
+})

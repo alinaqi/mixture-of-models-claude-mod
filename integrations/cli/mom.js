@@ -13,6 +13,7 @@ const HELP = `mom — Mixture of Models for Codex, Cursor, OpenCode and other co
   mom heartbeat palgu|local|off   continue a turn that stopped mid-task (default palgu)
   mom setup codex [--write] Codex profile for Palgu (codex -p palgu)
   mom setup cursor [--write]  this project's .cursor/hooks.json and .cursor/mcp.json
+  mom setup opencode [--write]    Palgu provider and the plugin in opencode.json (backed up first)
   mom token                 print the Palgu key, for a tool's token command
   mom hook <tool>           run as a tool's hook (stdin: the tool's hook JSON)
   mom mcp [tool]            MCP server on stdio: Palgu memory search, delegation, model list

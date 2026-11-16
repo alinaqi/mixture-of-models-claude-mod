@@ -70,3 +70,11 @@ export function mergeState(current, mine, ev) {
     index: { ...(cur.index || {}), ...entry(mine.index, ev.cwd) }
   }
 }
+
+// One event: the handler (decide.js) on the saved state, its result merged into the state as it is
+// on disk now and saved. env: { io, read, write }, the state file's effects (io.js) or a test's.
+export async function step(handler, ev, env) {
+  const result = await handler(ev, env.read() || {}, env.io)
+  env.write(prune(mergeState(env.read(), result.state, ev), env.io.now))
+  return result
+}

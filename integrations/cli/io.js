@@ -79,4 +79,9 @@ export function makeIo(tool, key) {
   }
 }
 
+// What session.js `step` needs: this io and mom's state file.
+export function stateEnv(io) {
+  return { io, read: () => readJson('state.json', {}), write: (s) => writeJson('state.json', s) }
+}
+
 export { palguStatus }
