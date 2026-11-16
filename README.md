@@ -9,7 +9,7 @@
 
 > **Setting this up with a coding agent?** Point it at [INSTALL.md](INSTALL.md): "Follow INSTALL.md in alinaqi/mixture-of-models-claude-mod to set up Mixture of Models for me." It has every command, a check for each step, and what to ask you. Works for Claude Code, Codex, Cursor, OpenCode, Antigravity, GitHub Copilot CLI, Aider, Continue and Goose.
 >
-> **Installed?** [GUIDELINES.md](GUIDELINES.md) has the best practices for each agent: when to pin, how to word prompts so routing and memory work, what to delegate, and what to do when a route looks wrong.
+> **Installed?** [GUIDELINES.md](GUIDELINES.md) has the best practices for each agent: let the system pick the models, how to word prompts so routing and memory work, what to delegate, and what to do when a route looks wrong.
 
 Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
 
