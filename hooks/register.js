@@ -11,7 +11,7 @@ import { vetAnswer } from './lib/vet.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
-import { HELP, PALGU_GATEWAY, configureValues, deviceBody, deviceName, isPalgu, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText } from './lib/palgu.js'
+import { HELP, PALGU_GATEWAY, budgetText, configureValues, deviceBody, deviceName, isPalgu, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText } from './lib/palgu.js'
 import { gatewayName } from './lib/providers.js'
 import { addTurn, claudeCost, quoteBody, quotedCost, savingsLine, tableCost, turnNote } from './lib/savings.js'
 import { helpTree } from './lib/help-pane.js'
@@ -296,6 +296,11 @@ function palguMe($, k) {
   return $.http.fetch('https://api.palgu.ai/me', { method: 'GET', headers: { authorization: 'Bearer ' + k } }).catch(() => FAILED)
 }
 
+// The org's budget and what it spent this period (budgetText), for /palgu status.
+function palguOrgSettings($, k) {
+  return $.http.fetch('https://api.palgu.ai/me/org-settings', { method: 'GET', headers: { authorization: 'Bearer ' + k } }).catch(() => FAILED)
+}
+
 // The models Palgu serves now and their health. Asked with the mod's key, only when the gateway is Palgu.
 function palguModels($, k) {
   return $.http.fetch('https://api.palgu.ai/v1/models/health', { method: 'GET', headers: { 'x-api-key': k } }).catch(() => FAILED)
@@ -380,8 +385,10 @@ async function palguLogin($, name) {
 async function palguStatus($, k) {
   if (!k) return statusText(undefined)
   if (!isPalgu(cfg.child.baseUrl)) return statusText('other')
-  const res = await palguMe($, k)
-  return statusText(res.ok ? parseBody(res) : null)
+  const [res, settings] = await Promise.all([palguMe($, k), palguOrgSettings($, k)])
+  if (!res.ok) return statusText(null)
+  const budget = budgetText(settings)
+  return statusText(parseBody(res)) + (budget ? ' · ' + budget : '')
 }
 
 // Palgu memory (issue #24) runs through the palgu CLI, which uses its own sign-in: no key of the

@@ -127,3 +127,9 @@ test('mom hook antigravity skips a stop whose transcript is outside Antigravity\
     assert.equal(mom(['hook', 'antigravity', 'Stop'], { home, input: stop }).stdout, '', path)
   }
 })
+
+test('mom memory status names mom\'s own command, not the Claude Code mod\'s', () => {
+  const r = mom(['memory', 'status'])
+  assert.match(r.stdout, /mom memory on/)
+  assert.doesNotMatch(r.stdout, /\/palgu memory on/)
+})

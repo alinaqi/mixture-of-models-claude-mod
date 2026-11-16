@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-11-16
+
+### Added
+- `/palgu status` and `mom status` say what your org spent of its Palgu budget this period, from `GET /me/org-settings` with the mod's key: "budget: $205.27 of $4,500.00 this month (5%)", "spent: … (no limit set)" without a limit, and "· over budget" past it. A single account's prepaid balance (the sign-up and plan credit) is not readable with the mod's key yet; it is requested from Palgu (srooter #2686).
+
+### Fixed
+- `mom memory status` told you to run `/palgu memory on`, the Claude Code command; it now says `mom memory on`.
+
 ## [0.29.0] - 2026-11-16
 
 Mixture of Models in Google's Antigravity CLI ([ADR 0005](docs/adr/0005-other-coding-agents.md), [integrations/antigravity](integrations/antigravity/README.md)).

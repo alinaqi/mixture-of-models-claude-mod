@@ -111,6 +111,22 @@ export function statusText(me) {
   return 'Palgu: signed in as ' + account.email + ' (' + org.name + ', plan ' + org.plan + ') · upgrade: /palgu upgrade'
 }
 
+const PERIODS = { monthly: 'this month', weekly: 'this week', daily: 'today' }
+const usd = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// The org's Palgu budget, from GET /me/org-settings' `budget` ({ period, state, limit_usd,
+// spent_usd }), as one line; '' when there is none to show. The prepaid balance of a single
+// account is not readable with the mod's key yet (srooter #2686).
+export function budgetText(res) {
+  const b = parseBody(res && res.ok ? res : null).budget
+  if (!b || typeof b.spent_usd !== 'number') return ''
+  const when = PERIODS[b.period] || 'this period'
+  if (typeof b.limit_usd !== 'number' || b.limit_usd <= 0) return 'spent: ' + usd(b.spent_usd) + ' ' + when + ' (no limit set)'
+  const pct = Math.round((b.spent_usd / b.limit_usd) * 100)
+  const over = b.state === 'exceeded' || b.spent_usd > b.limit_usd ? ' · over budget' : ''
+  return 'budget: ' + usd(b.spent_usd) + ' of ' + usd(b.limit_usd) + ' ' + when + ' (' + pct + '%)' + over
+}
+
 export function upgradeText() {
   return 'Palgu plans and billing: ' + PALGU_BILLING + ' · your key picks up a new plan by itself, nothing to change here.'
 }
