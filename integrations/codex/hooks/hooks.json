@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "mom hook codex", "timeout": 10 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "mom hook codex", "timeout": 10, "statusMessage": "Recalling Palgu memory" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "mom hook codex", "timeout": 15 }] }]
+  }
+}

@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-11-16
+
+Mixture of Models outside Claude Code, starting with Codex ([ADR 0005](docs/adr/0005-other-coding-agents.md)).
+
+### Added
+- `mom`, a zero-dependency Node CLI installed with `npm install -g github:alinaqi/mixture-of-models-claude-mod`. It reuses the mod's recall, heartbeat, memory-consent and Palgu sign-in code (`hooks/lib`): `mom login`, `logout`, `status`, `token`, `memory on|off|status` (per project folder, shared by every agent), `heartbeat palgu|local|off`, `setup codex [--write]` and `hook <tool>`. The key is kept in `~/.config/mixture-of-models/credentials.json` (0600) or read from `PALGU_API_KEY`; state in `state.json` next to it.
+- The Codex plugin (`integrations/codex`, marketplace in `.agents/plugins/marketplace.json`): `UserPromptSubmit` recalls Palgu memory as `additionalContext`, `Stop` continues a turn that stopped mid-task (`decision: "block"`, at most 3 per prompt, Palgu's verdict or the local classifier), `SessionStart` indexes memory-on folders in the background. Every hook fails open. A skill tells Codex the `mom` commands.
+- `mom setup codex --write` writes `~/.codex/palgu.config.toml`: `codex -p palgu` sends every request to Palgu with `model = "auto"` so Palgu picks the model, the key from `mom token` (never in Codex's config), `x-srooter-client`, and `x-srooter-pin` / `x-srooter-project` from `MOM_PIN` / `MOM_PROJECT`.
+- Checked live on Codex 0.163.0 with the plugin installed from the marketplace: the heartbeat continued a mid-task answer three times and then let it stop; under `-p palgu` every request went to Palgu as `auto`, and the recalled memory block reached the model.
+
 ## [0.25.0] - 2026-11-13
 
 Palgu memory reaches every model, not only Palgu's index.
