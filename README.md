@@ -7,7 +7,7 @@
 [mit-badge]: https://img.shields.io/badge/License-MIT-green.svg
 [log-badge]: https://img.shields.io/badge/changelog-keep%20a%20changelog-blue
 
-> **Setting this up with a coding agent?** Point it at [INSTALL.md](INSTALL.md): "Follow INSTALL.md in alinaqi/mixture-of-models-claude-mod to set up Mixture of Models for me." It has every command, a check for each step, and what to ask you. Works for Claude Code, Codex, Cursor, OpenCode, Antigravity, Aider, Continue and Goose.
+> **Setting this up with a coding agent?** Point it at [INSTALL.md](INSTALL.md): "Follow INSTALL.md in alinaqi/mixture-of-models-claude-mod to set up Mixture of Models for me." It has every command, a check for each step, and what to ask you. Works for Claude Code, Codex, Cursor, OpenCode, Antigravity, GitHub Copilot CLI, Aider, Continue and Goose.
 
 Keep your Claude subscription for the turns that need it. Hand the rest to a cheaper model. A Claude Code **mod** (an in-process plugin, new in Claude Code 2.1.287) that scores every prompt for blast radius and answers the low-score turns with a separate headless Claude Code on an Anthropic-compatible gateway (GLM, Kimi, DeepSeek, whatever yours serves). Your main session is never renamed, re-pointed or touched. Ported from [Maggy](https://github.com/alinaqi/maggy)'s routing.
 
@@ -252,6 +252,9 @@ mom setup opencode --write
 
 # Antigravity
 agy plugin install "$(npm root -g)/mixture-of-models-claude-mod/integrations/antigravity"
+
+# GitHub Copilot CLI
+copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
 ```
 
 Optional, per project, uploads its source to Palgu: `mom memory on`. Every command, with checks and troubleshooting: [INSTALL.md](INSTALL.md).
@@ -262,6 +265,7 @@ Optional, per project, uploads its source to Palgu: `mom memory on`. Every comma
 | Cursor | Plugin (or `mom setup cursor`): MCP server for Palgu memory search and delegation to Palgu models (`mom mcp`), heartbeat and indexing through hooks, a rule for when to delegate. No per-turn routing: Cursor's hooks cannot change the model | [integrations/cursor](integrations/cursor/README.md) |
 | OpenCode (1.19+) | Plugin with full parity: per-request Palgu model (auto, `/route` pin, or your tier routes), memory recall, heartbeat, indexing, `/route` and `/palgu`; `mom setup opencode --write` adds the provider | [integrations/opencode](integrations/opencode/README.md) |
 | Antigravity (`agy` 1.0.7+) | Plugin: memory recall into the first model call of each turn, heartbeat, indexing, Palgu tools over MCP (`palgu_delegate` for routed subtasks). Its hooks cannot change the model | [integrations/antigravity](integrations/antigravity/README.md) |
+| GitHub Copilot CLI (1.0.112+) | Plugin: heartbeat, indexing, Palgu tools over MCP (memory search, `palgu_delegate`), a skill for when to use them. Its hooks cannot change the model or add to a prompt | [integrations/copilot](integrations/copilot/README.md) |
 | Aider, Continue, Goose | Palgu routes (`model: auto`); no hooks, so no memory recall or heartbeat. Aider checked live | [integrations/gateway](integrations/gateway/README.md) |
 
 Palgu memory consent (`mom memory on`) is per project folder and shared by every agent that uses `mom`. It is separate from the mod's `/palgu memory on`.

@@ -118,6 +118,18 @@ Check: `agy plugin list` shows `mixture-of-models` enabled. `agy plugin validate
 
 If `agy` fails with `PERMISSION_DENIED on resource project <id>`, that is Antigravity's own Google Cloud setting, not this plugin: see [integrations/antigravity](integrations/antigravity/README.md).
 
+### GitHub Copilot CLI (1.0.112 or later)
+
+```bash
+copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
+```
+
+The user must be signed in to Copilot (`/login` inside `copilot`). If `GITHUB_TOKEN` is set to a classic token, Copilot refuses it: start it as `env -u GITHUB_TOKEN -u GH_TOKEN copilot`.
+
+Check: `copilot plugin list` shows `mixture-of-models`. In a session, asking the agent to call `palgu_models` lists Palgu's models.
+
+Guide: [integrations/copilot](integrations/copilot/README.md)
+
 ### Aider, Continue, Goose
 
 These have no hooks, so only Palgu's routing applies (no memory, no heartbeat). Follow [integrations/gateway](integrations/gateway/README.md): point the agent at `https://api.palgu.ai/v1` with model `auto` and the key from `mom token`.
@@ -126,7 +138,6 @@ Check: one prompt gets an answer; Palgu's dashboard shows the request.
 
 ### Not yet supported
 
-- **GitHub Copilot CLI**: in progress.
 - **Gemini CLI**: needs a Gemini-format Palgu endpoint (not available yet).
 - **Windsurf**: no way to point it at another model endpoint.
 

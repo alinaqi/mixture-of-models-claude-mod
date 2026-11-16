@@ -1,14 +1,15 @@
 // What a tool's hook sends on stdin, read into one shape, and what mom answers, written in that
 // tool's shape (ADR 0005). Pure.
 
-export const TOOLS = ['codex', 'cursor', 'antigravity']
+export const TOOLS = ['codex', 'cursor', 'antigravity', 'copilot']
 
 // Each tool's event names, mapped to mom's: start (session start), prompt (prompt submit), answer
 // (the agent's answer, for a tool whose stop event lacks it) and stop.
 const KINDS = {
   codex: { SessionStart: 'start', UserPromptSubmit: 'prompt', Stop: 'stop' },
   cursor: { sessionStart: 'start', beforeSubmitPrompt: 'prompt', afterAgentResponse: 'answer', stop: 'stop' },
-  antigravity: { SessionStart: 'start', PreInvocation: 'prompt', Stop: 'stop' }
+  antigravity: { SessionStart: 'start', PreInvocation: 'prompt', Stop: 'stop' },
+  copilot: { sessionStart: 'start', userPromptSubmitted: 'prompt', agentStop: 'stop' }
 }
 
 function readJson(raw) {
@@ -52,7 +53,15 @@ function fromAntigravity(e, kind) {
   return { kind, session: String(e.conversationId || ''), cwd: String(e.cwd || roots[0] || ''), prompt: String(e.lastUserInput || ''), answer: kind === 'stop' ? null : '', continued, transcript: String(e.transcriptPath || '') }
 }
 
-const READERS = { codex: fromCodex, cursor: fromCursor, antigravity: fromAntigravity }
+// Copilot CLI (camelCase hooks): no event name in the input (the hook command names it), no answer
+// at agentStop (its transcript has it). A command hook's output on userPromptSubmitted is dropped,
+// so recall is off there; memory goes through the MCP tools.
+function fromCopilot(e, kind) {
+  if (kind === 'stop' && e.stopReason !== 'end_turn') return null
+  return { kind, session: String(e.sessionId || ''), cwd: String(e.cwd || ''), prompt: String(e.prompt || ''), answer: kind === 'stop' ? null : '', continued: e.stop_hook_active === true, recall: false, transcript: String(e.transcriptPath || '') }
+}
+
+const READERS = { codex: fromCodex, cursor: fromCursor, antigravity: fromAntigravity, copilot: fromCopilot }
 
 // { kind, session, cwd, prompt, answer, continued[, recall] }, or null when mom has nothing to do with it.
 // `event`: the event's name from the hook command, for a tool whose input does not carry it.
@@ -81,7 +90,13 @@ function antigravityOut(kind, r) {
   return null
 }
 
-const WRITERS = { codex: codexOut, cursor: cursorOut, antigravity: antigravityOut }
+function copilotOut(kind, r) {
+  if (kind === 'start' && r.note) return { additionalContext: r.note }
+  if (kind === 'stop' && r.reason) return { decision: 'block', reason: r.reason }
+  return null
+}
+
+const WRITERS = { codex: codexOut, cursor: cursorOut, antigravity: antigravityOut, copilot: copilotOut }
 
 // The hook's stdout: JSON in the tool's shape, or '' (the tool goes on as if there were no hook).
 export function render(tool, kind, result) {
