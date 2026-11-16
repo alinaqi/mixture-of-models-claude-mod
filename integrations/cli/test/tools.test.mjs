@@ -27,6 +27,21 @@ test('delegateRequest: auto when no model, a pinned model in body and x-srooter-
   assert.equal(delegateRequest({ prompt: 'x'.repeat(300000) }, 'cursor', '1').body.messages.at(-1).content.length, 200000)
 })
 
+test('delegateRequest refuses arguments of the wrong type instead of sending "[object Object]"', () => {
+  assert.match(delegateRequest({ prompt: {} }, 'cursor', '1').error, /prompt/)
+  assert.match(delegateRequest({ prompt: ['a'] }, 'cursor', '1').error, /prompt/)
+  assert.match(delegateRequest({ prompt: 'x', model: { id: 'kimi-2.7' } }, 'cursor', '1').error, /model/)
+  assert.equal(delegateRequest({ prompt: 'x', model: null }, 'cursor', '1').body.model, 'auto')
+})
+
+test('searchQuery: one line of at most 300 characters from a string, empty for anything else', async () => {
+  const { searchQuery } = await import('../lib/tools.js')
+  assert.equal(searchQuery('  config\n loader  '), 'config loader')
+  assert.equal(searchQuery('x'.repeat(400)).length, 300)
+  assert.equal(searchQuery({ q: 'config' }), '')
+  assert.equal(searchQuery(undefined), '')
+})
+
 test('delegateAnswer returns the model\'s text with the model that answered, or Palgu\'s error', () => {
   const ok = { ok: true, status: 200, text: JSON.stringify({ model: 'deepseek-v4-pro', choices: [{ message: { content: 'pong' } }] }) }
   assert.deepEqual(delegateAnswer(ok), { text: 'pong\n\n(answered by deepseek-v4-pro on Palgu)', isError: false })

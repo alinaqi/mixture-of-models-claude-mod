@@ -4,6 +4,8 @@
 import { fileURLToPath } from 'node:url'
 
 export const DEFAULT_PROTOCOL = '2025-06-18'
+// Versions whose tools, ping and roots work as this server uses them; any other gets ours.
+const PROTOCOLS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25']
 const ROOTS_ID = 'mom-roots'
 
 const reply = (id, result) => ({ jsonrpc: '2.0', id, result })
@@ -18,25 +20,37 @@ export function parseLine(line) {
   } catch {
     return { reply: failure(null, -32700, 'Parse error') }
   }
-  return v && typeof v === 'object' && !Array.isArray(v) ? { msg: v } : { reply: failure(null, -32600, 'Invalid request') }
+  if (v && typeof v === 'object' && !Array.isArray(v) && v.jsonrpc === '2.0' && ('method' in v || 'id' in v)) return { msg: v }
+  const id = v && (typeof v.id === 'string' || typeof v.id === 'number') ? v.id : null
+  return { reply: failure(id, -32600, 'Invalid request') }
 }
 
 function rootPaths(result) {
   const roots = result && Array.isArray(result.roots) ? result.roots : []
-  return roots.filter((r) => r && String(r.uri).startsWith('file://')).map((r) => fileURLToPath(r.uri))
+  return roots.filter((r) => r && String(r.uri).startsWith('file://')).map((r) => toPath(r.uri)).filter(Boolean)
+}
+
+function toPath(uri) {
+  try {
+    return fileURLToPath(uri)
+  } catch {
+    return ''
+  }
 }
 
 function initialize(s, msg) {
   const p = msg.params || {}
   s.clientRoots = Boolean(p.capabilities && p.capabilities.roots)
-  const result = { protocolVersion: String(p.protocolVersion || DEFAULT_PROTOCOL), capabilities: { tools: { listChanged: false } }, serverInfo: { name: s.info.name, version: s.info.version } }
+  const version = PROTOCOLS.includes(p.protocolVersion) ? p.protocolVersion : DEFAULT_PROTOCOL
+  const result = { protocolVersion: version, capabilities: { tools: { listChanged: false } }, serverInfo: { name: s.info.name, version: s.info.version } }
   return [reply(msg.id, s.info.instructions ? { ...result, instructions: s.info.instructions } : result)]
 }
 
 async function callTool(s, msg) {
   const p = msg.params || {}
   if (!s.tools.some((t) => t.name === p.name)) return [failure(msg.id, -32602, 'Unknown tool: ' + p.name)]
-  const out = await s.call(p.name, p.arguments || {}, { roots: s.roots }).catch((err) => ({ text: 'Failed: ' + (err && err.message), isError: true }))
+  const args = p.arguments && typeof p.arguments === 'object' && !Array.isArray(p.arguments) ? p.arguments : {}
+  const out = await s.call(p.name, args, { roots: s.roots }).catch((err) => ({ text: 'Failed: ' + (err && err.message), isError: true }))
   return [reply(msg.id, { content: [{ type: 'text', text: String(out.text) }], isError: Boolean(out.isError) })]
 }
 
@@ -63,8 +77,9 @@ export function makeServer({ info, tools, call }) {
   return {
     async receive(msg) {
       if (!('method' in msg)) return 'id' in msg ? answer(s, msg) : []
-      if (!('id' in msg)) return NOTICES[msg.method] ? NOTICES[msg.method](s) : []
-      return METHODS[msg.method] ? METHODS[msg.method](s, msg) : [failure(msg.id, -32601, 'Method not found: ' + msg.method)]
+      const method = String(msg.method)
+      if (!('id' in msg)) return Object.hasOwn(NOTICES, method) ? NOTICES[method](s) : []
+      return Object.hasOwn(METHODS, method) ? METHODS[method](s, msg) : [failure(msg.id, -32601, 'Method not found: ' + method)]
     }
   }
 }

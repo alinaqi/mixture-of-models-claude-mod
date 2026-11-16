@@ -29,12 +29,15 @@ export const TOOL_DEFS = [
 
 const BRIEF = 'You are a subagent doing one self-contained task for a coding agent. Answer with the result only: code, text or facts, no preamble.'
 
+// A string argument trimmed, '' when absent, null when it is something else.
+const str = (v) => (typeof v === 'string' ? v.trim() : v == null ? '' : null)
+
 // { body, headers } for POST /v1/chat/completions (the key is added by the caller), or { error }.
 export function delegateRequest(args, tool, version) {
-  const prompt = String(args.prompt || '').trim()
-  if (!prompt) return { error: 'palgu_delegate needs a prompt: the whole subtask.' }
-  const model = String(args.model || '').trim()
-  if (model && !MODEL.test(model)) return { error: 'Not a model name: ' + model.slice(0, 64) + ' (see palgu_models)' }
+  const prompt = str(args.prompt)
+  if (!prompt) return { error: 'palgu_delegate needs a prompt (a string): the whole subtask.' }
+  const model = str(args.model)
+  if (model === null || (model && !MODEL.test(model))) return { error: 'Not a model name: ' + String(model).slice(0, 64) + ' (see palgu_models)' }
   const headers = { 'content-type': 'application/json', 'x-srooter-client': clientHeader(tool, version), ...(model ? { 'x-srooter-pin': model } : {}) }
   const messages = [{ role: 'system', content: BRIEF }, { role: 'user', content: prompt.slice(0, MAX_PROMPT) }]
   return { body: { model: model || 'auto', messages }, headers }
@@ -70,6 +73,11 @@ export function modelsAnswer(live) {
   const when = live.at ? ' (health checked ' + live.at.slice(11, 16) + ' UTC)' : ''
   const down = live.down.length ? ' · down: ' + live.down.join(', ') : ''
   return 'Palgu serves ' + live.served.length + ' models' + when + ': ' + live.served.join(', ') + down + '. Pass one as `model` to palgu_delegate, or leave it out and Palgu picks.'
+}
+
+// The memory search text: one line, at most 300 characters; '' for anything that is not a string.
+export function searchQuery(q) {
+  return typeof q === 'string' ? q.replace(/\s+/g, ' ').trim().slice(0, 300) : ''
 }
 
 const usable = (p) => typeof p === 'string' && isAbsolute(p) && !p.includes('${')

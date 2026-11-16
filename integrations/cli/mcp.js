@@ -8,7 +8,7 @@ import { memoryOn } from '../../hooks/lib/memory.js'
 import { liveModels } from '../../hooks/lib/catalogue.js'
 import { VERSION } from '../../hooks/lib/version.js'
 import { makeServer, parseLine } from './lib/mcp.js'
-import { delegateAnswer, delegateRequest, modelsAnswer, pickFolder, SIGN_IN, TOOL_DEFS } from './lib/tools.js'
+import { delegateAnswer, delegateRequest, modelsAnswer, pickFolder, searchQuery, SIGN_IN, TOOL_DEFS } from './lib/tools.js'
 import { call, loadKey, palguStatus, readJson, writeJson } from './io.js'
 
 const INSTRUCTIONS = 'Mixture of Models (Palgu). palgu_memory_search: search this project\'s Palgu memory before a task. palgu_delegate: hand a self-contained, low-risk subtask to a cheaper Palgu model. palgu_models: the models Palgu serves.'
@@ -27,8 +27,8 @@ async function projectOf(folder) {
 async function memorySearch(args, ctx, key) {
   const folder = pickFolder({ arg: args.folder, env: process.env.MOM_PROJECT_DIR, roots: ctx.roots, cwd: process.cwd() })
   if (!memoryOn((readJson('state.json', {}) || {}).memory, folder)) return say('Palgu memory is off for ' + folder + '. To use it, run `mom memory on` in that folder (it uploads the project\'s source to Palgu for indexing).')
-  const query = String(args.query || '').replace(/\s+/g, ' ').trim().slice(0, 300)
-  if (!query) return say('palgu_memory_search needs a query.', true)
+  const query = searchQuery(args.query)
+  if (!query) return say('palgu_memory_search needs a query (a string).', true)
   const project = await projectOf(folder)
   if (!project) return say('Palgu memory is on for ' + folder + ' but it is not indexed yet. `mom memory status` there says why (it needs the palgu CLI: https://www.palgu.ai/install).')
   const res = await call('/v1/cortex/search?limit=8&project=' + encodeURIComponent(project) + '&q=' + encodeURIComponent(query), { headers: { authorization: 'Bearer ' + key } }, 8000).catch(() => null)

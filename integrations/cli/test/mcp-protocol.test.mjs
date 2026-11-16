@@ -62,9 +62,31 @@ test('roots: after initialized the server asks a client that has roots for them,
   assert.deepEqual(await plain.receive({ jsonrpc: '2.0', method: 'notifications/initialized' }), [])
 })
 
-test('parseLine: JSON objects pass; anything else is a parse error answer; blank lines are skipped', () => {
+test('parseLine: JSON-RPC 2.0 objects pass; anything else is a parse error or invalid request answer; blank lines are skipped', () => {
   assert.deepEqual(parseLine('{"jsonrpc":"2.0","id":1,"method":"ping"}'), { msg: { jsonrpc: '2.0', id: 1, method: 'ping' } })
   assert.equal(parseLine('not json').reply.error.code, -32700)
   assert.equal(parseLine('[1,2]').reply.error.code, -32600)
+  assert.equal(parseLine('{}').reply.error.code, -32600)
+  assert.deepEqual(parseLine('{"id":4,"method":"ping"}').reply, { jsonrpc: '2.0', id: 4, error: { code: -32600, message: 'Invalid request' } })
   assert.deepEqual(parseLine('   '), {})
+})
+
+test('a method named like an Object property (toString, constructor) is not found, not a crash', async () => {
+  const s = server()
+  for (const method of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+    const [r] = await s.receive(req(1, method))
+    assert.equal(r.error.code, -32601)
+  }
+  assert.deepEqual(await s.receive({ jsonrpc: '2.0', method: 'toString' }), [])
+})
+
+test('initialize answers a protocol version it does not know with its own', async () => {
+  for (const v of ['2024-11-05', '2025-03-26', '2025-06-18']) assert.equal((await server().receive(req(1, 'initialize', { protocolVersion: v })))[0].result.protocolVersion, v)
+  assert.equal((await server().receive(req(1, 'initialize', { protocolVersion: '2099-01-01' })))[0].result.protocolVersion, '2025-06-18')
+})
+
+test('tools/call with arguments that are not an object passes the tool an empty object', async () => {
+  const calls = []
+  await server(calls).receive(req(1, 'tools/call', { name: 'echo', arguments: 'text' }))
+  assert.deepEqual(calls[0][1], {})
 })
