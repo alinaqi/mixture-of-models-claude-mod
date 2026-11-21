@@ -102,6 +102,8 @@ Le prompt indique au classifieur que la longueur, le nombre de services nommés 
 
 **Quels modèles Palgu fonctionnent.** Testés le 2026-10-29 de la façon dont le mod exécute un tour (un enfant `claude -p --bare` épinglé effectuant une courte tâche de recherche avec des appels d'outils) : `glm-5.3`, `deepseek-pro`, `gemini-3.8-flash`, `minimax-m3`, `gpt-6-sol`, `gpt-6-luna`, `gpt-6-astra`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed` et `mercury-3` réussissent en 19 à 46 s ; `minimax-m2.5` a continué à relancer des commandes refusées jusqu'à épuiser ses tours. Les échecs antérieurs de Kimi venaient de la surcharge de Moonshot (`429 engine_overloaded`) : Claude Code relançait chaque requête dix fois, si bien qu'un tour mettait environ deux à trois minutes à échouer. L'enfant ne relance désormais qu'au plus deux fois (`router.child.maxRetries`, par défaut 2), si bien qu'un fournisseur surchargé bascule sur le repli en quelques secondes. La recherche et la revue restent sur DeepSeek par défaut ; Kimi est une épingle. L'enfant envoie toujours `x-srooter-pin: <model>` à Palgu : sans cela, Palgu route selon l'intention et peut répondre avec un autre modèle (il servait chaque modèle non épinglé sous la forme de Gemini).
 
+**Quand un enfant échoue.** Le modèle principal ne reprend un tour routé qu'après l'échec de tous les modèles équivalents. Sur Palgu, l'enfant envoie `x-palgu-fallback: auto`, si bien qu'en cas de surcharge la passerelle parcourt d'abord la propre chaîne de repli du modèle épinglé (sa liste de repli, puis sa classe). Si l'enfant échoue encore sur une surcharge (429, 5xx, délai dépassé, aucune réponse), le mod relance le tour sur le modèle équivalent suivant : d'abord les modèles de la même classe (d'après la liste en direct de Palgu), puis les autres modèles en bonne santé, jusqu'à `router.child.fallbacks` (3 par défaut). Un prompt trop long pour le modèle ne passe qu'à un modèle à plus grande fenêtre de contexte (`router.child.longContext`) ; une requête invalide (400, 401, 403, 404, 422) n'est pas retentée sur d'autres modèles. La ligne de route dit ce qui s'est passé : `child: deepseek-pro failed (429) → served by glm-5.3`, ou `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`.
+
 ### Stratégies de routage : router selon la complexité, le coût, la vitesse, la qualité ou vos propres règles
 
 Ce que le classifieur évalue, où se séparent les paliers et quel modèle prend chaque palier forment une **stratégie de routage**, un fichier markdown avec une grille, comme un skill. Quatre sont fournies :
@@ -376,7 +378,7 @@ Une clé virtuelle n'atteint que les modèles qui lui sont autorisés ; un 401 o
 - À Palgu, le heartbeat : quand la session principale termine une réponse et que votre passerelle est Palgu (et que `router.heartbeat` ne vaut pas `local` ou `off`), les 600 derniers caractères de cette réponse, un identifiant de session (l'identifiant d'installation et le numéro du prompt) et la clé en `x-api-key`. Palgu indique si le tour s'est arrêté en pleine tâche. Rien d'autre de la conversation.
 - À Palgu, via la CLI `palgu` et seulement après que vous avez lancé `/palgu memory on` : les fichiers source du projet, pour la mémoire Palgu (voir Programmes). `palgu` utilise sa propre connexion.
 - À Palgu, le rappel de la mémoire Palgu, uniquement dans un dossier de projet où vous avez lancé `/palgu memory on` et tant que le mod est connecté à Palgu : chacun de vos prompts de quatre mots ou plus (sur une ligne, 300 caractères au plus ; pas les commandes slash), le nom Palgu du projet et la clé dans un en-tête Bearer, vers `/v1/cortex/search`. Ce qui revient (au plus 8 pointeurs d'une ligne : intentions consignées et ADR, docs, symboles de code avec leurs fichiers ; au plus 2 000 caractères) est ajouté à côté de votre prompt pour la session principale et au brief d'un enfant routé (Claude, un modèle Palgu ou Codex), de sorte que chaque modèle qui répond voit la même mémoire. Une recherche qui échoue ou dépasse 3 s n'ajoute rien et ne retarde jamais le prompt.
-- À une passerelle Palgu ou générique, les en-têtes d'identification de l'enfant : `x-srooter-client` (nom et version du mod), `x-srooter-project` (le nom du dossier de la session, transformé en slug) et, sur Palgu, `x-srooter-pin` (l'identifiant du modèle routé). Voir [En-têtes envoyés par l'enfant](#en-têtes-envoyés-par-lenfant).
+- À une passerelle Palgu ou générique, les en-têtes d'identification de l'enfant : `x-srooter-client` (nom et version du mod), `x-srooter-project` (le nom du dossier de la session, transformé en slug) et, sur Palgu, `x-srooter-pin` (l'identifiant du modèle routé). Voir [En-têtes envoyés par l'enfant](#en-têtes-envoyés-par-lenfant). Un enfant avec un modèle routé envoie aussi `x-palgu-fallback: auto`.
 - Aucune autre donnée n'est envoyée. Pas de télémétrie. Pas d'analytique.
 
 ### Programmes exécutés par le plugin
@@ -495,6 +497,8 @@ Le projet est le dernier segment du répertoire de travail de la session, transf
 
 Ils vont dans le `ANTHROPIC_CUSTOM_HEADERS` de l'enfant (la liste `Name: value` séparée par des retours à la ligne de Claude Code), défini au même endroit que `ANTHROPIC_BASE_URL` : pas de passerelle configurée, pas d'en-têtes, et l'enfant ne parle qu'à cette passerelle. Si vous définissez déjà `ANTHROPIC_CUSTOM_HEADERS`, vos lignes viennent en premier et sont conservées ; un `x-srooter-client` ou `x-srooter-project` de votre cru l'emporte sur celui du mod. Les requêtes de la session principale ne changent pas.
 
+Un enfant avec un modèle routé envoie aussi `x-srooter-pin: <model>`, pour que Palgu serve exactement ce modèle, et `x-palgu-fallback: auto`, pour qu'en cas de surcharge la passerelle puisse confier une requête épinglée à un modèle équivalent au lieu de la faire échouer. Un `x-palgu-fallback` à vous dans `ANTHROPIC_CUSTOM_HEADERS` l'emporte.
+
 ### Fichiers et environnement lus
 
 - `~/.claude/model-config.json`, via `$.fs.read`, pour les routes, les seuils, l'alias du classifieur et les paramètres de l'enfant. Il ne contient aucun identifiant. S'il manque ou est invalide, les valeurs par défaut s'appliquent.
@@ -532,6 +536,8 @@ Le mod lit la source de vérité unique de Maggy, `~/.claude/model-config.json`,
       "maxTurns": 25,
       "timeoutMs": 600000,
       "maxRetries": 2,
+      "fallbacks": 3,
+      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -566,6 +572,8 @@ Une config qui place chaque palier sur un membre Claude, avec Fable pour les tou
 - `child.args` : options supplémentaires. Par défaut `--bare` (pas de hooks ni de plugins hérités, authentification par clé d'API uniquement, de sorte que l'enfant ne peut jamais se replier sur votre abonnement) plus `acceptEdits` pour qu'il puisse modifier des fichiers sans demander. Le mod ajoute toujours `--add-dir <cwd>`, qui garde le `CLAUDE.md` du projet accessible sous `--bare`. N'ajoutez `--dangerously-skip-permissions` que si vous voulez que l'enfant exécute des commandes sans surveillance ; retirez `--bare` si vous voulez vos hooks et plugins dans l'enfant.
 - `child.maxTurns`, `timeoutMs` : le budget agentique de l'enfant. `timeoutMs` est plafonné à dix minutes, la limite de `$.process.run`.
 - `child.maxRetries` : combien de fois l'enfant de la passerelle relance une requête qui a échoué avec un 429 ou un 5xx (par défaut 2 ; la valeur par défaut de Claude Code est 10, ce qui prenait des minutes face à un fournisseur surchargé). Augmentez-la si votre passerelle a de courtes coupures que vous préférez attendre plutôt que de basculer sur le repli.
+- `child.fallbacks` : combien de modèles équivalents le mod essaie lui-même après l'échec d'un enfant de passerelle, avant que le modèle principal ne reprenne le tour (3 par défaut ; 0 le désactive). Sur Palgu, la même classe d'abord, puis les autres modèles en bonne santé. Voir « Quand un enfant échoue » plus haut.
+- `child.longContext` : les modèles de passerelle vers lesquels passe un prompt trop long pour le modèle routé (par défaut `gemini-3.8-flash`, `gpt-6-sol`).
 - `child.contextMessages` : combien d'échanges récents vont dans le brief.
 - `child.relayRounds` : combien de fois un tour routé peut s'interrompre pour vous interroger sur des commandes refusées à l'enfant (par défaut 2).
 - `child.deny` : règles supplémentaires de refus de permissions Claude Code pour chaque enfant Claude, passées avec `--disallowedTools` après `child.args`. Elles s'ajoutent à la liste intégrée (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `secrets/**`), que rien ne supprime, car `--bare` ignore les hooks qui protégeraient sinon ces fichiers.

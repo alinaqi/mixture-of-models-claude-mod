@@ -48,7 +48,9 @@ export function projectSlug(cwd) {
 // ANTHROPIC_CUSTOM_HEADERS for the child: the user's own lines first, then who the child is and
 // which project it works in, each only if the user has not set that header already. Only Palgu
 // (and generic gateways, as before) get ours: `identify` false keeps them from OpenRouter or LiteLLM.
-// `model` adds x-srooter-pin: Palgu routes by intent and would otherwise serve another model.
+// `model` adds x-srooter-pin: Palgu routes by intent and would otherwise serve another model. A pin
+// alone has no fallback chain on Palgu, so x-palgu-fallback: auto lets it walk the model's chain
+// (its fallback list, then its class) on an overload, never on a bad request.
 export function childHeaders(cwd, theirs, identify = true, model = '') {
   const lines = String(theirs || '').split('\n').map((l) => l.trim()).filter(Boolean)
   if (!identify) return lines.join('\n')
@@ -56,7 +58,7 @@ export function childHeaders(cwd, theirs, identify = true, model = '') {
   const project = projectSlug(cwd)
   const ours = [['x-srooter-client', 'mixture-of-models/' + VERSION]]
   if (project && !project.includes('..')) ours.push(['x-srooter-project', project])
-  if (model) ours.push(['x-srooter-pin', model])
+  if (model) ours.push(['x-srooter-pin', model], ['x-palgu-fallback', 'auto'])
   for (const [name, value] of ours) if (!has(name)) lines.push(name + ': ' + value)
   return lines.join('\n')
 }
@@ -145,7 +147,13 @@ export function parseChildOutput(raw, exitCode) {
   const denials = (r.permission_denials || []).map((d) => ({ tool: d.tool_name, command: d.tool_name === 'Bash' ? d.tool_input.command || '' : '' }))
     .filter((d) => !seen.has(d.tool + d.command) && seen.add(d.tool + d.command))
   const turns = typeof r.num_turns === 'number' ? r.num_turns : undefined
-  return { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [], turns, usage: usageOf(r.usage) }
+  const head = { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [], turns, usage: usageOf(r.usage) }
+  return { ...head, error: ok ? null : errorOf(r) }
+}
+
+// Why a child failed, for fallback.js: the API status Claude Code reports and its error text.
+function errorOf(r) {
+  return { status: typeof r.api_error_status === 'number' ? r.api_error_status : null, text: String(r.result || '').slice(0, 300) }
 }
 
 export function allowPatterns(denials) {

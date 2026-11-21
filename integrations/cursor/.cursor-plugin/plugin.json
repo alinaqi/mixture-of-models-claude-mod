@@ -1,7 +1,7 @@
 {
   "name": "mixture-of-models",
   "displayName": "Mixture of Models",
-  "version": "0.33.1",
+  "version": "0.34.0",
   "description": "Mixture of Models for Cursor: Palgu memory search and delegation of self-contained subtasks to cheaper Palgu models (an MCP server), and the heartbeat that continues a turn that stopped mid-task. Needs the mom CLI.",
   "author": { "name": "Ali Naqi Shaheen" },
   "homepage": "https://github.com/alinaqi/mixture-of-models-claude-mod",

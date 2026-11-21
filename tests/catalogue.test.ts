@@ -11,7 +11,7 @@ const HEALTH = res([
 
 test('liveModels keeps the versioned models a routed turn can use, apart from the unhealthy ones', async () => {
   // No Claude (that is the session's own), no premium, internal or image class, no bare alias like `deepseek` or `codex`.
-  expect(liveModels(HEALTH)).toEqual({ at: '2026-11-07T06:00:13+00:00', served: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'grok-4.7', 'mistral-large-4'], down: ['gpt-5.6-terra'] })
+  expect(liveModels(HEALTH)).toEqual({ at: '2026-11-07T06:00:13+00:00', served: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'grok-4.7', 'mistral-large-4'], down: ['gpt-5.6-terra'], classes: { 'glm-5.3': 'frontier', 'deepseek-pro': 'frontier', 'gpt-6-sol': 'frontier', 'grok-4.7': 'frontier', 'mistral-large-4': 'workhorse', 'gpt-5.6-terra': 'frontier' } })
 })
 
 test('liveModels is null for a failed, empty or malformed answer, so the built-in list stays', async () => {

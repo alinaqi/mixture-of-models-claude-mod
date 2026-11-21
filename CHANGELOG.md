@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.34.0] - 2026-11-21
+
+### Changed
+- A failed routed child no longer hands the turn straight to the main model. The main model takes it only after every equivalent model has failed:
+  - On Palgu the child sends `x-palgu-fallback: auto` with its pin, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). A pin alone had no chain, so one 429 ended the child.
+  - If the child still fails with an overload (429, 5xx, a timeout, a connection error, no answer), the mod runs the turn again on the next equivalent model: the same class first (from Palgu's live list), then the other healthy models, up to `router.child.fallbacks` (default 3; 0 turns it off). Without Palgu's live list it walks the gateway's catalogue.
+  - A prompt too long for the model moves only to a larger-window model (`router.child.longContext`, default `gemini-3.8-flash`, `gpt-6-sol`). A bad request (400, 401, 403, 404, 422) is not retried on other models.
+  - The route line and log say what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model takes this turn`.
+- Palgu's live model list keeps each model's class, which orders the equivalents.
+
 ## [0.33.1] - 2026-11-16
 
 ### Fixed

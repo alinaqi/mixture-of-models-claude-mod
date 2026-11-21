@@ -127,6 +127,84 @@ test('a failed child hands the step to the main model', GW, async ($, on) => {
   expect(result.answer).toBe('main answer')
 })
 
+// A child the gateway refused: what claude -p prints for an API error.
+function childError(status: number | null, text: string) {
+  return JSON.stringify({ type: 'result', subtype: 'success', is_error: true, api_error_status: status, result: text, session_id: 's' }) + '\n'
+}
+
+test('an overloaded child moves to the next equivalent model before the main model takes the turn', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: runs.length === 1 ? { exitCode: 0, stdout: childError(429, 'API Error: 429 rate limited'), stderr: '' } : { exitCode: 0, stdout: childJson('second answer'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'second answer', durationMs: 10, isAborted: false, usage: null })
+
+  expect(seen).toEqual([])
+  expect(result.answer).toBe('second answer')
+  expect(runs.length).toBe(2)
+  expect(runs[0].argv).toContain('glm-5.3')
+  expect(runs[1].argv).toContain('deepseek-pro')
+  expect(runs[1].init.env.ANTHROPIC_CUSTOM_HEADERS).toContain('x-srooter-pin: deepseek-pro')
+  expect(runs[1].init.env.ANTHROPIC_CUSTOM_HEADERS).toContain('x-palgu-fallback: auto')
+  expect(done.text).toContain('route: deepseek-pro')
+  expect(done.text).toContain('child: glm-5.3 failed (429) → served by deepseek-pro')
+})
+
+test('the main model takes the turn only after every equivalent failed, and the log lists them', GW, async ($, on) => {
+  const logs: string[] = []
+  stubSession(on, { logs })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childError(529, 'Overloaded'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+
+  expect(seen).toEqual(['claude-opus-5'])
+  // The routed model and three equivalents (router.child.fallbacks, 3 by default).
+  expect(runs.map((r) => r.argv[r.argv.indexOf('--model') + 1])).toEqual(['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3'])
+  expect(logs.join('\n')).toContain('all equivalents failed: glm-5.3 (529), deepseek-pro (529), gemini-3.8-flash (529), minimax-m3 (529); main model takes this turn')
+  expect(done.text).toContain('route: glm-5.3')
+  expect(done.text).toContain('all equivalents failed')
+})
+
+test('a bad request is not walked across models: the main model takes it at once', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childError(400, 'API Error: 400 invalid_request_error'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs.length).toBe(1)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('a context that does not fit moves to a larger-window model, not along the class', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: runs.length === 1 ? { exitCode: 0, stdout: childError(400, 'API Error: 400 prompt is too long: 210000 tokens > 200000 maximum'), stderr: '' } : { exitCode: 0, stdout: childJson('long answer'), stderr: '' } } })
+  recordSteps(on, [])
+
+  const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(result.answer).toBe('long answer')
+  expect(runs[1].argv).toContain('gemini-3.8-flash')
+})
+
+test('router.child.fallbacks 0 turns the mod-side walk off', GW, async ($, on) => {
+  stubSession(on, { config: '{"router":{"child":{"fallbacks":0}}}' })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childError(429, 'rate limited'), stderr: '' } } })
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs.length).toBe(1)
+})
+
 test('without a gateway key the mod observes only', async ($, on) => {
   stubSession(on)
   let runs = 0

@@ -100,6 +100,8 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **Which Palgu models work.** Tested on 2026-10-29 the way the mod runs a turn (a pinned `claude -p --bare` child doing a short research task with tool calls): `glm-5.3`, `deepseek-pro`, `gemini-3.8-flash`, `minimax-m3`, `gpt-6-sol`, `gpt-6-luna`, `gpt-6-astra`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed` and `mercury-3` pass in 19 to 46 s; `minimax-m2.5` kept retrying refused commands until it ran out of turns. Kimi's earlier failures were Moonshot being overloaded (`429 engine_overloaded`): Claude Code retried each request ten times, so a turn took about two to three minutes to fail. The child now retries at most twice (`router.child.maxRetries`, default 2), so a busy provider falls back in seconds. Research and review stay on DeepSeek by default; Kimi is a pin. The child always sends `x-srooter-pin: <model>` to Palgu: without it Palgu routes by intent and may answer with another model (it served every model unpinned as Gemini).
 
+**When a child fails.** The main model takes a routed turn only after every equivalent model has failed. On Palgu the child sends `x-palgu-fallback: auto`, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). If the child still fails with an overload (429, 5xx, a timeout, no answer), the mod runs the turn again on the next equivalent: models of the same class first (from Palgu's live list), then the other healthy ones, up to `router.child.fallbacks` (default 3). A prompt too long for the model moves only to a larger-window model (`router.child.longContext`); a bad request (400, 401, 403, 404, 422) is not retried on other models. The route line says what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`.
+
 ### Routing strategies: route by complexity, cost, speed, quality, or your own rules
 
 What the classifier scores, where the tiers split and which model each tier takes is a **routing strategy**, one markdown file with a rubric, like a skill. Four come built in:
@@ -374,7 +376,7 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 - To Palgu, the heartbeat: when the main session finishes an answer and your gateway is Palgu (and `router.heartbeat` is not `local` or `off`), the last 600 characters of that answer, a session id (the install id and the prompt's number) and the key as `x-api-key`. Palgu says whether the turn stopped mid-task. Nothing else from the conversation.
 - To Palgu, through the `palgu` CLI and only after you run `/palgu memory on`: the project's source files, for Palgu memory (see Programs). `palgu` uses its own sign-in.
 - To Palgu, Palgu memory recall, only in a project folder where you ran `/palgu memory on` and while the mod is signed in to Palgu: each prompt of yours of four words or more (on one line, at most 300 characters; not slash commands), the project's Palgu name and the key as a Bearer header, to `/v1/cortex/search`. What comes back (at most 8 one-line pointers: recorded intent and ADRs, docs, code symbols with their files; at most 2,000 characters) is added beside your prompt for the main session and to the brief of a routed child (Claude, a Palgu model or Codex), so every model that answers sees the same memory. A search that fails or takes over 3 s adds nothing and never holds up the prompt.
-- To a Palgu or generic gateway, the child's identifying headers: `x-srooter-client` (mod name and version), `x-srooter-project` (the session folder's name, slugged) and, on Palgu, `x-srooter-pin` (the routed model id). See [Headers the child sends](#headers-the-child-sends).
+- To a Palgu or generic gateway, the child's identifying headers: `x-srooter-client` (mod name and version), `x-srooter-project` (the session folder's name, slugged) and, on Palgu, `x-srooter-pin` (the routed model id). See [Headers the child sends](#headers-the-child-sends). A child with a routed model also sends `x-palgu-fallback: auto`.
 - No other data is sent. No telemetry. No analytics.
 
 ### Programs the plugin runs
@@ -493,6 +495,8 @@ The project is the last segment of the session's working directory, slugged the 
 
 They go in the child's `ANTHROPIC_CUSTOM_HEADERS` (Claude Code's newline-separated `Name: value` list), set in the same place as `ANTHROPIC_BASE_URL`: no gateway configured, no headers, and the child talks only to that gateway. If you already set `ANTHROPIC_CUSTOM_HEADERS`, your lines come first and are kept; a `x-srooter-client` or `x-srooter-project` of your own wins over the mod's. The main session's requests are unchanged.
 
+A child with a routed model also sends `x-srooter-pin: <model>`, so Palgu serves exactly that model, and `x-palgu-fallback: auto`, so that on an overload the gateway may move a pinned request to an equivalent model instead of failing it. A `x-palgu-fallback` of your own in `ANTHROPIC_CUSTOM_HEADERS` wins.
+
 ### Files and environment it reads
 
 - `~/.claude/model-config.json`, through `$.fs.read`, for routes, thresholds, the classifier alias and child settings. It holds no credentials. Missing or invalid, the defaults apply.
@@ -530,6 +534,8 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "maxTurns": 25,
       "timeoutMs": 600000,
       "maxRetries": 2,
+      "fallbacks": 3,
+      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -564,6 +570,8 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.args`: extra flags. The default is `--bare` (no inherited hooks or plugins, API-key auth only, so the child can never fall back to your subscription) plus `acceptEdits` so it can edit files without prompting. The mod always adds `--add-dir <cwd>`, which keeps the project's `CLAUDE.md` in reach under `--bare`. Add `--dangerously-skip-permissions` only if you want the child to run commands unattended; drop `--bare` if you want your hooks and plugins inside the child.
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.maxRetries`: how often the gateway child retries a request that failed with a 429 or 5xx (default 2; Claude Code's own default is 10, which took minutes against a busy provider). Raise it if your gateway has short blips you would rather ride out than fall back on.
+- `child.fallbacks`: how many equivalent models the mod tries itself after a failed gateway child, before the main model takes the turn (default 3; 0 turns it off). On Palgu the same class first, then the other healthy models. See "When a child fails" above.
+- `child.longContext`: the gateway models a prompt too long for the routed model moves to (default `gemini-3.8-flash`, `gpt-6-sol`).
 - `child.contextMessages`: how many recent exchanges go into the brief.
 - `child.relayRounds`: how many times one routed turn may pause to ask you about commands the child was refused (default 2).
 - `child.deny`: extra Claude Code permission deny rules for every Claude child, passed with `--disallowedTools` after `child.args`. They add to the built-in list (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `secrets/**`), which nothing removes, because `--bare` skips the hooks that would otherwise guard those files.

@@ -140,6 +140,8 @@ Wie, und wie man es rückgängig macht:
 | Ein trivialer Prompt blieb bei Claude | Er erwähnte PRs, CI, Status oder Security oder war eine kurze Folgefrage | Erwartet; formulieren Sie ihn als in sich abgeschlossene Aufgabe, wenn er geroutet werden soll |
 | Eine geroutete Antwort ist falsch oder vage | Die Aufgabe brauchte Sitzungskontext, den das Child nicht hatte | Sagen Sie "use claude" für diesen Turn; wenn eine ganze Art oft scheitert, ändern Sie `routes.kinds` |
 | `child answer discarded (…), main model answered` | Das Child bat um Freigabe, behauptete Arbeit, die es nicht getan hat, oder gab zurück | Nichts zu tun: Das Hauptmodell hat stattdessen geantwortet |
+| `child: deepseek-pro failed (429) → served by glm-5.3` | Das geroutete Modell war überlastet, also hat der Mod den Turn auf einem gleichwertigen Modell ausgeführt | Nichts zu tun |
+| `all equivalents failed: …; main model answered` | Jedes gleichwertige Modell ist fehlgeschlagen, oder das Gateway ist ausgefallen | `/route models` prüfen; wenn es wiederholt auftritt, das Gateway prüfen |
 | Memory ruft nichts ab | Memory ist in diesem Ordner aus, der Prompt hat weniger als vier Wörter, oder die Indexierung ist nicht fertig | `mom memory status`; die Schlüsselbegriffe an den Anfang des Prompts stellen |
 | Der Agent macht weiter, obwohl Sie wollten, dass er aufhört | Der Heartbeat hat ein Ende mitten in der Aufgabe gesehen | Sagen Sie, was Sie wollen, oder `mom heartbeat off` |
 | 403 `pin 'auto' not allowed by policy` | Ein Pin wurde mit dem Modell `auto` gesendet | Das Modell nennen, das Sie pinnen |

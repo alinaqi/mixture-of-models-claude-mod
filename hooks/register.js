@@ -17,6 +17,7 @@ import { addTurn, claudeCost, quoteBody, quotedCost, savingsLine, tableCost, tur
 import { helpTree } from './lib/help-pane.js'
 import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, strategyFiles, strategyPrompt } from './lib/strategies.js'
 import { liveCatalogue, liveModels, modelsText } from './lib/catalogue.js'
+import { failureOf, fallbackNote, gatewayIds, nextModels } from './lib/fallback.js'
 import { checkDue, failedRun, isNewer, lastLine, latestVersion, updateNotice, updateText } from './lib/update.js'
 import { VERSION } from './lib/version.js'
 import { continuePrompt, heartbeatBody, heartbeatMode, localVerdict, palguVerdict, shouldCheck, turnUsedTools } from './lib/heartbeat.js'
@@ -170,7 +171,7 @@ async function spawnChild($, resume, stdin) {
   const headers = sub ? '' : childHeaders(cwd, (await $.env.get('ANTHROPIC_CUSTOM_HEADERS')) || '', cfg.child.identify, decision.id)
   const a = { cwd, turns: String(cfg.child.maxTurns), tail: childFlags(sub ? { ...cfg.child, args: cfg.child.subscriptionArgs } : cfg.child), env: sub ? subscriptionEnv() : childEnv(cfg.child, key, headers), stdin }
   const resumed = resume ? [resume.sessionId, ...resume.patterns] : []
-  if (!safeModelId(decision.id) || !safeArgs([cwd, ...a.tail, ...resumed])) return { ...parseChildOutput('', 1), reason: 'argument refused' }
+  if (!safeModelId(decision.id) || !safeArgs([cwd, ...a.tail, ...resumed])) return { ...parseChildOutput('', 1), error: null, reason: 'argument refused' }
   const r = await (resume ? resumeClaude($, a, resume) : startClaude($, a)).catch(() => ({ exitCode: 1, stdout: '' }))
   return parseChildOutput(r.stdout, r.exitCode)
 }
@@ -220,6 +221,32 @@ async function claudeTurn($, brief) {
   return out
 }
 
+// A Claude child that failed tries the equivalent models (fallback.js) before the main model takes
+// the turn: the same class first on an overload, a larger window for a prompt too long, none for a
+// bad request. The gateway walks its own chain first (x-palgu-fallback). All failed: the routed model again.
+async function walkChildren($, brief) {
+  const first = { id: decision.id, model: decision.model }, tried = []
+  let out = await claudeTurn($, brief), queue = []
+  while (!out.ok && out.error) {
+    const f = failureOf(out)
+    tried.push({ model: decision.model, why: f.why })
+    if (tried.length === 1) queue = nextModels(decision.id, f.kind, fallbackContext())
+    const next = queue.shift()
+    if (!next) break
+    decision = { ...decision, id: next, model: next }
+    out = await claudeTurn($, brief)
+  }
+  if (!out.ok) decision = { ...decision, ...first }
+  return { out, tried }
+}
+
+// Where equivalents come from: Palgu's live list (classes and health) on Palgu, else the catalogue.
+// The subscription child stays on your Claude login: it walks nothing.
+function fallbackContext() {
+  const max = decision.runner === 'gateway' ? cfg.child.fallbacks : 0
+  return { live: cfg.provider === 'palgu' ? live : null, catalogue: gatewayIds(cfg.catalogue, cfg.families), longContext: cfg.child.longContext, max }
+}
+
 // Codex cannot be asked mid-run, so the commands it names as refused are asked here, once: on
 // "Allow" the same thread resumes with edits allowed. Whatever is still refused is named in the
 // answer and on the route line. Only a read-only sandbox is widened; any other is reported as is.
@@ -241,10 +268,11 @@ async function codexTurn($, brief) {
 async function runChild($, prompt) {
   const started = Date.now()
   const brief = withRecall(buildBrief(await $.session.messages(), prompt, cfg.child.contextMessages), recalled)
-  const out = decision.runner === 'codex' ? await codexTurn($, brief) : await claudeTurn($, brief)
+  const { out, tried } = decision.runner === 'codex' ? { out: await codexTurn($, brief), tried: [] } : await walkChildren($, brief)
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
   const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.reason || '' }
-  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, usage: out.usage || null, ...(out.note || {}) } }
+  const walk = tried.length ? { tried, servedBy: out.ok ? decision.model : '' } : {}
+  decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, usage: out.usage || null, ...(out.note || {}), ...walk } }
   if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
   return vet.ok ? out.answer : ''
 }
@@ -597,7 +625,8 @@ export function register(on, opts) {
     if (!shouldDelegate(e)) return yield* next(e)
     const answer = await runChild($, lastPrompt)
     if (!answer) {
-      $.ui.log('child on ' + decision.model + (decision.child.rejected ? ' answer discarded (' + decision.child.rejected + ')' : ' failed') + ', main model takes this turn')
+      const walked = fallbackNote(decision.child.tried || [], '')
+      $.ui.log(decision.child.rejected ? 'child on ' + decision.model + ' answer discarded (' + decision.child.rejected + '), main model takes this turn' : walked || 'child on ' + decision.model + ' failed, main model takes this turn')
       return yield* next(e)
     }
     lastWasChild = true

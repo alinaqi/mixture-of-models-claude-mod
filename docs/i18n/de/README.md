@@ -102,6 +102,8 @@ Der Prompt sagt dem Classifier, dass Länge, die Anzahl genannter Services oder 
 
 **Welche Palgu-Modelle funktionieren.** Getestet am 2026-10-29 so, wie der Mod einen Turn ausführt (ein gepinntes `claude -p --bare`-Child, das eine kurze Rechercheaufgabe mit Tool-Aufrufen erledigt): `glm-5.3`, `deepseek-pro`, `gemini-3.8-flash`, `minimax-m3`, `gpt-6-sol`, `gpt-6-luna`, `gpt-6-astra`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed` und `mercury-3` bestehen in 19 bis 46 s; `minimax-m2.5` wiederholte abgelehnte Befehle, bis ihm die Turns ausgingen. Kimis frühere Fehlschläge lagen an überlastetem Moonshot (`429 engine_overloaded`): Claude Code wiederholte jeden Request zehnmal, sodass ein Turn etwa zwei bis drei Minuten bis zum Fehlschlag brauchte. Das Child wiederholt jetzt höchstens zweimal (`router.child.maxRetries`, Standard 2), sodass bei einem ausgelasteten Anbieter in Sekunden zurückgefallen wird. Research und Review bleiben standardmäßig bei DeepSeek; Kimi ist ein Pin. Das Child sendet Palgu immer `x-srooter-pin: <model>`: Ohne diesen Header routet Palgu nach Absicht und antwortet möglicherweise mit einem anderen Modell (ungepinnt bediente es jedes Modell als Gemini).
 
+**Wenn ein Child fehlschlägt.** Das Hauptmodell übernimmt einen gerouteten Turn erst, wenn jedes gleichwertige Modell fehlgeschlagen ist. Auf Palgu sendet das Child `x-palgu-fallback: auto`, sodass das Gateway bei Überlastung zuerst die eigene Fallback-Kette des gepinnten Modells durchläuft (seine Fallback-Liste, dann seine Klasse). Schlägt das Child trotzdem mit einer Überlastung fehl (429, 5xx, Timeout, keine Antwort), führt der Mod den Turn auf dem nächsten gleichwertigen Modell erneut aus: zuerst Modelle derselben Klasse (aus Palgus Live-Liste), dann die anderen funktionsfähigen, bis zu `router.child.fallbacks` (Standard 3). Ein Prompt, der für das Modell zu lang ist, wechselt nur zu einem Modell mit größerem Kontextfenster (`router.child.longContext`); ein fehlerhafter Request (400, 401, 403, 404, 422) wird nicht auf anderen Modellen wiederholt. Die Route-Zeile sagt, was passiert ist: `child: deepseek-pro failed (429) → served by glm-5.3` oder `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`.
+
 ### Routing-Strategien: nach Komplexität, Kosten, Geschwindigkeit, Qualität oder eigenen Regeln routen
 
 Was der Classifier bewertet, wo sich die Stufen trennen und welches Modell jede Stufe nimmt, ist eine **Routing-Strategie**: eine Markdown-Datei mit einer Bewertungsskala, wie ein Skill. Vier sind eingebaut:
@@ -376,7 +378,7 @@ Ein virtueller Key erreicht nur die Modelle, die ihm erlaubt sind; ein 401 oder 
 - An Palgu, der Heartbeat: wenn die Hauptsitzung eine Antwort beendet und Ihr Gateway Palgu ist (und `router.heartbeat` nicht `local` oder `off` ist), die letzten 600 Zeichen dieser Antwort, eine Sitzungs-ID (die Installations-ID und die Nummer des Prompts) und der Key als `x-api-key`. Palgu sagt, ob der Turn mitten in der Aufgabe gestoppt hat. Sonst nichts aus der Unterhaltung.
 - An Palgu, über die `palgu`-CLI und erst nachdem Sie `/palgu memory on` ausgeführt haben: die Quelldateien des Projekts, für Palgu-Memory (siehe Programme). `palgu` verwendet seine eigene Anmeldung.
 - An Palgu, Palgu-Memory-Abruf, nur in einem Projektordner, in dem Sie `/palgu memory on` ausgeführt haben, und solange der Mod bei Palgu angemeldet ist: jeder Ihrer Prompts mit vier Wörtern oder mehr (auf einer Zeile, höchstens 300 Zeichen; keine Slash-Befehle), der Palgu-Name des Projekts und der Key als Bearer-Header, an `/v1/cortex/search`. Was zurückkommt (höchstens 8 einzeilige Verweise: festgehaltene Absichten und ADRs, Doku, Code-Symbole mit ihren Dateien; höchstens 2.000 Zeichen), wird für die Hauptsitzung neben Ihren Prompt gestellt und in das Briefing eines gerouteten Child (Claude, ein Palgu-Modell oder Codex) aufgenommen, sodass jedes Modell, das antwortet, dasselbe Memory sieht. Eine Suche, die fehlschlägt oder länger als 3 s dauert, fügt nichts hinzu und hält den Prompt nie auf.
-- An ein Palgu- oder generisches Gateway die identifizierenden Header des Child: `x-srooter-client` (Name und Version des Mods), `x-srooter-project` (der Name des Sitzungsordners, als Slug) und auf Palgu `x-srooter-pin` (die geroutete Modell-ID). Siehe [Header, die das Child sendet](#header-die-das-child-sendet).
+- An ein Palgu- oder generisches Gateway die identifizierenden Header des Child: `x-srooter-client` (Name und Version des Mods), `x-srooter-project` (der Name des Sitzungsordners, als Slug) und auf Palgu `x-srooter-pin` (die geroutete Modell-ID). Siehe [Header, die das Child sendet](#header-die-das-child-sendet). Ein Child mit geroutetem Modell sendet außerdem `x-palgu-fallback: auto`.
 - Es werden keine anderen Daten gesendet. Keine Telemetrie. Keine Analytics.
 
 ### Programme, die das Plugin ausführt
@@ -495,6 +497,8 @@ Das Projekt ist das letzte Segment des Arbeitsverzeichnisses der Sitzung, als Sl
 
 Sie kommen in die `ANTHROPIC_CUSTOM_HEADERS` des Child (Claude Codes durch Zeilenumbrüche getrennte `Name: value`-Liste), gesetzt an derselben Stelle wie `ANTHROPIC_BASE_URL`: kein Gateway konfiguriert, keine Header, und das Child spricht nur mit diesem Gateway. Wenn Sie `ANTHROPIC_CUSTOM_HEADERS` bereits setzen, kommen Ihre Zeilen zuerst und bleiben erhalten; ein eigenes `x-srooter-client` oder `x-srooter-project` hat Vorrang vor dem des Mods. Die Requests der Hauptsitzung bleiben unverändert.
 
+Ein Child mit geroutetem Modell sendet außerdem `x-srooter-pin: <model>`, damit Palgu genau dieses Modell bedient, und `x-palgu-fallback: auto`, damit das Gateway einen gepinnten Request bei Überlastung an ein gleichwertiges Modell weitergeben kann, statt ihn scheitern zu lassen. Ein eigenes `x-palgu-fallback` in `ANTHROPIC_CUSTOM_HEADERS` hat Vorrang.
+
 ### Dateien und Umgebung, die es liest
 
 - `~/.claude/model-config.json`, über `$.fs.read`, für Routen, Schwellen, den Classifier-Alias und Child-Einstellungen. Sie enthält keine Zugangsdaten. Fehlt sie oder ist sie ungültig, gelten die Standards.
@@ -532,6 +536,8 @@ Der Mod liest Maggys einzige Quelle der Wahrheit, `~/.claude/model-config.json`,
       "maxTurns": 25,
       "timeoutMs": 600000,
       "maxRetries": 2,
+      "fallbacks": 3,
+      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -566,6 +572,8 @@ Eine Konfiguration, die jede Stufe auf ein Claude-Mitglied legt, mit Fable für 
 - `child.args`: zusätzliche Flags. Der Standard ist `--bare` (keine geerbten Hooks oder Plugins, nur API-Key-Authentifizierung, sodass das Child nie auf Ihr Abo zurückfallen kann) plus `acceptEdits`, damit es Dateien ohne Nachfrage bearbeiten kann. Der Mod fügt immer `--add-dir <cwd>` hinzu, was die `CLAUDE.md` des Projekts unter `--bare` erreichbar hält. Fügen Sie `--dangerously-skip-permissions` nur hinzu, wenn das Child Befehle unbeaufsichtigt ausführen soll; lassen Sie `--bare` weg, wenn Sie Ihre Hooks und Plugins im Child haben wollen.
 - `child.maxTurns`, `timeoutMs`: das agentische Budget des Child. `timeoutMs` ist auf zehn Minuten begrenzt, das Limit von `$.process.run`.
 - `child.maxRetries`: wie oft das Gateway-Child einen Request wiederholt, der mit 429 oder 5xx fehlgeschlagen ist (Standard 2; Claude Codes eigener Standard ist 10, was bei einem ausgelasteten Anbieter Minuten dauerte). Erhöhen Sie den Wert, wenn Ihr Gateway kurze Aussetzer hat, die Sie lieber aussitzen als zurückzufallen.
+- `child.fallbacks`: wie viele gleichwertige Modelle der Mod nach einem fehlgeschlagenen Gateway-Child selbst versucht, bevor das Hauptmodell den Turn übernimmt (Standard 3; 0 schaltet es ab). Auf Palgu zuerst dieselbe Klasse, dann die anderen funktionsfähigen Modelle. Siehe „Wenn ein Child fehlschlägt“ oben.
+- `child.longContext`: die Gateway-Modelle, zu denen ein für das geroutete Modell zu langer Prompt wechselt (Standard `gemini-3.8-flash`, `gpt-6-sol`).
 - `child.contextMessages`: wie viele jüngste Wechsel ins Briefing kommen.
 - `child.relayRounds`: wie oft ein gerouteter Turn anhalten darf, um Sie zu Befehlen zu fragen, die dem Child verweigert wurden (Standard 2).
 - `child.deny`: zusätzliche Deny-Regeln für Claude-Code-Berechtigungen für jedes Claude-Child, übergeben mit `--disallowedTools` nach `child.args`. Sie ergänzen die eingebaute Liste (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `secrets/**`), die nichts entfernt, weil `--bare` die Hooks überspringt, die diese Dateien sonst schützen würden.
