@@ -102,6 +102,8 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 **哪些 Palgu 模型可用。** 2026-10-29 按 mod 运行轮次的方式测试（一个固定模型的 `claude -p --bare` 子进程执行一个带工具调用的简短研究任务）：`glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed` 和 `mercury-3` 在 19 到 46 秒内通过；`minimax-m2.5` 不断重试被拒绝的命令，直到用完轮次。Kimi 之前的失败是因为 Moonshot 过载（`429 engine_overloaded`）：Claude Code 对每个请求重试十次，所以一个轮次要花两到三分钟才失败。现在子进程最多重试两次（`router.child.maxRetries`，默认 2），因此繁忙的提供方会在几秒内回退。research 和 review 默认留在 DeepSeek；Kimi 需要固定。子进程总是向 Palgu 发送 `x-srooter-pin: <model>`：没有它，Palgu 会按意图路由，可能用另一个模型作答（未固定时，它把每个模型都当作 Gemini 来服务）。
 
+**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。
+
 ### 路由策略：按复杂度、成本、速度、质量或你自己的规则路由
 
 分类器打什么分、层级在哪里划分、每个层级使用哪个模型，这些合起来就是一个**路由策略**：一个带评分规则的 markdown 文件，类似 skill。内置四种：
@@ -376,7 +378,7 @@ virtual key 只能访问它被允许的模型；401 或未知模型会导致子�
 - 发给 Palgu 的心跳：当主会话完成一个回答且你的网关是 Palgu（并且 `router.heartbeat` 不是 `local` 或 `off`）时，发送该回答的最后 600 个字符、一个会话 id（安装 id 和提示词的序号）以及作为 `x-api-key` 的密钥。Palgu 会告知该轮次是否停在了任务中途。不发送对话中的其他任何内容。
 - 通过 `palgu` CLI 发给 Palgu，且仅在你运行 `/palgu memory on` 之后：项目的源文件，用于 Palgu 记忆（参见“程序”部分）。`palgu` 使用它自己的登录。
 - 发给 Palgu 的 Palgu 记忆召回，仅在你运行过 `/palgu memory on` 的项目文件夹中，并且 mod 已登录 Palgu 时：你的每条四个词及以上的提示词（合并为一行，最多 300 个字符；不包括斜杠命令）、项目的 Palgu 名称，以及作为 Bearer 请求头的密钥，发送到 `/v1/cortex/search`。返回的内容（最多 8 条单行线索：记录的意图和 ADR、文档、代码符号及其文件；最多 2,000 个字符）会附加在你的提示词旁供主会话使用，并加入被路由子进程（Claude、Palgu 模型或 Codex）的简报中，因此每个作答的模型看到的是同样的记忆。失败或耗时超过 3 秒的搜索不会添加任何内容，也从不拖延提示词。
-- 发给 Palgu 或通用网关的子进程标识请求头：`x-srooter-client`（mod 名称和版本）、`x-srooter-project`（会话文件夹的名称，转为 slug），以及在 Palgu 上的 `x-srooter-pin`（被路由的模型 id）。参见[子进程发送的请求头](#子进程发送的请求头)。
+- 发给 Palgu 或通用网关的子进程标识请求头：`x-srooter-client`（mod 名称和版本）、`x-srooter-project`（会话文件夹的名称，转为 slug），以及在 Palgu 上的 `x-srooter-pin`（被路由的模型 id）。参见[子进程发送的请求头](#子进程发送的请求头)。 带有路由模型的子进程还会发送 `x-palgu-fallback: auto`。
 - 不发送其他任何数据。没有遥测。没有分析统计。
 
 ### 插件运行的程序
@@ -495,6 +497,8 @@ x-srooter-project: <the session folder's name>
 
 它们放在子进程的 `ANTHROPIC_CUSTOM_HEADERS` 中（Claude Code 以换行分隔的 `Name: value` 列表），与 `ANTHROPIC_BASE_URL` 在同一处设置：没有配置网关就没有请求头，并且子进程只与该网关通信。如果你已经设置了 `ANTHROPIC_CUSTOM_HEADERS`，你的行排在前面并被保留；你自己的 `x-srooter-client` 或 `x-srooter-project` 优先于 mod 的。主会话的请求保持不变。
 
+带有路由模型的子进程还会发送 `x-srooter-pin: <model>`，让 Palgu 正好使用该模型，以及 `x-palgu-fallback: auto`，让网关在过载时可以把固定的请求转给同类模型，而不是直接失败。你自己在 `ANTHROPIC_CUSTOM_HEADERS` 中设置的 `x-palgu-fallback` 优先。
+
 ### 读取的文件和环境变量
 
 - `~/.claude/model-config.json`，通过 `$.fs.read` 读取，用于路由、阈值、分类器别名和子进程设置。它不包含凭据。缺失或无效时使用默认值。
@@ -532,6 +536,8 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
       "maxTurns": 25,
       "timeoutMs": 600000,
       "maxRetries": 2,
+      "fallbacks": 3,
+      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -566,6 +572,8 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 - `child.args`：额外参数。默认是 `--bare`（不继承 hook 或插件，只使用 API 密钥认证，因此子进程永远不会回退到你的订阅）加上 `acceptEdits`，使其无需提示即可编辑文件。mod 总是添加 `--add-dir <cwd>`，这样在 `--bare` 下项目的 `CLAUDE.md` 仍然可以访问。只有当你希望子进程无人值守地运行命令时，才添加 `--dangerously-skip-permissions`；如果希望子进程中有你的 hook 和插件，请去掉 `--bare`。
 - `child.maxTurns`、`timeoutMs`：子进程的 agent 预算。`timeoutMs` 上限为十分钟，这是 `$.process.run` 的限制。
 - `child.maxRetries`：网关子进程对因 429 或 5xx 失败的请求重试多少次（默认 2；Claude Code 自己的默认值是 10，面对繁忙的提供方要花好几分钟）。如果你的网关有短暂的抖动，而你宁愿等过去也不想回退，可以调高它。
+- `child.fallbacks`：网关子进程失败后、主模型接手之前，mod 自己尝试多少个同类模型（默认 3；0 表示关闭）。在 Palgu 上先试同一类别，再试其他健康的模型。见上文“子进程失败时”。
+- `child.longContext`：提示对路由模型过长时转去的网关模型（默认 `gemini-3.8-flash`、`gpt-6-sol`）。
 - `child.contextMessages`：简报中包含多少轮最近的交流。
 - `child.relayRounds`：一个被路由的轮次最多可以暂停多少次，就子进程被拒绝的命令询问你（默认 2）。
 - `child.deny`：适用于每个 Claude 子进程的额外 Claude Code 权限拒绝规则，在 `child.args` 之后通过 `--disallowedTools` 传入。它们叠加在内置列表（`.env`、`.env.*`、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*`、`secrets/**`）之上，内置列表无法被移除，因为 `--bare` 会跳过原本保护这些文件的 hook。

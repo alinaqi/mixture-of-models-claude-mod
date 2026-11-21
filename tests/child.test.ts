@@ -188,11 +188,11 @@ test('parseChildOutput reads the answer, session id and denied commands from hea
     { tool_name: 'Bash', tool_input: { command: 'git pull --ff-only', dangerouslyDisableSandbox: true } },
     { tool_name: 'WebFetch', tool_input: { url: 'https://x' } },
   ] }
-  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined, usage: null })
+  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined, usage: null, error: null })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, num_turns: 3 }), 0).turns).toBe(3)
   expect(parseChildOutput(JSON.stringify([{ type: 'system' }, denied]), 0)).toEqual({
     ok: true, answer: 'I need approval', sessionId: 'sid-1',
-    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined, usage: null,
+    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined, usage: null, error: null,
   })
 })
 
@@ -204,7 +204,7 @@ test('parseChildOutput keeps the child usage, so the turn can be priced', async 
 test('parseChildOutput treats a non-zero exit, an error result or unparsable output as a failed child', async () => {
   expect(parseChildOutput(JSON.stringify(RESULT), 1).ok).toBe(false)
   expect(parseChildOutput(JSON.stringify({ ...RESULT, is_error: true }), 0).ok).toBe(false)
-  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined, usage: null })
+  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined, usage: null, error: { status: null, text: '' } })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, result: '   ' }), 0).ok).toBe(false)
 })
 
@@ -238,6 +238,19 @@ test('childHeaders pins the routed model on Palgu, so the gateway serves exactly
   expect(childHeaders('/work/app', 'x-srooter-pin: gpt-6-sol', true, 'glm-5.3')).not.toContain('x-srooter-pin: glm-5.3')
   expect(childHeaders('/work/app', '', false, 'glm-5.3')).toBe('')
   expect(childHeaders('/work/app', '', true)).not.toContain('x-srooter-pin')
+})
+
+test('childHeaders lets a pinned request walk the gateway fallback chain on an overload, unless you set that header yourself', async () => {
+  expect(childHeaders('/work/app', '', true, 'deepseek-pro').split('\n')).toContain('x-palgu-fallback: auto')
+  expect(childHeaders('/work/app', 'X-Palgu-Fallback: off', true, 'deepseek-pro')).not.toContain('x-palgu-fallback: auto')
+  expect(childHeaders('/work/app', '', true)).not.toContain('x-palgu-fallback')
+  expect(childHeaders('/work/app', '', false, 'deepseek-pro')).toBe('')
+})
+
+test('parseChildOutput keeps the API error of a failed child, so the mod can tell an overload from a bad request', async () => {
+  const failed = { type: 'result', is_error: true, api_error_status: 429, result: 'API Error: 429 {"detail":"rate limited"}', session_id: 's' }
+  expect(parseChildOutput(JSON.stringify(failed), 0).error).toEqual({ status: 429, text: 'API Error: 429 {"detail":"rate limited"}' })
+  expect(parseChildOutput(JSON.stringify({ ...failed, result: 'x'.repeat(900) }), 0).error.text.length).toBe(300)
 })
 
 // What reaches $.process.run besides fixed text is checked first: one model id, and plain strings.

@@ -140,6 +140,8 @@ Mixture of Models 做三件事，每个 agent 能获得其中多少，取决于�
 | 一条简单的提示词留在了 Claude 上 | 它提到了 PR、CI、状态或安全，或者是一条简短追问 | 符合预期；如果希望它被路由，请改写为自成一体的任务 |
 | 被路由的回答错误或含糊 | 任务需要子进程没有的会话上下文 | 对该轮次说 "use claude"；如果某整个类型经常失败，请修改 `routes.kinds` |
 | `child answer discarded (…), main model answered` | 子进程请求批准、声称做了实际未做的工作，或交还了任务 | 无需处理：主模型已代为回答 |
+| `child: deepseek-pro failed (429) → served by glm-5.3` | 路由的模型过载，mod 改在同类模型上运行了这一轮 | 无需操作 |
+| `all equivalents failed: …; main model answered` | 每个同类模型都失败了，或网关宕机 | 查看 `/route models`；如果反复出现，检查网关 |
 | 记忆没有召回任何内容 | 该文件夹未开启记忆、提示词少于四个词，或索引尚未完成 | `mom memory status`；把关键名词放在提示词前面 |
 | 你想让 agent 停下，它却继续 | 心跳认为回答停在任务中途 | 说明你想要什么，或 `mom heartbeat off` |
 | 403 `pin 'auto' not allowed by policy` | 发送固定时模型为 `auto` | 写明你要固定的模型 |

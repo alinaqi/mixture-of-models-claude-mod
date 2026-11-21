@@ -89,6 +89,14 @@ test('summaryLine reports a child run instead of API usage', async () => {
   expect(summaryLine(failed, null)).toBe('route: glm-5.3 · coding via ollama · child failed, main model answered')
 })
 
+test('summaryLine names the models a failed child walked through, and what served it', async () => {
+  const d = { label: 'coding', model: 'glm-5.3', source: 'ollama' }
+  const served = { ...d, child: { ms: 12_000, exitCode: 0, tried: [{ model: 'deepseek-pro', why: '429' }], servedBy: 'glm-5.3' } }
+  expect(summaryLine(served, null)).toBe('route: glm-5.3 · coding via ollama · child: deepseek-pro failed (429) → served by glm-5.3 · child 12s')
+  const none = { ...d, model: 'deepseek-pro', child: { ms: 9_000, exitCode: 1, tried: [{ model: 'deepseek-pro', why: '429' }, { model: 'glm-5.3', why: '529' }] } }
+  expect(summaryLine(none, null)).toBe('route: deepseek-pro · coding via ollama · all equivalents failed: deepseek-pro (429), glm-5.3 (529); main model answered')
+})
+
 test('bumpFailures counts a failure against its kind, defaulting to code', async () => {
   expect(bumpFailures(undefined, 'docs')).toEqual({ docs: 1 })
   expect(bumpFailures({ docs: 1 }, 'docs')).toEqual({ docs: 2 })

@@ -138,6 +138,8 @@ How, and how to undo it:
 | A trivial prompt stayed on Claude | It mentioned PRs, CI, status or security, or was a short follow-up | Expected; rephrase as a self-contained task if you want it routed |
 | A routed answer is wrong or vague | The task needed session context the child did not have | Say "use claude" for that turn; if a whole kind fails often, change `routes.kinds` |
 | `child answer discarded (…), main model answered` | The child asked for approval, claimed work it did not do, or handed back | Nothing to do: the main model answered instead |
+| `child: deepseek-pro failed (429) → served by glm-5.3` | The routed model was overloaded, so the mod ran the turn on an equivalent | Nothing to do |
+| `all equivalents failed: …; main model answered` | Every equivalent model failed, or the gateway is down | Check `/route models`; if it keeps happening, check the gateway |
 | Memory recalls nothing | Memory is off in this folder, the prompt is under four words, or indexing has not finished | `mom memory status`; put the key nouns first in the prompt |
 | The agent keeps going after you wanted it to stop | The heartbeat saw a mid-task ending | Say what you want, or `mom heartbeat off` |
 | 403 `pin 'auto' not allowed by policy` | A pin was sent with model `auto` | Name the model you pin |

@@ -1,6 +1,7 @@
 // Route resolution, the /route argument grammar, and the summary line. Pure.
 import { GATEWAY_MODELS, LABELS } from './config.js'
 import { routeValue } from './families.js'
+import { fallbackNote } from './fallback.js'
 
 // The tier says whether Claude is mandatory; below that, the kind picks the cheaper model.
 // Family routes (`claude/auto`, `kimi/highspeed`) come back as written; families.js resolves them.
@@ -67,10 +68,14 @@ function cachePercent(usage) {
   return total ? Math.round((usage.cache_read_input_tokens / total) * 100) : 0
 }
 
+// tried: the models that failed before the turn was served (fallback.js); servedBy: the one that answered.
 function outcomeNote(child) {
+  const tried = child.tried || []
   if (child.rejected) return ' · child answer discarded (' + child.rejected + '), main model answered'
-  if (child.exitCode !== 0) return ' · child failed, main model answered'
-  return ' · child ' + Math.round(child.ms / 1000) + 's'
+  if (child.exitCode !== 0 && tried.length > 1) return ' · all equivalents failed: ' + tried.map((t) => t.model + ' (' + t.why + ')').join(', ') + '; main model answered'
+  if (child.exitCode !== 0) return ' · child failed' + (tried.length ? ' (' + tried[0].why + ')' : '') + ', main model answered'
+  const walked = tried.length ? ' · ' + fallbackNote(tried, child.servedBy) : ''
+  return walked + ' · child ' + Math.round(child.ms / 1000) + 's'
 }
 
 // A Codex child: its sandbox, and every command it was refused, by name or as a count of unnamed ones.
