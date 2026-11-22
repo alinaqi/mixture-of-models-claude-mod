@@ -74,7 +74,8 @@ function outcomeNote(child) {
   if (child.rejected) return ' · child answer discarded (' + child.rejected + '), main model answered'
   if (child.exitCode !== 0 && tried.length > 1) return ' · all equivalents failed: ' + tried.map((t) => t.model + ' (' + t.why + ')').join(', ') + '; main model answered'
   if (child.exitCode !== 0) return ' · child failed' + (tried.length ? ' (' + tried[0].why + ')' : '') + ', main model answered'
-  const walked = tried.length ? ' · ' + fallbackNote(tried, child.servedBy) : ''
+  const note = fallbackNote(tried, child.servedBy, child.requested)
+  const walked = note ? ' · ' + note : ''
   return walked + ' · child ' + Math.round(child.ms / 1000) + 's'
 }
 

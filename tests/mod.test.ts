@@ -184,15 +184,42 @@ test('a bad request is not walked across models: the main model takes it at once
   expect(seen).toEqual(['claude-opus-5'])
 })
 
-test('a context that does not fit moves to a larger-window model, not along the class', GW, async ($, on) => {
-  stubSession(on)
+test('a context that does not fit moves to the largest healthy window Palgu reports, not along the class', GW, async ($, on) => {
+  const store = stubSession(on)
+  store.set('palgu-models', { at: '', served: ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3'], down: [], classes: {}, windows: { 'glm-5.3': 200000, 'deepseek-pro': 128000, 'gemini-3.8-flash': 1048576, 'minimax-m3': 188000 } })
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: runs.length === 1 ? { exitCode: 0, stdout: childError(400, 'API Error: 400 prompt is too long: 210000 tokens > 200000 maximum'), stderr: '' } : { exitCode: 0, stdout: childJson('long answer'), stderr: '' } } })
   recordSteps(on, [])
 
   const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
   expect(result.answer).toBe('long answer')
+  expect(runs.length).toBe(2)
   expect(runs[1].argv).toContain('gemini-3.8-flash')
+})
+
+test('with no window known and no router.child.longContext, a context error goes to the main model', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childError(400, 'prompt is too long'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  expect(runs.length).toBe(1)
+  expect(seen).toEqual(['claude-opus-5'])
+})
+
+test('a fallback Palgu made itself shows on the route line, and the turn counts for the model that served it', GW, async ($, on) => {
+  const store = stubSession(on)
+  const events = [{ type: 'assistant', message: { model: 'deepseek-pro', content: [{ type: 'text', text: 'served answer' }] } }]
+  on('process.run', () => ({ value: { exitCode: 0, stdout: events.map((x) => JSON.stringify(x)).join('\n') + '\n' + childJson('served answer'), stderr: '' } }))
+  recordSteps(on, [])
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'served answer', durationMs: 10, isAborted: false, usage: null })
+  expect(done.text).toContain('route: deepseek-pro')
+  expect(done.text).toContain('child: glm-5.3 → served by deepseek-pro (gateway fallback)')
+  expect(JSON.stringify(store.get('stats'))).toContain('deepseek-pro')
 })
 
 test('router.child.fallbacks 0 turns the mod-side walk off', GW, async ($, on) => {

@@ -82,7 +82,7 @@ export const SECRET_DENY = [
 // --add-dir keeps the project's CLAUDE.md in reach even when --bare skips auto-discovery. The
 // deny list comes after child.args, so custom args cannot drop it.
 export function childArgs(child, model, cwd) {
-  return ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...childFlags(child)]
+  return ['-p', '--model', model, '--output-format', 'stream-json', '--verbose', '--max-turns', String(child.maxTurns), '--add-dir', cwd, ...childFlags(child)]
 }
 
 // The part of childArgs after `--add-dir <cwd>`: the user's child.args, then the deny list.
@@ -126,21 +126,41 @@ export function gatewayFrom(options, child) {
   return { baseUrl: o.gateway_url || child.baseUrl || '', key: o.gateway_key || '' }
 }
 
-function resultOf(raw) {
+// The child's events: one JSON document (an object or an array), or stream-json, one per line.
+function eventsOf(raw) {
   try {
     const d = JSON.parse(raw)
-    const items = Array.isArray(d) ? d : [d]
-    return items.find((x) => x && x.type === 'result') || items[items.length - 1] || {}
+    return Array.isArray(d) ? d : [d]
   } catch {
-    return {}
+    return String(raw || '').split('\n').map(parseLine).filter(Boolean)
   }
+}
+
+function parseLine(line) {
+  try {
+    return line.trim() ? JSON.parse(line) : null
+  } catch {
+    return null
+  }
+}
+
+function resultOf(items) {
+  return items.find((x) => x && x.type === 'result') || items[items.length - 1] || {}
+}
+
+// The model that served the last assistant message, as the gateway's response named it
+// (stream-json only; Palgu puts the alias that actually served there, after its own fallback).
+function servedOf(items) {
+  const last = items.filter((x) => x && x.type === 'assistant' && x.message).pop()
+  return last && typeof last.message.model === 'string' ? last.message.model : ''
 }
 
 // The headless child's JSON: its answer, its session id (for --resume), every command the
 // permission system refused (so the user can be asked for real), and its turn count
 // (1 means it called no tools, which vet.js uses to spot unverified claims).
 export function parseChildOutput(raw, exitCode) {
-  const r = resultOf(raw)
+  const items = eventsOf(raw)
+  const r = resultOf(items)
   const answer = String(r.result || '').trim()
   const ok = exitCode === 0 && !r.is_error && answer !== ''
   const seen = new Set()
@@ -148,7 +168,7 @@ export function parseChildOutput(raw, exitCode) {
     .filter((d) => !seen.has(d.tool + d.command) && seen.add(d.tool + d.command))
   const turns = typeof r.num_turns === 'number' ? r.num_turns : undefined
   const head = { ok, answer: ok ? answer : '', sessionId: ok ? String(r.session_id || '') : '', denials: ok ? denials : [], turns, usage: usageOf(r.usage) }
-  return { ...head, error: ok ? null : errorOf(r) }
+  return { ...head, error: ok ? null : errorOf(r), served: servedOf(items) }
 }
 
 // Why a child failed, for fallback.js: the API status Claude Code reports and its error text.

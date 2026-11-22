@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.34.1] - 2026-11-22
+
+### Changed
+- A prompt too long for the routed model now moves to the healthy models whose context window, as Palgu's `/v1/models/health` reports it (`context_window`), is larger than the failed model's, largest first. The guessed default list is gone: `router.child.longContext` is empty by default and, when you set it, still wins. Without Palgu and without that setting, such a prompt goes to the main model.
+- A fallback Palgu made itself is shown. The gateway child now runs with `--output-format stream-json --verbose`, whose assistant messages carry the model Palgu says actually served. When that differs from the pinned one, the route line says `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`, and the turn is counted and priced as the model that served it.
+
 ## [0.34.0] - 2026-11-21
 
 ### Changed

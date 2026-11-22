@@ -102,7 +102,7 @@ mod はプロンプトごとに次のことを行います:
 
 **どの Palgu モデルが動くか。** 2026-10-29 に、mod がターンを実行するのと同じ方法(ピン留めした `claude -p --bare` の子プロセスで、ツール呼び出しを伴う短い調査タスクを実行)でテストしました: `glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed`、`mercury-3` は 19 〜 46 秒で成功しました。`minimax-m2.5` は拒否されたコマンドを再試行し続け、ターン数を使い切りました。Kimi の以前の失敗は Moonshot の過負荷(`429 engine_overloaded`)によるものでした: Claude Code が各リクエストを 10 回再試行していたため、ターンが失敗するまでに約 2 〜 3 分かかっていました。現在、子プロセスの再試行は最大 2 回(`router.child.maxRetries`、デフォルト 2)なので、混雑しているプロバイダーからは数秒でフォールバックします。research と review はデフォルトで DeepSeek に残り、Kimi はピンで使います。子プロセスは Palgu に常に `x-srooter-pin: <model>` を送ります: これがないと Palgu は意図(intent)に基づいてルーティングし、別のモデルで回答することがあります(ピンなしでは、すべてのモデルが Gemini として提供されました)。
 
-**子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。
+**子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 Palgu 自身のフォールバックチェーンが別のモデルで応答した場合、その行は `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)` となり、ターンはそのモデルとして集計・価格計算されます。
 
 ### ルーティング戦略: 複雑さ、コスト、速度、品質、または独自のルールでルーティングする
 
@@ -385,7 +385,7 @@ OpenRouter のスラッグには `/` が含まれるため、OpenRouter での�
 
 各 `$.process.run` 呼び出しでは、プログラムと固定のフラグが呼び出し箇所にリテラルのテキストとして書かれています。どれもシェルを介して実行されません。
 
-- `claude -p --model <model> --output-format json --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — Claude Code 自身をヘッドレスで実行し、ルーティングされたターンをゲートウェイ上またはあなたの Claude ログイン上(`claude/<member>` のルート)で実行します。動的な引数: モデル ID(ルートまたはピンから。文字、数字、`. _ : / @ [ ] -` だけからなる 1 つの単純な ID で、`-` で始まらず、200 文字以内でなければ拒否されます)、ターン数の上限、`model-config.json` の `child.args`/`router.child.deny`、セッションの作業ディレクトリ。それぞれ、単純な文字列でない場合や NUL を含む場合は拒否されます。子プロセスが拒否されたコマンドをあなたが承認した後は、同じ呼び出しに `--resume <its session id> --allowedTools <the patterns you approved>` が追加されます。
+- `claude -p --model <model> --output-format stream-json --verbose --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — Claude Code 自身をヘッドレスで実行し、ルーティングされたターンをゲートウェイ上またはあなたの Claude ログイン上(`claude/<member>` のルート)で実行します。動的な引数: モデル ID(ルートまたはピンから。文字、数字、`. _ : / @ [ ] -` だけからなる 1 つの単純な ID で、`-` で始まらず、200 文字以内でなければ拒否されます)、ターン数の上限、`model-config.json` の `child.args`/`router.child.deny`、セッションの作業ディレクトリ。それぞれ、単純な文字列でない場合や NUL を含む場合は拒否されます。子プロセスが拒否されたコマンドをあなたが承認した後は、同じ呼び出しに `--resume <its session id> --allowedTools <the patterns you approved>` が追加されます。
 - `codex exec --json … -`、および拒否されたコマンドを承認した後の `codex exec -C <cwd> resume --json … <thread id> -` — Codex CLI。`codex` のルートでのみ、同じチェック付きで実行します(スレッド ID は単純な ID として)。
 - `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` — `/palgu login` の後に一度だけ、Palgu が発行したキーを Claude Code のセキュアストレージに保存するため。引数はすべて固定のテキストです。キーは stdin でのみ渡され、それも 1 つの単純なトークン(`A-Z a-z 0-9 . _ -`、8 〜 512 文字)であることを確認した後に限られます。
 - `claude plugin marketplace update mixture-of-models-claude-mod`、続いて `claude plugin update mixture-of-models@mixture-of-models-claude-mod` — `/route update` で、GitHub に新しいバージョンがある場合のみ。引数はすべて固定のテキストです。
@@ -475,7 +475,7 @@ mod はこれ以外のホストには接続しません。ゲートウェイは�
 **方法:** `turn.step` 内の 4 つの `$.process.run` 呼び出しです。プログラムごとに最初の実行と再開の実行があり、それぞれ呼び出し箇所にプログラム名と固定のフラグがリテラルのテキストとして書かれています: `claude` と `codex`。動的な値は先にチェックされます([プラグインが実行するプログラム](#プラグインが実行するプログラム) を参照)。ゲートウェイのルートでの `claude` の引数:
 
 ```
-claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
+claude -p --model <routed model id> --output-format stream-json --verbose --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
 `claude/<member>` のルートでは、同じプログラムが `--model <member id>` で、`child.args` の代わりに `child.subscriptionArgs`(`--permission-mode acceptEdits`)を使って、つまり `--bare` なしで実行されます。環境は `MAGGY_ROUTER_CHILD=1` と空に設定した `ANTHROPIC_BASE_URL` なので、あなたの Claude ログインで動きます。
@@ -537,7 +537,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
       "timeoutMs": 600000,
       "maxRetries": 2,
       "fallbacks": 3,
-      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
+      "longContext": [],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -573,7 +573,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 - `child.maxTurns`、`timeoutMs`: 子プロセスのエージェントとしての予算。`timeoutMs` の上限は `$.process.run` の制限である 10 分です。
 - `child.maxRetries`: ゲートウェイの子プロセスが、429 や 5xx で失敗したリクエストを再試行する回数(デフォルト 2。Claude Code 自身のデフォルトは 10 で、混雑したプロバイダー相手では数分かかっていました)。ゲートウェイに短い瞬断があり、フォールバックするよりやり過ごしたい場合は増やしてください。
 - `child.fallbacks`: ゲートウェイの子プロセスが失敗した後、メインモデルがターンを引き受ける前に mod 自身が試す同等モデルの数(デフォルト 3、0 でオフ)。Palgu では同じクラスを先に、次にその他の正常なモデルを試します。上記「子プロセスが失敗したとき」を参照してください。
-- `child.longContext`: ルーティング先のモデルにとって長すぎるプロンプトの移り先となるゲートウェイのモデル(デフォルト `gemini-3.8-flash`、`gpt-6-sol`)。
+- `child.longContext`: ルーティング先のモデルにとって長すぎるプロンプトの移り先となるゲートウェイのモデル。デフォルトは空で、その場合は Palgu のライブリストが報告するコンテキストウィンドウが失敗したモデルより大きい正常なモデルを、大きい順に使います。Palgu を使わない場合は自分で設定してください。設定しないと、長すぎるプロンプトはメインモデルに渡ります。
 - `child.contextMessages`: ブリーフに入れる直近のやり取りの数。
 - `child.relayRounds`: ルーティングされた 1 ターンが、子プロセスが拒否されたコマンドについてあなたに尋ねるために一時停止できる回数(デフォルト 2)。
 - `child.deny`: すべての Claude の子プロセスに対する追加の Claude Code パーミッション deny ルール。`child.args` の後に `--disallowedTools` で渡されます。組み込みのリスト(`.env`、`.env.*`、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*`、`secrets/**`)に追加されるもので、組み込みのリストは何によっても削除されません。`--bare` は、本来それらのファイルを守るはずのフックをスキップするからです。

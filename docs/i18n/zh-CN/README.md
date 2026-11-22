@@ -102,7 +102,7 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 **哪些 Palgu 模型可用。** 2026-10-29 按 mod 运行轮次的方式测试（一个固定模型的 `claude -p --bare` 子进程执行一个带工具调用的简短研究任务）：`glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed` 和 `mercury-3` 在 19 到 46 秒内通过；`minimax-m2.5` 不断重试被拒绝的命令，直到用完轮次。Kimi 之前的失败是因为 Moonshot 过载（`429 engine_overloaded`）：Claude Code 对每个请求重试十次，所以一个轮次要花两到三分钟才失败。现在子进程最多重试两次（`router.child.maxRetries`，默认 2），因此繁忙的提供方会在几秒内回退。research 和 review 默认留在 DeepSeek；Kimi 需要固定。子进程总是向 Palgu 发送 `x-srooter-pin: <model>`：没有它，Palgu 会按意图路由，可能用另一个模型作答（未固定时，它把每个模型都当作 Gemini 来服务）。
 
-**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。
+**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 如果是 Palgu 自己的回退链改用了另一个模型，该行会显示 `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`，这一轮也按该模型计数和计价。
 
 ### 路由策略：按复杂度、成本、速度、质量或你自己的规则路由
 
@@ -385,7 +385,7 @@ virtual key 只能访问它被允许的模型；401 或未知模型会导致子�
 
 每个 `$.process.run` 调用都在调用处以字面文本写明其程序和固定参数。它们都不通过 shell 运行。
 
-- `claude -p --model <model> --output-format json --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — Claude Code 本身，以无头模式运行，用于在网关或你的 Claude 登录上（`claude/<member>` 路由）运行被路由的轮次。动态参数：模型 id（来自你的路由或固定；除非它是一个仅由字母、数字和 `. _ : / @ [ ] -` 组成、不以 `-` 开头、最多 200 个字符的普通 id，否则会被拒绝）、轮次上限，以及来自你 `model-config.json` 的 `child.args`/`router.child.deny`，还有会话的工作目录；如果其中任何一个不是普通字符串或包含 NUL，都会被拒绝。在你批准了子进程被拒绝的命令之后，同一调用会追加 `--resume <its session id> --allowedTools <the patterns you approved>`。
+- `claude -p --model <model> --output-format stream-json --verbose --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — Claude Code 本身，以无头模式运行，用于在网关或你的 Claude 登录上（`claude/<member>` 路由）运行被路由的轮次。动态参数：模型 id（来自你的路由或固定；除非它是一个仅由字母、数字和 `. _ : / @ [ ] -` 组成、不以 `-` 开头、最多 200 个字符的普通 id，否则会被拒绝）、轮次上限，以及来自你 `model-config.json` 的 `child.args`/`router.child.deny`，还有会话的工作目录；如果其中任何一个不是普通字符串或包含 NUL，都会被拒绝。在你批准了子进程被拒绝的命令之后，同一调用会追加 `--resume <its session id> --allowedTools <the patterns you approved>`。
 - `codex exec --json … -`，以及在你批准被拒绝的命令后的 `codex exec -C <cwd> resume --json … <thread id> -` — Codex CLI，仅用于 `codex` 路由，执行同样的检查（线程 id 作为普通 id）。
 - `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` — 在 `/palgu login` 之后运行一次，把 Palgu 生成的密钥保存到 Claude Code 的安全存储中。所有参数都是固定文本；密钥只通过 stdin 传入，并且只有在确认它是一个普通 token（`A-Z a-z 0-9 . _ -`，8 到 512 个字符）之后才传入。
 - `claude plugin marketplace update mixture-of-models-claude-mod`，然后 `claude plugin update mixture-of-models@mixture-of-models-claude-mod` — 在 `/route update` 时，仅当 GitHub 列出了更新的版本时运行。所有参数都是固定文本。
@@ -475,7 +475,7 @@ mod 不联系其他任何主机。网关由你配置；不会向任何固定的�
 **如何：** 在 `turn.step` 中有四个 `$.process.run` 调用，每个程序各有一次首次运行和一次恢复运行，每个调用都在调用处以字面文本写明程序名和固定参数：`claude` 和 `codex`。动态值会先经过检查（参见[插件运行的程序](#插件运行的程序)）。网关路由的 `claude` 参数为：
 
 ```
-claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
+claude -p --model <routed model id> --output-format stream-json --verbose --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
 对于 `claude/<member>` 路由，运行同一个程序，使用 `--model <member id>`，并以 `child.subscriptionArgs`（`--permission-mode acceptEdits`）代替 `child.args`，因此不带 `--bare`，其环境为 `MAGGY_ROUTER_CHILD=1` 加上设为空的 `ANTHROPIC_BASE_URL`，这样它在你的 Claude 登录上运行。
@@ -537,7 +537,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
       "timeoutMs": 600000,
       "maxRetries": 2,
       "fallbacks": 3,
-      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
+      "longContext": [],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -573,7 +573,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 - `child.maxTurns`、`timeoutMs`：子进程的 agent 预算。`timeoutMs` 上限为十分钟，这是 `$.process.run` 的限制。
 - `child.maxRetries`：网关子进程对因 429 或 5xx 失败的请求重试多少次（默认 2；Claude Code 自己的默认值是 10，面对繁忙的提供方要花好几分钟）。如果你的网关有短暂的抖动，而你宁愿等过去也不想回退，可以调高它。
 - `child.fallbacks`：网关子进程失败后、主模型接手之前，mod 自己尝试多少个同类模型（默认 3；0 表示关闭）。在 Palgu 上先试同一类别，再试其他健康的模型。见上文“子进程失败时”。
-- `child.longContext`：提示对路由模型过长时转去的网关模型（默认 `gemini-3.8-flash`、`gpt-6-sol`）。
+- `child.longContext`：提示对路由模型过长时转去的网关模型。默认为空：使用 Palgu 实时列表中上下文窗口比失败模型更大的健康模型，从最大的开始。不使用 Palgu 时请自行设置，否则过长的提示会交给主模型。
 - `child.contextMessages`：简报中包含多少轮最近的交流。
 - `child.relayRounds`：一个被路由的轮次最多可以暂停多少次，就子进程被拒绝的命令询问你（默认 2）。
 - `child.deny`：适用于每个 Claude 子进程的额外 Claude Code 权限拒绝规则，在 `child.args` 之后通过 `--disallowedTools` 传入。它们叠加在内置列表（`.env`、`.env.*`、`*.pem`、`*.key`、`id_rsa*`、`id_ed25519*`、`secrets/**`）之上，内置列表无法被移除，因为 `--bare` 会跳过原本保护这些文件的 hook。

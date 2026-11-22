@@ -97,6 +97,11 @@ test('summaryLine names the models a failed child walked through, and what serve
   expect(summaryLine(none, null)).toBe('route: deepseek-pro · coding via ollama · all equivalents failed: deepseek-pro (429), glm-5.3 (529); main model answered')
 })
 
+test('summaryLine names a fallback the gateway made itself', async () => {
+  const d = { label: 'coding', model: 'deepseek-pro', source: 'ollama', child: { ms: 7_000, exitCode: 0, requested: 'kimi-k3.1-pro', servedBy: 'deepseek-pro' } }
+  expect(summaryLine(d, null)).toBe('route: deepseek-pro · coding via ollama · child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback) · child 7s')
+})
+
 test('bumpFailures counts a failure against its kind, defaulting to code', async () => {
   expect(bumpFailures(undefined, 'docs')).toEqual({ docs: 1 })
   expect(bumpFailures({ docs: 1 }, 'docs')).toEqual({ docs: 2 })

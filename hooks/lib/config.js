@@ -55,8 +55,9 @@ export const DEFAULTS = {
     // After a failed child, how many equivalent models the mod tries itself before the main model
     // takes the turn (fallback.js): the same class first, then the other healthy ones. 0: none.
     fallbacks: 3,
-    // Where a prompt too long for the routed model goes: gateway ids with larger context windows.
-    longContext: ['gemini-3.8-flash', 'gpt-6-sol'],
+    // Where a prompt too long for the routed model goes. Empty: the healthy models whose context
+    // window (from Palgu's live list) is larger than the failed one's, largest first.
+    longContext: [],
     contextMessages: 12,
     // How many times a routed turn may pause to ask the user about commands the child was refused.
     relayRounds: 2,
