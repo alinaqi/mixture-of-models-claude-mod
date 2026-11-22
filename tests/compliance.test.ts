@@ -55,7 +55,7 @@ test('the gateway child starts with the program and its fixed flags as written, 
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
   mainSteps(on, [])
   await routedTurn($, 'grep the repo for TODO comments and list the files')
-  expect(runs[0].argv.slice(0, 10)).toEqual(['claude', '-p', '--model', 'glm-5.3', '--output-format', 'json', '--max-turns', '25', '--add-dir', '/work'])
+  expect(runs[0].argv.slice(0, 11)).toEqual(['claude', '-p', '--model', 'glm-5.3', '--output-format', 'stream-json', '--verbose', '--max-turns', '25', '--add-dir', '/work'])
 })
 
 test('a routed model id that is not one plain id never reaches process.run; the main model answers', GW, async ($, on) => {

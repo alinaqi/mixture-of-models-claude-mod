@@ -177,11 +177,11 @@ async function spawnChild($, resume, stdin) {
 }
 
 function startClaude($, a) {
-  return $.process.run(['claude', '-p', '--model', decision.id, '--output-format', 'json', '--max-turns', a.turns, '--add-dir', a.cwd, ...a.tail], { env: a.env, stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
+  return $.process.run(['claude', '-p', '--model', decision.id, '--output-format', 'stream-json', '--verbose', '--max-turns', a.turns, '--add-dir', a.cwd, ...a.tail], { env: a.env, stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
 }
 
 function resumeClaude($, a, resume) {
-  return $.process.run(['claude', '-p', '--model', decision.id, '--output-format', 'json', '--max-turns', a.turns, '--add-dir', a.cwd, ...a.tail, '--resume', resume.sessionId, '--allowedTools', ...resume.patterns], { env: a.env, stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
+  return $.process.run(['claude', '-p', '--model', decision.id, '--output-format', 'stream-json', '--verbose', '--max-turns', a.turns, '--add-dir', a.cwd, ...a.tail, '--resume', resume.sessionId, '--allowedTools', ...resume.patterns], { env: a.env, stdin: a.stdin, timeoutMs: cfg.child.timeoutMs })
 }
 
 // The Codex CLI, non-interactive, on the gateway's /v1/responses or on your own Codex login. With a
@@ -237,7 +237,16 @@ async function walkChildren($, brief) {
     out = await claudeTurn($, brief)
   }
   if (!out.ok) decision = { ...decision, ...first }
-  return { out, tried }
+  return { out, tried, requested: out.ok ? gatewayServed(out) : '' }
+}
+
+// Palgu names the model that actually served in the response (stream-json's assistant messages).
+// When its own fallback chain served another, the turn is that model's: route line, stats, price.
+function gatewayServed(out) {
+  if (decision.runner !== 'gateway' || cfg.provider !== 'palgu' || !out.served || out.served === decision.id || !safeModelId(out.served)) return ''
+  const requested = decision.model
+  decision = { ...decision, id: out.served, model: out.served }
+  return requested
 }
 
 // Where equivalents come from: Palgu's live list (classes and health) on Palgu, else the catalogue.
@@ -268,10 +277,10 @@ async function codexTurn($, brief) {
 async function runChild($, prompt) {
   const started = Date.now()
   const brief = withRecall(buildBrief(await $.session.messages(), prompt, cfg.child.contextMessages), recalled)
-  const { out, tried } = decision.runner === 'codex' ? { out: await codexTurn($, brief), tried: [] } : await walkChildren($, brief)
+  const { out, tried, requested } = decision.runner === 'codex' ? { out: await codexTurn($, brief), tried: [] } : await walkChildren($, brief)
   // A handback, a request that the user act, an unverified claim, narration or a repeat is discarded.
   const vet = out.ok ? vetAnswer(out, answered) : { ok: false, reason: out.reason || '' }
-  const walk = tried.length ? { tried, servedBy: out.ok ? decision.model : '' } : {}
+  const walk = tried.length || requested ? { tried, servedBy: out.ok ? decision.model : '', requested } : {}
   decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, usage: out.usage || null, ...(out.note || {}), ...walk } }
   if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
   return vet.ok ? out.answer : ''

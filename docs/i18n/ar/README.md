@@ -104,7 +104,7 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 **أي نماذج Palgu تعمل.** جرى الاختبار في 2026-10-29 بالطريقة التي يشغّل بها المود الدور (عملية `claude -p --bare` فرعية مثبَّتة تنفذ مهمة بحث قصيرة مع استدعاءات أدوات): ‏`glm-5.3` و `deepseek-pro` و `gemini-3.8-flash` و `minimax-m3` و `gpt-6-sol` و `gpt-6-luna` و `gpt-6-astra` و `kimi-k3.1-pro` و `kimi-k3.1-pro-highspeed` و `mercury-3` تنجح في 19 إلى 46 ثانية؛ أما `minimax-m2.5` فظل يعيد محاولة الأوامر المرفوضة حتى نفدت أدواره. إخفاقات Kimi السابقة كانت بسبب ضغط زائد على Moonshot ‏(`429 engine_overloaded`): أعاد Claude Code محاولة كل طلب عشر مرات، فكان الدور يستغرق نحو دقيقتين إلى ثلاث دقائق ليفشل. صارت العملية الفرعية الآن تعيد المحاولة مرتين كحد أقصى (`router.child.maxRetries`، الافتراضي 2)، لذا يرجع المزوّد المشغول إلى البديل في ثوانٍ. يبقى البحث والمراجعة على DeepSeek افتراضيًا؛ و Kimi للتثبيت. ترسل العملية الفرعية دائمًا `x-srooter-pin: <model>` إلى Palgu: من دونها يوجّه Palgu وفق النية وقد يجيب بنموذج آخر (فقد خدم كل نموذج غير مثبَّت بوصفه Gemini).
 
-**عندما تفشل العملية الفرعية.** لا يتولى النموذج الرئيسي الدور الموجَّه إلا بعد فشل كل نموذج مكافئ. على Palgu ترسل العملية الفرعية `x-palgu-fallback: auto`، فتمرّ البوابة أولًا عند الضغط الزائد على سلسلة البدائل الخاصة بالنموذج المثبَّت (قائمة بدائله، ثم فئته). وإن ظلت العملية الفرعية تفشل بسبب ضغط زائد (429، 5xx، انتهاء المهلة، لا إجابة)، يعيد المود تشغيل الدور على النموذج المكافئ التالي: نماذج الفئة نفسها أولًا (من قائمة Palgu الحية)، ثم النماذج السليمة الأخرى، حتى `router.child.fallbacks` (الافتراضي 3). الموجّه الأطول من نافذة النموذج ينتقل فقط إلى نموذج بنافذة سياق أكبر (`router.child.longContext`)؛ أما الطلب الخاطئ (400، 401، 403، 404، 422) فلا يُعاد على نماذج أخرى. يقول سطر التوجيه ما حدث: `child: deepseek-pro failed (429) → served by glm-5.3`، أو `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`.
+**عندما تفشل العملية الفرعية.** لا يتولى النموذج الرئيسي الدور الموجَّه إلا بعد فشل كل نموذج مكافئ. على Palgu ترسل العملية الفرعية `x-palgu-fallback: auto`، فتمرّ البوابة أولًا عند الضغط الزائد على سلسلة البدائل الخاصة بالنموذج المثبَّت (قائمة بدائله، ثم فئته). وإن ظلت العملية الفرعية تفشل بسبب ضغط زائد (429، 5xx، انتهاء المهلة، لا إجابة)، يعيد المود تشغيل الدور على النموذج المكافئ التالي: نماذج الفئة نفسها أولًا (من قائمة Palgu الحية)، ثم النماذج السليمة الأخرى، حتى `router.child.fallbacks` (الافتراضي 3). الموجّه الأطول من نافذة النموذج ينتقل فقط إلى نموذج بنافذة سياق أكبر (`router.child.longContext`)؛ أما الطلب الخاطئ (400، 401، 403، 404، 422) فلا يُعاد على نماذج أخرى. يقول سطر التوجيه ما حدث: `child: deepseek-pro failed (429) → served by glm-5.3`، أو `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`. وإذا خدمت سلسلة Palgu نفسها نموذجًا آخر، يقول السطر `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`، ويُحتسب الدور ويُسعَّر بوصفه ذلك النموذج.
 
 ### استراتيجيات التوجيه: وجه حسب التعقيد أو التكلفة أو السرعة أو الجودة أو قواعدك الخاصة
 
@@ -391,7 +391,7 @@ copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
 
 كل استدعاء لـ `$.process.run` يُكتب برنامجه وأعلامه الثابتة نصًا حرفيًا عند الاستدعاء. لا تُشغَّل أي منها عبر shell.
 
-- ‏`claude -p --model <model> --output-format json --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — ‏Claude Code نفسه، بلا واجهة، لتشغيل دور موجَّه على البوابة أو عبر تسجيل دخولك إلى Claude (مسارات `claude/<member>`). الوسائط الديناميكية: معرّف النموذج (من مساراتك أو تثبيتك؛ يُرفض ما لم يكن معرّفًا واحدًا بسيطًا من أحرف وأرقام و `. _ : / @ [ ] -`، لا يبدأ بـ `-`، وبحد أقصى 200 حرف)، وحد الأدوار و `child.args`/`router.child.deny` من `model-config.json` الخاص بك، ومجلد عمل الجلسة؛ ويُرفض كلٌّ منها إن لم يكن سلسلة نصية بسيطة أو احتوى على NUL. بعد أن توافق على أوامر رُفضت للعملية الفرعية، يضيف الاستدعاء نفسه `--resume <its session id> --allowedTools <the patterns you approved>`.
+- ‏`claude -p --model <model> --output-format stream-json --verbose --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — ‏Claude Code نفسه، بلا واجهة، لتشغيل دور موجَّه على البوابة أو عبر تسجيل دخولك إلى Claude (مسارات `claude/<member>`). الوسائط الديناميكية: معرّف النموذج (من مساراتك أو تثبيتك؛ يُرفض ما لم يكن معرّفًا واحدًا بسيطًا من أحرف وأرقام و `. _ : / @ [ ] -`، لا يبدأ بـ `-`، وبحد أقصى 200 حرف)، وحد الأدوار و `child.args`/`router.child.deny` من `model-config.json` الخاص بك، ومجلد عمل الجلسة؛ ويُرفض كلٌّ منها إن لم يكن سلسلة نصية بسيطة أو احتوى على NUL. بعد أن توافق على أوامر رُفضت للعملية الفرعية، يضيف الاستدعاء نفسه `--resume <its session id> --allowedTools <the patterns you approved>`.
 - ‏`codex exec --json … -`، و `codex exec -C <cwd> resume --json … <thread id> -` بعد أن توافق على الأوامر المرفوضة — ‏Codex CLI، لمسارات `codex` فقط، مع الفحوص نفسها (معرّف الخيط بوصفه معرّفًا بسيطًا).
 - ‏`claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` — مرة واحدة بعد `/palgu login`، لحفظ المفتاح الذي أصدره Palgu في التخزين الآمن لـ Claude Code. كل وسيط نص ثابت؛ والمفتاح يذهب عبر stdin فقط، وفقط بعد التحقق من أنه توكن واحد بسيط (`A-Z a-z 0-9 . _ -`، من 8 إلى 512 حرفًا).
 - ‏`claude plugin marketplace update mixture-of-models-claude-mod`، ثم `claude plugin update mixture-of-models@mixture-of-models-claude-mod` — عند `/route update`، فقط حين يدرج GitHub إصدارًا أحدث. كل وسيط نص ثابت.
@@ -481,7 +481,7 @@ copilot plugin install alinaqi/mixture-of-models-claude-mod:integrations/copilot
 **كيف:** أربعة استدعاءات `$.process.run` في `turn.step`، تشغيل أول وتشغيل مستأنف لكل برنامج، كلٌّ منها باسم برنامجه وأعلامه الثابتة نصًا حرفيًا عند الاستدعاء: `claude` و `codex`. تُفحص القيم الديناميكية أولًا (راجع [البرامج التي تشغلها الإضافة](#البرامج-التي-تشغلها-الإضافة)). وسائط `claude` لمسار بوابة:
 
 ```
-claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
+claude -p --model <routed model id> --output-format stream-json --verbose --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
 لمسار `claude/<member>` يعمل البرنامج نفسه مع `--model <member id>` و `child.subscriptionArgs` (‏`--permission-mode acceptEdits`) بدلًا من `child.args`، أي بلا `--bare`، وتكون بيئته `MAGGY_ROUTER_CHILD=1` إضافة إلى `ANTHROPIC_BASE_URL` مضبوطًا فارغًا، فيعمل عبر تسجيل دخولك إلى Claude.
@@ -543,7 +543,7 @@ x-srooter-project: <the session folder's name>
       "timeoutMs": 600000,
       "maxRetries": 2,
       "fallbacks": 3,
-      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
+      "longContext": [],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -579,7 +579,7 @@ x-srooter-project: <the session folder's name>
 - ‏`child.maxTurns`، `timeoutMs`: ميزانية العملية الفرعية الوكيلية. يتوقف `timeoutMs` عند عشر دقائق، وهو حد `$.process.run`.
 - ‏`child.maxRetries`: كم مرة تعيد العملية الفرعية للبوابة محاولة طلب فشل بخطأ 429 أو 5xx (الافتراضي 2؛ الافتراضي في Claude Code نفسه 10، وهو ما استغرق دقائق مقابل مزوّد مشغول). ارفعه إن كانت بوابتك تشهد انقطاعات قصيرة تفضّل تجاوزها على الرجوع إلى البديل.
 - ‏`child.fallbacks`: كم نموذجًا مكافئًا يجرّبه المود بنفسه بعد فشل العملية الفرعية للبوابة وقبل أن يتولى النموذج الرئيسي الدور (الافتراضي 3؛ و 0 يوقفه). على Palgu الفئة نفسها أولًا، ثم النماذج السليمة الأخرى. انظر «عندما تفشل العملية الفرعية» أعلاه.
-- ‏`child.longContext`: نماذج البوابة التي ينتقل إليها الموجّه الأطول من نافذة النموذج الموجَّه (الافتراضي `gemini-3.8-flash` و `gpt-6-sol`).
+- ‏`child.longContext`: نماذج البوابة التي ينتقل إليها الموجّه الأطول من نافذة النموذج الموجَّه. فارغة افتراضيًا: عندها تُستخدم النماذج السليمة التي تكون نافذة سياقها، كما تذكرها قائمة Palgu الحية، أكبر من نافذة النموذج الذي فشل، الأكبر أولًا. من دون Palgu اضبطها بنفسك، وإلا ذهب الموجّه الأطول إلى النموذج الرئيسي.
 - ‏`child.contextMessages`: كم تبادلًا حديثًا يدخل في الموجز.
 - ‏`child.relayRounds`: كم مرة يجوز لدور موجَّه واحد أن يتوقف ليسألك عن أوامر رُفضت للعملية الفرعية (الافتراضي 2).
 - ‏`child.deny`: قواعد منع أذونات إضافية في Claude Code لكل عملية Claude فرعية، تُمرَّر عبر `--disallowedTools` بعد `child.args`. تُضاف إلى القائمة المدمجة (`.env`، `.env.*`، `*.pem`، `*.key`، `id_rsa*`، `id_ed25519*`، `secrets/**`)، التي لا يزيلها شيء، لأن `--bare` يتخطى الخطافات التي كانت ستحمي تلك الملفات لولا ذلك.

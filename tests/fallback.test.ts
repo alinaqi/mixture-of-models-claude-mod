@@ -6,7 +6,8 @@ const LIVE = {
   down: ['gpt-6-sol'],
   classes: { 'glm-5.3': 'frontier', 'deepseek-pro': 'frontier', 'kimi-k3.1-pro': 'frontier', 'gemini-3.8-flash': 'workhorse', 'minimax-m2.5': 'workhorse', 'grok-4.7': 'frontier', 'gpt-6-sol': 'frontier' },
 }
-const CTX = { live: LIVE, catalogue: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'kimi-k3.1-pro'], longContext: ['gemini-3.8-flash', 'gpt-6-sol'], max: 3 }
+const CTX = { live: LIVE, catalogue: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'kimi-k3.1-pro'], longContext: [], max: 3 }
+const WINDOWS = { ...LIVE, windows: { 'glm-5.3': 200000, 'deepseek-pro': 128000, 'kimi-k3.1-pro': 1048576, 'gemini-3.8-flash': 1000000, 'grok-4.7': 256000, 'gpt-6-sol': 1050000 } }
 const err = (status, text = '') => ({ ok: false, error: { status, text } })
 
 test('failureOf: a 429, a 5xx, an overload, a timeout or no answer at all is an overload, worth another model', async () => {
@@ -45,9 +46,27 @@ test('nextModels for a model the live list does not know still offers the health
   expect(nextModels('my-proxy-model', 'overload', { ...CTX, max: 2 })).toEqual(['glm-5.3', 'deepseek-pro'])
 })
 
-test('nextModels after a context error: the larger-window models only, healthy and not the one that failed', async () => {
-  expect(nextModels('deepseek-pro', 'context', CTX)).toEqual(['gemini-3.8-flash'])
-  expect(nextModels('gemini-3.8-flash', 'context', { ...CTX, live: null })).toEqual(['gpt-6-sol'])
+test('nextModels after a context error: the healthy models with a larger window than the failed one, largest first', async () => {
+  // gpt-6-sol is the largest, but down; minimax-m2.5 has no known window, so it is not offered.
+  expect(nextModels('deepseek-pro', 'context', { ...CTX, live: WINDOWS })).toEqual(['kimi-k3.1-pro', 'gemini-3.8-flash', 'grok-4.7'])
+  expect(nextModels('grok-4.7', 'context', { ...CTX, live: WINDOWS, max: 1 })).toEqual(['kimi-k3.1-pro'])
+  expect(nextModels('kimi-k3.1-pro', 'context', { ...CTX, live: WINDOWS })).toEqual([])
+})
+
+test('nextModels after a context error with no window known for the failed model: any larger-window model, largest first', async () => {
+  expect(nextModels('mystery-1', 'context', { ...CTX, live: WINDOWS, max: 2 })).toEqual(['kimi-k3.1-pro', 'gemini-3.8-flash'])
+})
+
+test('nextModels after a context error: your router.child.longContext list wins; with neither, nothing is tried', async () => {
+  expect(nextModels('deepseek-pro', 'context', { ...CTX, live: WINDOWS, longContext: ['gemini-3.8-flash', 'gpt-6-sol'] })).toEqual(['gemini-3.8-flash'])
+  expect(nextModels('gemini-3.8-flash', 'context', { ...CTX, live: null, longContext: ['gpt-6-sol'] })).toEqual(['gpt-6-sol'])
+  expect(nextModels('deepseek-pro', 'context', CTX)).toEqual([])
+  expect(nextModels('deepseek-pro', 'context', { ...CTX, live: null })).toEqual([])
+})
+
+test('fallbackNote names a fallback the gateway made itself', async () => {
+  expect(fallbackNote([], 'deepseek-pro', 'kimi-k3.1-pro')).toBe('child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)')
+  expect(fallbackNote([], 'kimi-k3.1-pro', 'kimi-k3.1-pro')).toBe('')
 })
 
 test('nextModels after a request error is empty: the main model takes it', async () => {

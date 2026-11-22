@@ -7,7 +7,7 @@ const CHILD = { ...DEFAULTS.child, baseUrl: 'https://api.palgu.ai/anthropic' }
 
 test('childArgs are the headless flags for the routed model, with the cwd added for CLAUDE.md', async () => {
   expect(childArgs(CHILD, 'glm-5.3', '/work')).toEqual([
-    '-p', '--model', 'glm-5.3', '--output-format', 'json', '--max-turns', '25', '--add-dir', '/work',
+    '-p', '--model', 'glm-5.3', '--output-format', 'stream-json', '--verbose', '--max-turns', '25', '--add-dir', '/work',
     '--bare', '--permission-mode', 'acceptEdits', '--disallowedTools', ...SECRET_DENY,
   ])
 })
@@ -188,11 +188,11 @@ test('parseChildOutput reads the answer, session id and denied commands from hea
     { tool_name: 'Bash', tool_input: { command: 'git pull --ff-only', dangerouslyDisableSandbox: true } },
     { tool_name: 'WebFetch', tool_input: { url: 'https://x' } },
   ] }
-  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined, usage: null, error: null })
+  expect(parseChildOutput(JSON.stringify(RESULT), 0)).toEqual({ ok: true, answer: 'done', sessionId: 'sid-1', denials: [], turns: undefined, usage: null, error: null, served: '' })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, num_turns: 3 }), 0).turns).toBe(3)
   expect(parseChildOutput(JSON.stringify([{ type: 'system' }, denied]), 0)).toEqual({
     ok: true, answer: 'I need approval', sessionId: 'sid-1',
-    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined, usage: null, error: null,
+    denials: [{ tool: 'Bash', command: 'git pull --ff-only' }, { tool: 'WebFetch', command: '' }], turns: undefined, usage: null, error: null, served: '',
   })
 })
 
@@ -204,7 +204,7 @@ test('parseChildOutput keeps the child usage, so the turn can be priced', async 
 test('parseChildOutput treats a non-zero exit, an error result or unparsable output as a failed child', async () => {
   expect(parseChildOutput(JSON.stringify(RESULT), 1).ok).toBe(false)
   expect(parseChildOutput(JSON.stringify({ ...RESULT, is_error: true }), 0).ok).toBe(false)
-  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined, usage: null, error: { status: null, text: '' } })
+  expect(parseChildOutput('Not logged in', 0)).toEqual({ ok: false, answer: '', sessionId: '', denials: [], turns: undefined, usage: null, error: { status: null, text: '' }, served: '' })
   expect(parseChildOutput(JSON.stringify({ ...RESULT, result: '   ' }), 0).ok).toBe(false)
 })
 
@@ -245,6 +245,20 @@ test('childHeaders lets a pinned request walk the gateway fallback chain on an o
   expect(childHeaders('/work/app', 'X-Palgu-Fallback: off', true, 'deepseek-pro')).not.toContain('x-palgu-fallback: auto')
   expect(childHeaders('/work/app', '', true)).not.toContain('x-palgu-fallback')
   expect(childHeaders('/work/app', '', false, 'deepseek-pro')).toBe('')
+})
+
+test('parseChildOutput reads stream-json, one event per line, and names the model that served each assistant message', async () => {
+  const lines = [
+    { type: 'system', subtype: 'init', model: 'kimi-k3.1-pro' },
+    { type: 'assistant', message: { model: 'deepseek-pro', content: [{ type: 'text', text: 'done' }] } },
+    { ...RESULT, num_turns: 2 },
+  ].map((l) => JSON.stringify(l)).join('\n') + '\n'
+  const out = parseChildOutput(lines, 0)
+  expect(out.ok).toBe(true)
+  expect(out.answer).toBe('done')
+  expect(out.turns).toBe(2)
+  expect(out.served).toBe('deepseek-pro')
+  expect(parseChildOutput(JSON.stringify(RESULT), 0).served).toBe('')
 })
 
 test('parseChildOutput keeps the API error of a failed child, so the mod can tell an overload from a bad request', async () => {

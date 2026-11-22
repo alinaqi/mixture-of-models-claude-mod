@@ -22,7 +22,7 @@ function parsed(res) {
   }
 }
 
-// { at, served, down, classes } from the answer, or null when there is nothing usable in it.
+// { at, served, down, classes, windows } from the answer, or null when there is nothing usable in it.
 export function liveModels(res) {
   const body = parsed(res)
   const rows = body ? body.models.filter(usable) : []
@@ -30,7 +30,8 @@ export function liveModels(res) {
   const served = rows.filter((m) => m.healthy !== false).map((m) => m.model)
   const down = rows.filter((m) => m.healthy === false).map((m) => m.model)
   const classes = Object.fromEntries(rows.filter((m) => typeof m.class === 'string').map((m) => [m.model, m.class]))
-  return { at: String(body.run_at || ''), served, down, classes }
+  const windows = Object.fromEntries(rows.filter((m) => Number.isInteger(m.context_window) && m.context_window > 0).map((m) => [m.model, m.context_window]))
+  return { at: String(body.run_at || ''), served, down, classes, windows }
 }
 
 // `catalogue`: what `/route <prefix>` matches, the curated models Palgu serves in their order, then

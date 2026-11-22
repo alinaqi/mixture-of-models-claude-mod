@@ -11,7 +11,12 @@ const HEALTH = res([
 
 test('liveModels keeps the versioned models a routed turn can use, apart from the unhealthy ones', async () => {
   // No Claude (that is the session's own), no premium, internal or image class, no bare alias like `deepseek` or `codex`.
-  expect(liveModels(HEALTH)).toEqual({ at: '2026-11-07T06:00:13+00:00', served: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'grok-4.7', 'mistral-large-4'], down: ['gpt-5.6-terra'], classes: { 'glm-5.3': 'frontier', 'deepseek-pro': 'frontier', 'gpt-6-sol': 'frontier', 'grok-4.7': 'frontier', 'mistral-large-4': 'workhorse', 'gpt-5.6-terra': 'frontier' } })
+  expect(liveModels(HEALTH)).toEqual({ at: '2026-11-07T06:00:13+00:00', served: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'grok-4.7', 'mistral-large-4'], down: ['gpt-5.6-terra'], classes: { 'glm-5.3': 'frontier', 'deepseek-pro': 'frontier', 'gpt-6-sol': 'frontier', 'grok-4.7': 'frontier', 'mistral-large-4': 'workhorse', 'gpt-5.6-terra': 'frontier' }, windows: {} })
+})
+
+test('liveModels keeps the context window Palgu reports for each model, and none it does not know', async () => {
+  const out = liveModels(res([{ ...row('glm-5.3', 'frontier'), context_window: 1000000 }, { ...row('minimax-m3', 'frontier'), context_window: null }, { ...row('grok-4.7', 'frontier'), context_window: 'big' }]))
+  expect(out.windows).toEqual({ 'glm-5.3': 1000000 })
 })
 
 test('liveModels is null for a failed, empty or malformed answer, so the built-in list stays', async () => {

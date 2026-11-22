@@ -40,21 +40,28 @@ function equivalents(model, ctx) {
   return [...pool.filter((id) => classes[id] === cls), ...pool.filter((id) => classes[id] !== cls)]
 }
 
+// A prompt too long for `model`: your router.child.longContext list, else every healthy model whose
+// window Palgu reports as larger than the failed one's (any known one if that is unknown), largest first.
+function largerWindows(model, ctx) {
+  const ok = healthy(ctx)
+  if ((ctx.longContext || []).length) return ctx.longContext.filter((id) => id !== model && (!ctx.live || ok.includes(id)))
+  const windows = (ctx.live && ctx.live.windows) || {}
+  const floor = windows[model] || 0
+  return ok.filter((id) => id !== model && windows[id] > floor).sort((a, b) => windows[b] - windows[a])
+}
+
 // The models to try after `model` failed with `kind`, at most ctx.max of them. A context error
-// moves only to ctx.longContext (larger windows); a request error tries nothing.
+// moves only to larger windows; a request error tries nothing.
 export function nextModels(model, kind, ctx) {
   const max = Math.max(0, Number(ctx.max) || 0)
   if (kind === 'request' || !max) return []
-  if (kind === 'context') {
-    const ok = healthy(ctx)
-    return (ctx.longContext || []).filter((id) => id !== model && (!ctx.live || ok.includes(id))).slice(0, max)
-  }
-  return equivalents(model, ctx).slice(0, max)
+  return (kind === 'context' ? largerWindows(model, ctx) : equivalents(model, ctx)).slice(0, max)
 }
 
-// tried: [{ model, why }] for each model that failed; served: the model that answered, or ''.
-export function fallbackNote(tried, served) {
-  if (!tried.length) return ''
+// tried: [{ model, why }] for each model that failed; served: the model that answered, or '';
+// requested: with nothing tried, the model the child asked for, when the gateway served another.
+export function fallbackNote(tried, served, requested = '') {
+  if (!tried.length) return requested && served && requested !== served ? 'child: ' + requested + ' → served by ' + served + ' (gateway fallback)' : ''
   if (served) return 'child: ' + tried.map((t) => t.model + ' failed (' + t.why + ')').join(', ') + ' → served by ' + served
   if (tried.length === 1) return 'child on ' + tried[0].model + ' failed (' + tried[0].why + '), main model takes this turn'
   return 'all equivalents failed: ' + tried.map((t) => t.model + ' (' + t.why + ')').join(', ') + '; main model takes this turn'

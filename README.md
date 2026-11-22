@@ -100,7 +100,7 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **Which Palgu models work.** Tested on 2026-10-29 the way the mod runs a turn (a pinned `claude -p --bare` child doing a short research task with tool calls): `glm-5.3`, `deepseek-pro`, `gemini-3.8-flash`, `minimax-m3`, `gpt-6-sol`, `gpt-6-luna`, `gpt-6-astra`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed` and `mercury-3` pass in 19 to 46 s; `minimax-m2.5` kept retrying refused commands until it ran out of turns. Kimi's earlier failures were Moonshot being overloaded (`429 engine_overloaded`): Claude Code retried each request ten times, so a turn took about two to three minutes to fail. The child now retries at most twice (`router.child.maxRetries`, default 2), so a busy provider falls back in seconds. Research and review stay on DeepSeek by default; Kimi is a pin. The child always sends `x-srooter-pin: <model>` to Palgu: without it Palgu routes by intent and may answer with another model (it served every model unpinned as Gemini).
 
-**When a child fails.** The main model takes a routed turn only after every equivalent model has failed. On Palgu the child sends `x-palgu-fallback: auto`, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). If the child still fails with an overload (429, 5xx, a timeout, no answer), the mod runs the turn again on the next equivalent: models of the same class first (from Palgu's live list), then the other healthy ones, up to `router.child.fallbacks` (default 3). A prompt too long for the model moves only to a larger-window model (`router.child.longContext`); a bad request (400, 401, 403, 404, 422) is not retried on other models. The route line says what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`.
+**When a child fails.** The main model takes a routed turn only after every equivalent model has failed. On Palgu the child sends `x-palgu-fallback: auto`, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). If the child still fails with an overload (429, 5xx, a timeout, no answer), the mod runs the turn again on the next equivalent: models of the same class first (from Palgu's live list), then the other healthy ones, up to `router.child.fallbacks` (default 3). A prompt too long for the model moves only to a larger-window model (`router.child.longContext`); a bad request (400, 401, 403, 404, 422) is not retried on other models. The route line says what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`. When Palgu's own chain served another model, the line says `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`, and the turn counts and is priced as that model.
 
 ### Routing strategies: route by complexity, cost, speed, quality, or your own rules
 
@@ -383,7 +383,7 @@ A virtual key reaches only the models it is allowed; a 401 or an unknown model m
 
 Each `$.process.run` call has its program and fixed flags written as literal text at the call. No shell runs any of them.
 
-- `claude -p --model <model> --output-format json --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — Claude Code itself, headless, to run a routed turn on the gateway or on your Claude login (`claude/<member>` routes). Dynamic arguments: the model id (from your routes or pin; refused unless it is one plain id of letters, digits and `. _ : / @ [ ] -`, not starting with `-`, at most 200 characters), the turn limit and `child.args`/`router.child.deny` from your `model-config.json`, and the session's working directory; each is refused if it is not a plain string or holds a NUL. After you approve commands the child was refused, the same call adds `--resume <its session id> --allowedTools <the patterns you approved>`.
+- `claude -p --model <model> --output-format stream-json --verbose --max-turns <n> --add-dir <cwd> <child.args> --disallowedTools <deny rules>` — Claude Code itself, headless, to run a routed turn on the gateway or on your Claude login (`claude/<member>` routes). Dynamic arguments: the model id (from your routes or pin; refused unless it is one plain id of letters, digits and `. _ : / @ [ ] -`, not starting with `-`, at most 200 characters), the turn limit and `child.args`/`router.child.deny` from your `model-config.json`, and the session's working directory; each is refused if it is not a plain string or holds a NUL. After you approve commands the child was refused, the same call adds `--resume <its session id> --allowedTools <the patterns you approved>`.
 - `codex exec --json … -`, and `codex exec -C <cwd> resume --json … <thread id> -` after you approve refused commands — the Codex CLI, for `codex` routes only, with the same checks (the thread id as a plain id).
 - `claude plugin configure mixture-of-models@mixture-of-models-claude-mod --values-stdin` — once after `/palgu login`, to save the key Palgu minted in Claude Code's secure storage. Every argument is fixed text; the key goes on stdin only, and only after it is checked to be one plain token (`A-Z a-z 0-9 . _ -`, 8 to 512 characters).
 - `claude plugin marketplace update mixture-of-models-claude-mod`, then `claude plugin update mixture-of-models@mixture-of-models-claude-mod` — on `/route update`, only when GitHub lists a newer version. Every argument is fixed text.
@@ -473,7 +473,7 @@ The mod contacts no other host. The gateway is whatever you configure; nothing i
 **How:** four `$.process.run` calls in `turn.step`, a first run and a resumed run for each program, each with its program name and fixed flags as literal text at the call: `claude` and `codex`. The dynamic values are checked first (see [Programs the plugin runs](#programs-the-plugin-runs)). The `claude` arguments for a gateway route:
 
 ```
-claude -p --model <routed model id> --output-format json --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
+claude -p --model <routed model id> --output-format stream-json --verbose --max-turns <child.maxTurns> --add-dir <session cwd> --bare --permission-mode acceptEdits
 ```
 
 For a `claude/<member>` route the same program runs with `--model <member id>` and `child.subscriptionArgs` (`--permission-mode acceptEdits`) in place of `child.args`, so without `--bare`, and its environment is `MAGGY_ROUTER_CHILD=1` plus `ANTHROPIC_BASE_URL` set empty, so it runs on your Claude login.
@@ -535,7 +535,7 @@ The mod reads Maggy's single source of truth, `~/.claude/model-config.json`, and
       "timeoutMs": 600000,
       "maxRetries": 2,
       "fallbacks": 3,
-      "longContext": ["gemini-3.8-flash", "gpt-6-sol"],
+      "longContext": [],
       "contextMessages": 12,
       "relayRounds": 2
     },
@@ -571,7 +571,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `child.maxTurns`, `timeoutMs`: the child's agentic budget. `timeoutMs` caps at ten minutes, the limit of `$.process.run`.
 - `child.maxRetries`: how often the gateway child retries a request that failed with a 429 or 5xx (default 2; Claude Code's own default is 10, which took minutes against a busy provider). Raise it if your gateway has short blips you would rather ride out than fall back on.
 - `child.fallbacks`: how many equivalent models the mod tries itself after a failed gateway child, before the main model takes the turn (default 3; 0 turns it off). On Palgu the same class first, then the other healthy models. See "When a child fails" above.
-- `child.longContext`: the gateway models a prompt too long for the routed model moves to (default `gemini-3.8-flash`, `gpt-6-sol`).
+- `child.longContext`: the gateway models a prompt too long for the routed model moves to. Empty by default: the healthy models whose context window, as Palgu's live list reports it, is larger than the failed model's, largest first. Without Palgu, set it yourself, or a prompt too long goes to the main model.
 - `child.contextMessages`: how many recent exchanges go into the brief.
 - `child.relayRounds`: how many times one routed turn may pause to ask you about commands the child was refused (default 2).
 - `child.deny`: extra Claude Code permission deny rules for every Claude child, passed with `--disallowedTools` after `child.args`. They add to the built-in list (`.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`, `secrets/**`), which nothing removes, because `--bare` skips the hooks that would otherwise guard those files.
