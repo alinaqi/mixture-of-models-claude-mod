@@ -48,6 +48,13 @@ test('parseRouteArg understands show, auto, off, labels and model ids', async ()
   expect(parseRouteArg('mercury-3', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'mercury-3' })
 })
 
+test('parseRouteArg: a word that names no model, label or command means auto, and says which word it was', async () => {
+  expect(parseRouteArg('upgrade', DEFAULT_ROUTES)).toEqual({ mode: 'auto', unknown: 'upgrade' })
+  expect(parseRouteArg('nonsense-9', DEFAULT_ROUTES)).toEqual({ mode: 'auto', unknown: 'nonsense-9' })
+  expect(parseRouteArg('upgrade', DEFAULT_ROUTES, ['my-model'])).toEqual({ mode: 'auto', unknown: 'upgrade' })
+  expect(parseRouteArg('my', DEFAULT_ROUTES, ['my-model'])).toEqual({ mode: 'model', model: 'my-model' })
+})
+
 test('parseRouteArg expands a provider prefix to the configured model', async () => {
   expect(parseRouteArg('glm', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'glm-5.3' })
   expect(parseRouteArg('kimi', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro' })

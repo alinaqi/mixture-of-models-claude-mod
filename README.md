@@ -601,7 +601,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/route simple\|coding\|critical` | Pin a tier |
 | `/route reset` | Clear the per-kind failure memory |
 | `/route stats` | Open the stats pane: models, kinds, scores, recent |
-| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model) |
+| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model; a word that matches no model, such as `/route upgrade`, sets auto instead of pinning it) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Pin a family member (`claude/sonnet` runs on your Claude login) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Pin a family; each prompt is still scored and the tier picks the member |
 | `/route codex` | Pin Codex on its default model |

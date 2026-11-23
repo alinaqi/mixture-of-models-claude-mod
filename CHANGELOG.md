@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.34.2] - 2026-11-23
+
+### Fixed
+- `/route <word>` with a word that names no model, tier, family or command (`/route upgrade`) no longer pins a model that does not exist, which failed every routed turn. It sets routing to auto and says so: `no model, tier or command named upgrade; routing set to auto (/route models lists the models)`. A prefix of a known model still pins it.
+
 ## [0.34.1] - 2026-11-22
 
 ### Changed

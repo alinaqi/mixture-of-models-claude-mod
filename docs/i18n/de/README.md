@@ -603,7 +603,7 @@ Eine Konfiguration, die jede Stufe auf ein Claude-Mitglied legt, mit Fable für 
 | `/route simple\|coding\|critical` | Eine Stufe pinnen |
 | `/route reset` | Das Fehlergedächtnis pro Art löschen |
 | `/route stats` | Den Statistik-Bereich öffnen: models, kinds, scores, recent |
-| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Ein Modell pinnen (ein Präfix wird zum konfigurierten Modell erweitert, dann zu einem bekannten Gateway-Modell) |
+| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Ein Modell pinnen (ein Präfix wird zum konfigurierten Modell erweitert, dann zu einem bekannten Gateway-Modell; ein Wort, das zu keinem Modell passt, etwa `/route upgrade`, stellt auf auto, statt es zu pinnen) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Ein Familienmitglied pinnen (`claude/sonnet` läuft mit Ihrem Claude-Login) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Eine Familie pinnen; jeder Prompt wird weiterhin bewertet, und die Stufe wählt das Mitglied |
 | `/route codex` | Codex mit seinem Standardmodell pinnen |

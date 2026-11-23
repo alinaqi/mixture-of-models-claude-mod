@@ -1223,6 +1223,15 @@ test('on Palgu the child pins the routed model, and a saved deepseek-v4-pro pin 
   expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: deepseek-pro')
 })
 
+test('/route with a word that names no model routes on auto and says so, never pinning it', GW, async ($, on) => {
+  const store = stubSession(on)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.command.run({ command: 'route', args: 'kimi' })
+  const out = await $.command.run({ command: 'route', args: 'upgrade' })
+  expect(out.text).toBe('no model, tier or command named upgrade; routing set to auto (/route models lists the models)')
+  expect(store.get('pin')).toEqual({ mode: 'auto' })
+})
+
 test('on Palgu /route mercury pins Mercury 3, and the child gives up after two retries so a busy provider falls back fast', GW, async ($, on) => {
   const runs: any[] = []
   stubSession(on, { scores: ['2 code'] })

@@ -603,7 +603,7 @@ Une config qui place chaque palier sur un membre Claude, avec Fable pour les tou
 | `/route simple\|coding\|critical` | Épingler un palier |
 | `/route reset` | Effacer la mémoire des échecs par type |
 | `/route stats` | Ouvrir le panneau de statistiques : models, kinds, scores, recent |
-| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Épingler un modèle (un préfixe se développe vers le modèle configuré, puis vers un modèle connu de la passerelle) |
+| `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Épingler un modèle (un préfixe se développe vers le modèle configuré, puis vers un modèle connu de la passerelle ; un mot qui ne correspond à aucun modèle, comme `/route upgrade`, passe en auto au lieu d'être épinglé) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Épingler un membre de famille (`claude/sonnet` s'exécute sur votre connexion Claude) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Épingler une famille ; chaque prompt est toujours évalué et le palier choisit le membre |
 | `/route codex` | Épingler Codex sur son modèle par défaut |

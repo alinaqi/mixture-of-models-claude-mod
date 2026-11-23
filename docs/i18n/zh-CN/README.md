@@ -603,7 +603,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 | `/route simple\|coding\|critical` | 固定一个层级 |
 | `/route reset` | 清除按类型的失败记忆 |
 | `/route stats` | 打开统计面板：models、kinds、scores、recent |
-| `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | 固定一个模型（前缀会先展开为已配置的模型，再展开为已知的网关模型） |
+| `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | 固定一个模型（前缀会先展开为已配置的模型，再展开为已知的网关模型；不匹配任何模型的词（如 `/route upgrade`）不会被固定，而是设为 auto） |
 | `/route claude/sonnet`、`/route kimi/highspeed`、`/route codex/gpt-5.6-terra` | 固定一个家族成员（`claude/sonnet` 在你的 Claude 登录上运行） |
 | `/route claude/auto`、`/route kimi/auto`、`/route codex/auto` | 固定一个家族；每条提示词仍会被打分，由层级挑选成员 |
 | `/route codex` | 固定使用默认模型的 Codex |

@@ -609,7 +609,7 @@ x-srooter-project: <the session folder's name>
 | `/route simple\|coding\|critical` | ثبّت مستوى |
 | `/route reset` | امسح ذاكرة الإخفاقات لكل نوع |
 | `/route stats` | افتح لوحة الإحصاءات: models و kinds و scores و recent |
-| `/route glm`، `/route kimi`، `/route kimi-k3.1-pro`، `/route minimax`، `/route gpt`، `/route claude` | ثبّت نموذجًا (البادئة تتوسع إلى النموذج المضبوط، ثم إلى نموذج بوابة معروف) |
+| `/route glm`، `/route kimi`، `/route kimi-k3.1-pro`، `/route minimax`، `/route gpt`، `/route claude` | ثبّت نموذجًا (البادئة تتوسع إلى النموذج المضبوط، ثم إلى نموذج بوابة معروف؛ والكلمة التي لا تطابق أي نموذج، مثل `/route upgrade`، تضبط الوضع auto بدل تثبيتها) |
 | `/route claude/sonnet`، `/route kimi/highspeed`، `/route codex/gpt-5.6-terra` | ثبّت عضو عائلة (‏`claude/sonnet` يعمل عبر تسجيل دخولك إلى Claude) |
 | `/route claude/auto`، `/route kimi/auto`، `/route codex/auto` | ثبّت عائلة؛ تظل كل مطالبة تُقيَّم ويختار المستوى العضو |
 | `/route codex` | ثبّت Codex على نموذجه الافتراضي |
