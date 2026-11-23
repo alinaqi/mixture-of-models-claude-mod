@@ -709,9 +709,11 @@ export function register(on, opts) {
     if (!disabled) heartbeat($, e).catch(() => undefined)
     if (disabled || e.agentId || !cfg.summary || !decision.model) return result
     const day = new Date().toISOString().slice(0, 10)
-    const stats = bumpStats((await $.store.get('stats')) || {}, day, decision.model)
+    // The model that answered: the routed one only when its child did; else the main session's.
+    const answered = decision.child && decision.child.exitCode === 0 ? decision.model : sessionModel || decision.model
+    const stats = bumpStats((await $.store.get('stats')) || {}, day, answered)
     await $.store.set('stats', stats)
-    await $.store.set('log', appendLog(await $.store.get('log'), { day, model: decision.model, kind: decision.kind, label: decision.label, score: decision.score, source: decision.source, child: decision.child || null }, 200))
+    await $.store.set('log', appendLog(await $.store.get('log'), { day, model: answered, routed: decision.model, kind: decision.kind, label: decision.label, score: decision.score, source: decision.source, child: decision.child || null }, 200))
     const priced = await priceTurn($, e.usage)
     await $.store.set('savings', addTurn(await $.store.get('savings'), priced))
     return { ...result, text: summaryLine(decision, e.usage) + (priced.routed ? turnNote(priced) : '') + ' · ' + statsLine(stats, day) }

@@ -222,6 +222,19 @@ test('the main model takes the turn only after every equivalent failed, and the 
   expect(done.text).toContain('all equivalents failed')
 })
 
+test('a turn whose child failed is counted under the model that answered it, not the routed one', GW, async ($, on) => {
+  const store = stubSession(on)
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childError(400, 'API Error: 400 invalid_request_error'), stderr: '' } }))
+  recordSteps(on, [])
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+  const day = new Date().toISOString().slice(0, 10)
+  expect((store.get('stats') as any)[day]).toEqual({ 'claude-opus-5': 1 })
+  const log = store.get('log') as any[]
+  expect(log[0].model).toBe('claude-opus-5')
+  expect(log[0].routed).toBe('glm-5.3')
+})
+
 test('a bad request is not walked across models: the main model takes it at once', GW, async ($, on) => {
   stubSession(on)
   const runs: any[] = []
@@ -481,7 +494,9 @@ const PANE = {
 
 test('/route stats opens the pane, which charts the turns the session routed', GW, async ($, on) => {
   stubSession(on, { scores: ['5 code', '5 research'] })
-  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('ok'), stderr: '' } }))
+  // Two different answers: a repeated one is discarded, and the main model would answer that turn.
+  let n = 0
+  on('process.run', () => ({ value: { exitCode: 0, stdout: childJson('answer ' + ++n), stderr: '' } }))
   recordSteps(on, [])
 
   await routedTurn($, 'add a unit test for the parseVerdict helper and run it')
@@ -1067,7 +1082,7 @@ test('a routed turn on Palgu is priced by Palgu and the route line says what it 
   expect(JSON.parse(quote.init.body)).toEqual({ model: 'glm-5.3', usage: CHILD_USAGE })
   expect(done.text).toContain('saved ~$' + (ON_CLAUDE - 0.05).toFixed(2))
   const status = await $.command.run({ command: 'route', args: 'status' })
-  expect(status.text).toContain('saved ~$0.70 (93%) vs all claude-opus-5')
+  expect(status.text).toContain('saved ~$0.70 on 1 routed turn (93% of their Claude price)')
 })
 
 test('another gateway is priced from router.prices, and its key never goes to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {

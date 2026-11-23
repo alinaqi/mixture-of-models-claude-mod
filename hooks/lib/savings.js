@@ -70,7 +70,15 @@ export function addTurn(totals, entry) {
 }
 
 function usd(n) {
-  return '$' + (Math.abs(n) < 0.01 ? n.toFixed(3) : n.toFixed(2))
+  const text = Math.abs(n) < 0.01 ? n.toFixed(3) : n.toFixed(2)
+  return '$' + text.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+// A share as a whole percent, or to one decimal under 1% so a small real saving does not read as 0%.
+function percent(part, whole) {
+  if (!(whole > 0)) return '0%'
+  const p = (part / whole) * 100
+  return (Math.abs(p) < 1 && p !== 0 ? p.toFixed(1) : String(Math.round(p))) + '%'
 }
 
 function unpricedNote(n) {
@@ -80,9 +88,11 @@ function unpricedNote(n) {
 export function savingsLine(t, sessionModel) {
   const model = String(sessionModel || '').replace(/\[.*\]$/, '')
   if (!t || !t.priced) return 'saved: nothing priced yet' + unpricedNote(t ? t.unpriced : 0)
+  // Two shares: on the routed turns themselves, and of all spend. Main-session turns carry the whole
+  // session's context, so they can dwarf the routed ones and hide a real saving in the second.
   const saved = t.baseline - t.actual, all = t.baseline + t.main
-  const pct = all > 0 ? Math.round((saved / all) * 100) : 0
-  return 'saved ~' + usd(saved) + ' (' + pct + '%) vs all ' + model + ', at API prices' + unpricedNote(t.unpriced)
+  const turns = t.priced + ' routed turn' + (t.priced === 1 ? '' : 's')
+  return 'saved ~' + usd(saved) + ' on ' + turns + ' (' + percent(saved, t.baseline) + ' of their Claude price) · ' + percent(saved, all) + ' of all spend (' + usd(all) + ') vs all ' + model + ', at API prices' + unpricedNote(t.unpriced)
 }
 
 // The route line's note for one routed turn; nothing when it could not be priced.

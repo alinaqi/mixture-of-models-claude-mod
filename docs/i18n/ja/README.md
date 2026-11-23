@@ -227,9 +227,9 @@ Claude とゲートウェイの両方が、常に見える状態です:
 | 質問ダイアログ | Claude 自身の質問 | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` と、Allow and continue / Deny |
 | トランスクリプト内の返信 | 変化なし(`ui.tags: "all"` では `⇢ claude-opus-5 · main session` のタグ付き) | 返信の上に薄い `⇢ glm-5.3 · child on gateway` の行が付き、スクロールバックに残ります(Claude のメンバーなら `· child on your Claude subscription`、Codex なら `· Codex child`) |
 | 回答の下の行 | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
-| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | 同じ |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices` | 同じ |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`、続いてトースト `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 同じ |
-| `/route stats` | 「Mixture of models」というペインで、ホットキー 1-4 の 4 つのタブがあります: **models**(モデルごとのバー、ターンの割合、見出しの "N of M turns off Claude"(M ターン中 N ターンが Claude 以外)、そして緑色でルーティングによる節約額)、**kinds**(各種別と、それをどのモデルが受け持ったか)、**scores**(ティアで色分けされた 1-10 のヒストグラムと区切りの表示)、**recent**(スコア、種別、モデル、子プロセスの時間を含む直近の判定)。Esc で閉じます。 | 同じ |
+| `/route stats` | 「Mixture of models」というペインで、ホットキー m・k・s・r の(先にペインをクリックします。空のプロンプトで数字だけを押すとバンドのボタンが押されます) 4 つのタブがあります: **models**(モデルごとのバー、ターンの割合、見出しの "N of M turns off Claude"(M ターン中 N ターンが Claude 以外)、そして緑色でルーティングによる節約額)、**kinds**(各種別と、それをどのモデルが受け持ったか)、**scores**(ティアで色分けされた 1-10 のヒストグラムと区切りの表示)、**recent**(スコア、種別、モデル、子プロセスの時間を含む直近の判定)。Esc で閉じます。 | 同じ |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`、続いてモデルごとに 1 行(割合とバー)、サブエージェントが使ったモデル、節約額 | 同じ |
 
 ### どれだけ節約できるか
@@ -237,7 +237,7 @@ Claude とゲートウェイの両方が、常に見える状態です:
 ルーティングされたターンはすべて 2 通りに値付けされます: セッションの Claude モデルでの価格(同じトークンがそこでいくらかかったか)と、実際にかかった価格です。Palgu では、実際のコストは Palgu 自身の `/v1/pricing/quote`、つまり Palgu が請求に使う計算式から得られます。他のゲートウェイでは `router.prices` から、`claude/<member>` の子プロセスはそのメンバーの Claude の料金で値付けします。メインセッションに残ったターンも Claude のみの合計に数えるため、パーセンテージはルーティングされたターンだけでなく、Claude の請求全体のうちルーティングで削減できた割合です。
 
 - ルーティングされた各回答の下: `· saved ~$0.39`
-- `/route status`: `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`。セッションをまたいだ累計です。
+- `/route status`: `saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices`。セッションをまたいだ累計です。
 - `/route stats`: 同じ累計が models タブに緑色で表示されます。
 
 私たち自身の利用では、24 時間稼働するコーディングエージェントが、Claude だけでは Claude Max 20x サブスクリプションの週間上限を約 3 日で使い切っていました。Mixture of Models を使うと、同じサブスクリプションが 7 日間丸ごと持ちました。[GUIDELINES.md](GUIDELINES.md#おおよその節約効果-サブスクリプションのみ-vs-mixture-of-models) を参照してください。
