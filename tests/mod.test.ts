@@ -1644,3 +1644,74 @@ test('Palgu memory: a prompt sent before the project name is read still waits fo
   await $.prompt.submit({ text: 'refactor the config loader to cache reads' })
   expect(contexts[contexts.length - 1].join('\n')).toContain('Palgu memory for work')
 })
+
+// Claude Code's own spawn, beneath the mod: the model a hook set, else the parent's.
+function stubSpawn(on, spawns: any[]) {
+  on('agent.spawn', ($, e) => { spawns.push(e); return { model: e.model || e.parentModel, agentId: 'a' + spawns.length } })
+}
+const SPAWN = { tool_use_id: 'tu1', prompt: 'find every TODO comment in src and list the files', description: 'find TODOs', subagentType: 'general-purpose', provider: { plugin: 'engine', tier: 'core' }, parentModel: 'claude-opus-5', background: false, fork: false }
+
+test('a simple general-purpose subagent runs on Haiku, says so, and is counted', GW, async ($, on) => {
+  const logs: string[] = [], spawns: any[] = []
+  const store = stubSession(on, { logs, scores: ['2 code'] })
+  stubSpawn(on, spawns)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const r = await $.agent.spawn(SPAWN)
+  expect(spawns[0].model).toBe('haiku')
+  expect(r.model).toBe('haiku')
+  expect(logs.join('\n')).toContain('subagent general-purpose on haiku · simple 2/10')
+  const day = new Date().toISOString().slice(0, 10)
+  expect((store.get('subagent-stats') as any)[day]).toEqual({ haiku: 1 })
+})
+
+test('a coding subagent runs on Sonnet; a critical one keeps the parent\'s model', GW, async ($, on) => {
+  const spawns: any[] = []
+  stubSession(on, { scores: ['5 code', '9 code'] })
+  stubSpawn(on, spawns)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.agent.spawn(SPAWN)
+  await $.agent.spawn(SPAWN)
+  expect(spawns[0].model).toBe('sonnet')
+  expect(spawns[1].model).toBe(undefined)
+})
+
+test('a subagent with a model already chosen, a plugin\'s agent, Plan, or /route off is left to Claude Code', GW, async ($, on) => {
+  const spawns: any[] = []
+  const store = stubSession(on, { scores: ['2 code'] })
+  stubSpawn(on, spawns)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.agent.spawn({ ...SPAWN, model: 'opus' })
+  await $.agent.spawn({ ...SPAWN, subagentType: 'reviewer', provider: { plugin: 'some-plugin', tier: 'user' } })
+  await $.agent.spawn({ ...SPAWN, subagentType: 'Plan' })
+  await $.command.run({ command: 'route', args: 'off' })
+  await $.agent.spawn(SPAWN)
+  expect(spawns.map((s) => s.model)).toEqual(['opus', undefined, undefined, undefined])
+  const day = new Date().toISOString().slice(0, 10)
+  expect((store.get('subagent-stats') as any)[day]).toEqual({ opus: 1, 'claude-opus-5': 3 })
+})
+
+test('Explore runs on Haiku without being scored', GW, async ($, on) => {
+  const spawns: any[] = []
+  const calls: string[] = []
+  stubSession(on, { fetch: (url) => { calls.push(url); return { ok: false, status: 404, headers: {}, text: '' } } })
+  stubSpawn(on, spawns)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const before = calls.length
+  await $.agent.spawn({ ...SPAWN, subagentType: 'Explore' })
+  expect(spawns[0].model).toBe('haiku')
+  expect(calls.length).toBe(before)
+})
+
+test('/route usage lists the models used this week, most used first, and the subagent models', GW, async ($, on) => {
+  const store = stubSession(on)
+  const day = new Date().toISOString().slice(0, 10)
+  store.set('stats', { [day]: { 'glm-5.3': 3, 'claude-opus-5': 1 } })
+  store.set('subagent-stats', { [day]: { haiku: 2 } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'route', args: 'usage' })
+  expect(out.text.split('\n')[0]).toBe('Models used, last 7 days: 4 turns, 3 off Claude (75%)')
+  expect(out.text).toContain('glm-5.3')
+  expect(out.text).toContain('Subagents: 2 · haiku 2')
+  expect((await $.command.run({ command: 'route', args: 'usage all' })).text).toContain('Models used, all time')
+  expect((await $.command.run({ command: 'route', args: 'usage yesterday' })).text).toBe('Usage: /route usage [today|week|month|all]')
+})

@@ -55,6 +55,11 @@ test('parseRouteArg: a word that names no model, label or command means auto, an
   expect(parseRouteArg('my', DEFAULT_ROUTES, ['my-model'])).toEqual({ mode: 'model', model: 'my-model' })
 })
 
+test('parseRouteArg reads usage and its period', async () => {
+  expect(parseRouteArg('usage', DEFAULT_ROUTES)).toEqual({ mode: 'usage', period: '' })
+  expect(parseRouteArg('Usage Month', DEFAULT_ROUTES)).toEqual({ mode: 'usage', period: 'month' })
+})
+
 test('parseRouteArg expands a provider prefix to the configured model', async () => {
   expect(parseRouteArg('glm', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'glm-5.3' })
   expect(parseRouteArg('kimi', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro' })

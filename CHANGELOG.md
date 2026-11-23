@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-11-23
+
+### Added
+- Subagents run on a cheaper Claude model when their task allows. Before a built-in `general-purpose` subagent starts, the mod scores its task like a prompt (the first 2,000 characters, same classifier): simple runs on Haiku, coding on Sonnet, critical keeps the main session's model. Explore runs on Haiku. Only ever a cheaper model than the parent's, never a gateway model (a subagent runs on the main session's own connection). Left alone: a subagent whose model was already chosen, a plugin's or your own agent (its definition may set a model), forks, teammates and workflow agents. The transcript says `subagent general-purpose on haiku · simple 2/10`; `/route off` turns it off; `router.subagents` (per agent type: `auto`, a tier or `off`) and `router.subagentModels` configure it. `router.subagents`, read by nothing until now, takes this meaning.
+- `/route usage [today|week|month|all]`: the models that answered your turns over the period (default the last 7 days), most used first with shares and bars, the share off Claude, the models your subagents ran on, and the savings.
+
 ## [0.35.0] - 2026-11-23
 
 ### Added

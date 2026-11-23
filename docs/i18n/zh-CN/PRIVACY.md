@@ -11,7 +11,7 @@ mixture-of-models 是一个完全在你本机运行的 Claude Code 插件。作�
 - **发往 Palgu（`https://api.palgu.ai`）**，仅在你运行 `/palgu` 时：执行 `/palgu login` 时，发送客户端名称 `mixture-of-models`、设备名称（`Claude Code on <your HOSTNAME>`）、插件版本和一个随机安装 id，随后发送 Palgu 下发的登录代码；执行 `/palgu status` 时，发送你的网关密钥，以向 Palgu 查询该密钥属于谁，且仅当你配置的网关是 Palgu 时才发送。Palgu 返回的密钥由 Claude Code 通过 `claude plugin configure --values-stdin` 保存在其安全存储中，绝不会出现在命令行上。
 - **发往 Palgu（`https://api.palgu.ai/v1/pricing/quote`）**，在一个被路由的轮次之后，且仅当你配置的网关是 Palgu 时：模型 id 和该轮次的四项 token 计数，连同你的网关密钥，以便 Palgu 为节省估算给该轮次定价。不含任何提示词或回答文本。
 - **发往 GitHub（`raw.githubusercontent.com`）**，在会话启动时（最多每 12 小时一次）以及你运行 `/route update` 时：对插件已发布清单的一次普通 GET 请求，用于读取最新版本。不会发送任何关于你或你的工作的信息。
-- **发往本地 Ollama（`http://localhost:11434`）**，如果有在运行：你提交的每条提示词的文本，连同评分规则，以便为提示词打出 1-10 分。此过程没有任何数据离开你的机器。
+- **发往本地 Ollama（`http://localhost:11434`）**，如果有在运行：你提交的每条提示词的文本，连同评分规则，以便为提示词打出 1-10 分。此过程没有任何数据离开你的机器。 当 mod 为内置子代理选择模型时，其任务的前 2,000 个字符也同样发送（发往 Ollama，若其无响应，则如下文所述发往 Anthropic）。
 - **发往 Anthropic，通过 Claude Code 自己的 API 客户端和你自己的账号**，当没有 Ollama 响应时：同样的提示词文本和评分规则，用于同样的评分。这与 Claude Code 为你的会话所使用的通道相同。
 - **发往你配置的网关**（`gateway_url`：例如 Palgu 的 `https://api.palgu.ai/anthropic`、OpenRouter 的 `https://openrouter.ai/api`，或你自己运行的 LiteLLM 代理），通过一个使用你提供的 `gateway_key` 认证的 Claude Code 子进程（对 Palgu 和通用网关作为 `x-api-key`，对 OpenRouter 和 LiteLLM 作为 `Authorization: Bearer` token）：仅针对被路由的轮次，发送你的提示词以及会话最近几轮交流的简短摘要（仅文本，已截断），以及该子进程自身的 agent 循环在工作时发送的内容。网关如何处理这些数据由网关运营方的政策决定，而非本插件。子进程的每个请求还带有两个向网关标识自身的请求头：`x-srooter-client: mixture-of-models/<version>`（插件名称和版本）和 `x-srooter-project: <folder name>`（会话工作目录的最后一段，转为小写并只保留 `a-z 0-9 . _ -`）。它们不包含路径、提示词文本或其他任何内容，只发送给已配置的网关，且仅当该网关是 Palgu 或通用的 Anthropic 兼容网关时才发送：OpenRouter 和 LiteLLM 不会收到。如果未配置网关，则不发送任何内容，插件处于仅观察模式。 带有路由模型的子进程还会发送 `x-srooter-pin: <model>`（要使用的模型）和 `x-palgu-fallback: auto`（允许网关在该模型过载时改用同类模型）；它们同样不含任何内容。
 
@@ -22,7 +22,7 @@ mixture-of-models 是一个完全在你本机运行的 Claude Code 插件。作�
 
 ## 插件存储什么
 
-在你本机 Claude Code 的插件存储中：一个用于 Palgu 登录的随机安装 id、你的 `/route` 设置、累计节省总额（按 token 计价的美元金额和轮次数）、每天由哪个模型回答的计数、最近一次判定、按类型统计的失败次数，以及最近 200 次路由决策的日志（日期、模型、类型、层级、分数、由哪个分类器作答、子进程耗时和退出码）。插件不存储任何提示词文本、回答或凭据。你的网关密钥由 Claude Code 作为敏感插件选项保存在其安全存储中。
+在你本机 Claude Code 的插件存储中：一个用于 Palgu 登录的随机安装 id、你的 `/route` 设置、累计节省总额（按 token 计价的美元金额和轮次数）、每天由哪个模型回答的计数、最近一次判定、按类型统计的失败次数，以及最近 200 次路由决策的日志（日期、模型、类型、层级、分数、由哪个分类器作答、子进程耗时和退出码）。插件不存储任何提示词文本、回答或凭据。你的网关密钥由 Claude Code 作为敏感插件选项保存在其安全存储中。 它还按天统计你的子代理所用的模型。
 
 ## 插件读取什么
 

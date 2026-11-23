@@ -6,7 +6,7 @@ A Claude Code **mod**: a plugin whose `hooks/register.js` registers in-process e
 
 ## Layout
 
-- `hooks/register.js` — the only file that touches the mods API (`$`). Eleven hook registrations.
+- `hooks/register.js` — the only file that touches the mods API (`$`). Twelve hook registrations.
 - `hooks/lib/*.js` — pure functions, no `$`, each with a test in `tests/`.
 - `tests/*.test.ts` — kit-style tests. Pure ones run under Node via `npm test`; `tests/mod.test.ts` and `tests/compliance.test.ts` need `claude plugin test`.
 - `docs/adr/` — architecture decisions. Read before changing how routing or delegation works.
