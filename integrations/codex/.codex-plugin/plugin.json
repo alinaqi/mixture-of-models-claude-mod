@@ -1,6 +1,6 @@
 {
   "name": "mixture-of-models",
-  "version": "0.34.2",
+  "version": "0.35.0",
   "description": "Mixture of Models for Codex: Palgu memory recalled into every prompt, and the heartbeat that continues a turn that stopped mid-task. Pair with `codex -p palgu` so Palgu routes each request to the right model.",
   "author": { "name": "Ali Naqi Shaheen", "url": "https://github.com/alinaqi" },
   "homepage": "https://github.com/alinaqi/mixture-of-models-claude-mod",

@@ -26,7 +26,7 @@ mixture-of-models は、完全にあなたのマシン上で動く Claude Code �
 
 ## プラグインが読み取るもの
 
-`~/.claude/model-config.json`(ルーティングの設定。認証情報は含まない)と、環境変数 `HOME`、`HOSTNAME`(Palgu のデバイス名のため)、`MAGGY_ROUTER_CHILD`、`ANTHROPIC_CUSTOM_HEADERS`(あなた自身が設定したカスタムヘッダーを、子プロセスからゲートウェイへのリクエストで保持するためだけに)。
+`~/.claude/model-config.json`(ルーティングの設定。認証情報は含まない)と、環境変数 `HOME`、`HOSTNAME`(Palgu のデバイス名のため)、`MAGGY_ROUTER_CHILD`、`ANTHROPIC_CUSTOM_HEADERS`(あなた自身が設定したカスタムヘッダーを、子プロセスからゲートウェイへのリクエストで保持するためだけに)。 `/palgu continue` では、`palgu --continue-claude=<id>` コマンドをコピーするために(`--open` では `osascript` で macOS ターミナルのタブで起動するために)セッションの id とフォルダを読みます。それ自体は何も送信しません。その後 Palgu が自身のポリシーのもとでそのセッションのトランスクリプトを読みます。
 
 ## 子ども
 

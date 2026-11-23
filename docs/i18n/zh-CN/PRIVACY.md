@@ -26,7 +26,7 @@ mixture-of-models 是一个完全在你本机运行的 Claude Code 插件。作�
 
 ## 插件读取什么
 
-`~/.claude/model-config.json`（路由设置，不含凭据），以及环境变量 `HOME`、`HOSTNAME`（用于 Palgu 设备名称）、`MAGGY_ROUTER_CHILD` 和 `ANTHROPIC_CUSTOM_HEADERS`（仅用于在子进程发往网关的请求中保留你自己设置的自定义请求头）。
+`~/.claude/model-config.json`（路由设置，不含凭据），以及环境变量 `HOME`、`HOSTNAME`（用于 Palgu 设备名称）、`MAGGY_ROUTER_CHILD` 和 `ANTHROPIC_CUSTOM_HEADERS`（仅用于在子进程发往网关的请求中保留你自己设置的自定义请求头）。 执行 `/palgu continue` 时，它读取会话的 id 和文件夹，用于复制一条 `palgu --continue-claude=<id>` 命令（使用 `--open` 时，通过 `osascript` 在 macOS 终端标签页中启动它）；它本身不发送任何内容。之后 Palgu 按其自身政策读取该会话的对话记录。
 
 ## 儿童
 

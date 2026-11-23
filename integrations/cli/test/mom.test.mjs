@@ -143,3 +143,24 @@ test('mom hook copilot agentStop reads the answer from ~/.copilot/session-state 
   const stop = JSON.stringify({ sessionId: 'cs1', cwd: '/w', transcriptPath: transcript, stopReason: 'end_turn', stop_hook_active: false })
   assert.deepEqual(JSON.parse(mom(['hook', 'copilot', 'agentStop'], { home, input: stop }).stdout), { decision: 'block', reason: REASONS.premature })
 })
+
+test('a Codex hook remembers its session, so mom palgu codex hands that exact one to Palgu', () => {
+  const r = mom(['hook', 'codex'], { input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'thread-9', cwd: '/w', prompt: 'do not keep me' }) })
+  assert.equal(r.status, 0)
+  const state = JSON.parse(readFileSync(join(r.home, 'state.json'), 'utf8'))
+  assert.deepEqual(state.handoffs, { codex: { session: 'thread-9', cwd: '/w' } })
+  // The handoff entry is the id and folder only (the heartbeat's own state is separate).
+  // No terminal here (a pipe) and no pbcopy on this PATH: the command is printed to run.
+  const p = mom(['palgu', 'codex'], { home: r.home })
+  assert.equal(p.status, 0)
+  assert.match(p.stdout, /cd \/w && palgu --continue-codex=thread-9/)
+})
+
+test('mom palgu without a remembered session or with an unknown agent fails and says how', () => {
+  const r = mom(['palgu', 'codex'])
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /did not provide this session's id/)
+  const u = mom(['palgu', 'cursor'])
+  assert.equal(u.status, 2)
+  assert.match(u.stderr, /Usage: mom palgu codex/)
+})

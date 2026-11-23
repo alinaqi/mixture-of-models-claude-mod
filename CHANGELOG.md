@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-11-23
+
+### Added
+- `/palgu continue [--open]` hands this exact Claude Code session to Palgu with its full context. It copies `cd <folder> && palgu --continue-claude=<session id>` to your clipboard; Palgu reads the transcript itself (goal, files touched, commands, open tasks) and redacts credentials. `--open` starts it in a new macOS Terminal tab. The mod sends nothing itself, and a session id it cannot vouch for is refused, never replaced by the newest session in the folder.
+- `mom palgu codex [--open]` does the same for Codex (`palgu --continue-codex=<id>`), from the session its mom hook last saw (only the id and folder are kept). In a terminal it starts Palgu right there; elsewhere it copies the command. `--session <id>` names another.
+
+### Changed
+- A child that gives up instead of answering is caught: an apology that gives up ("I'm sorry, but I don't have permission…", "…I encountered an error"), work handed back to you ("could you please review…", "once that's done, we can continue") and a report about "the user" to someone else are discarded as `gave up` or `talks about the user`.
+- A discarded child answer now tries the next equivalent model before the main model takes the turn, as an overload does: `child: glm-5.3 failed (gave up) → served by deepseek-pro`. A `HANDBACK` and a request that you act (a refused command any model would meet) still go straight to the main model.
+
 ## [0.34.2] - 2026-11-23
 
 ### Fixed

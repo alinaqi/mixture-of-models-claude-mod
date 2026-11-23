@@ -3,6 +3,7 @@
 import { runHook } from './hook.js'
 import { runMcp } from './mcp.js'
 import { heartbeat, login, logout, memory, setup, status, token } from './commands.js'
+import { palgu } from './lib/handoff.js'
 
 const HELP = `mom — Mixture of Models for Codex, Cursor, OpenCode and other coding agents
 
@@ -14,6 +15,7 @@ const HELP = `mom — Mixture of Models for Codex, Cursor, OpenCode and other co
   mom setup codex [--write] Codex profile for Palgu (codex -p palgu)
   mom setup cursor [--write]  this project's .cursor/hooks.json and .cursor/mcp.json
   mom setup opencode [--write]    Palgu provider and the plugin in opencode.json (backed up first)
+  mom palgu codex [--open]  continue your last Codex session here in Palgu, with its full context
   mom token                 print the Palgu key, for a tool's token command
   mom hook <tool> [event]   run as a tool's hook (stdin: the tool's hook JSON)
   mom mcp [tool]            MCP server on stdio: Palgu memory search, delegation, model list
@@ -26,7 +28,8 @@ const COMMANDS = {
   status: () => status(process.cwd()),
   memory: (a) => memory(a[0] || 'status', process.cwd()),
   heartbeat: (a) => heartbeat(a[0]),
-  setup: (a) => setup(a[0], a.includes('--write'))
+  setup: (a) => setup(a[0], a.includes('--write')),
+  palgu: (a) => palgu(a)
 }
 
 async function main(argv) {

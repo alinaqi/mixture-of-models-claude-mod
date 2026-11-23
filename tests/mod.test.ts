@@ -153,6 +153,56 @@ test('an overloaded child moves to the next equivalent model before the main mod
   expect(done.text).toContain('child: glm-5.3 failed (429) → served by deepseek-pro')
 })
 
+test('a child that gives up instead of answering is discarded and the next equivalent model takes the turn', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  const gaveUp = "I'm sorry, but I encountered an error. Could you please review the status of your Git repository? Once that's done, we can continue."
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson(runs.length === 1 ? gaveUp : 'second answer'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  const result = await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'second answer', durationMs: 10, isAborted: false, usage: null })
+
+  expect(seen).toEqual([])
+  expect(result.answer).toBe('second answer')
+  expect(runs.map((r) => r.argv[r.argv.indexOf('--model') + 1])).toEqual(['glm-5.3', 'deepseek-pro'])
+  expect(done.text).toContain('route: deepseek-pro')
+  expect(done.text).toContain('child: glm-5.3 failed (gave up) → served by deepseek-pro')
+})
+
+test('when every equivalent gives up, the main model takes the turn and the route line lists them', GW, async ($, on) => {
+  const logs: string[] = []
+  stubSession(on, { logs })
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson("I'm sorry, but I can't do that right now. (" + runs.length + ')'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+
+  expect(seen).toEqual(['claude-opus-5'])
+  expect(runs.length).toBe(4)
+  expect(logs.join('\n')).toContain('all equivalents failed: glm-5.3 (gave up), deepseek-pro (gave up), gemini-3.8-flash (gave up), minimax-m3 (gave up); main model takes this turn')
+  expect(done.text).toContain('all equivalents failed: glm-5.3 (gave up)')
+})
+
+test('a HANDBACK is not walked: the child asked for the main session, so the main model takes it at once', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('HANDBACK\nneeds the PR state from the main session'), stderr: '' } } })
+  const seen: string[] = []
+  recordSteps(on, seen)
+
+  await routedTurn($, 'grep the repo for TODO comments and list the files')
+  const done = await $.turn.complete({ turnId: 't1', answer: 'main answer', durationMs: 10, isAborted: false, usage: null })
+
+  expect(seen).toEqual(['claude-opus-5'])
+  expect(runs.length).toBe(1)
+  expect(done.text).toContain('child answer discarded (handback), main model answered')
+})
+
 test('the main model takes the turn only after every equivalent failed, and the log lists them', GW, async ($, on) => {
   const logs: string[] = []
   stubSession(on, { logs })
@@ -912,6 +962,60 @@ test('/palgu status asks Palgu who the key belongs to; /palgu upgrade gives the 
   expect(calls.find((c) => c.url === 'https://api.palgu.ai/me/org-settings').init.headers.authorization).toBe('Bearer test-key')
   const upgrade = await $.command.run({ command: 'palgu', args: 'upgrade' })
   expect(upgrade.text).toContain('https://www.palgu.ai/billing')
+})
+
+const SID = '123e4567-e89b-42d3-a456-426614174000'
+
+test('/palgu continue copies the command that hands this exact session to Palgu, and runs nothing', GW, async ($, on) => {
+  stubSession(on)
+  const copied: string[] = [], runs: any[] = []
+  on('session.id', () => ({ value: SID }))
+  on('ui.copy', ($, e) => { copied.push(e.text); return { value: { isCopied: true } } })
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'palgu', args: 'continue' })
+  expect(copied).toEqual(['cd /work && palgu --continue-claude=' + SID])
+  expect(out.text).toContain('Command copied to your clipboard')
+  expect(out.text).toContain('cd /work && palgu --continue-claude=' + SID)
+  expect(runs).toEqual([])
+})
+
+test('/palgu continue --open starts it in a new macOS Terminal tab through a fixed osascript', GW, async ($, on) => {
+  stubSession(on)
+  const runs: any[] = []
+  on('session.id', () => ({ value: SID }))
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: '', stderr: '' } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'palgu', args: 'continue --open' })
+  expect(runs.length).toBe(1)
+  expect(runs[0].argv.slice(0, 2)).toEqual(['osascript', '-e'])
+  expect(runs[0].argv[2]).toContain('do script "cd /work && palgu --continue-claude=' + SID + '"')
+  expect(out.text).toContain('Opening a new Terminal tab')
+})
+
+test('/palgu continue --open where no Terminal opens still gives the command to run', GW, async ($, on) => {
+  stubSession(on)
+  on('session.id', () => ({ value: SID }))
+  on('ui.copy', () => ({ value: { isCopied: false, reason: 'no clipboard' } }))
+  on('process.run', () => ({ deny: 'osascript not found' }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'palgu', args: 'continue --open' })
+  expect(out.text).toContain('Could not open a Terminal tab (macOS only)')
+  expect(out.text).toContain('cd /work && palgu --continue-claude=' + SID)
+  expect(out.text).not.toContain('copied to your clipboard')
+})
+
+test('/palgu continue refuses a session id it cannot vouch for, and never hands off the newest session instead', GW, async ($, on) => {
+  stubSession(on)
+  const copied: string[] = []
+  on('session.id', () => ({ value: '../other; rm -rf ~' }))
+  on('ui.copy', ($, e) => { copied.push(e.text); return { value: { isCopied: true } } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const out = await $.command.run({ command: 'palgu', args: 'continue' })
+  expect(out.text).toBe('Invalid Claude Code session id; cannot select the exact session.')
+  expect(copied).toEqual([])
+  expect((await $.command.run({ command: 'palgu', args: 'continue now' })).text).toBe('Usage: /palgu continue [--open]')
 })
 
 test('/palgu status never sends another gateway\'s key to Palgu', { options: { gateway_url: 'https://api.z.ai/api/anthropic', gateway_key: 'test-key-zai' } }, async ($, on) => {

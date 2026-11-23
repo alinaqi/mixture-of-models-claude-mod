@@ -38,6 +38,7 @@ codex -p palgu
 | **路由** | `model = "auto"`：Palgu 对每个请求分类，并由它的层级（trivial、small、medium、think）提供服务。`MOM_PIN=<model> codex -p palgu -m <model>`（同一个模型写两次）会为整个会话固定一个模型：只有存在 `x-srooter-pin` 时，Palgu 才会固定请求中指定的模型，并且会拒绝带固定的 `auto`（403）。 | `-p palgu` profile，`[model_providers.palgu]` 配合 `auth = { command = "mom", args = ["token"] }` |
 | **Palgu 记忆** | 在项目文件夹中运行 `mom memory on` 会为其建立索引（把源代码上传到 Palgu），并为每条四个词及以上的提示词召回最多 8 条线索。默认关闭；同意按文件夹记录，并与 `mom` 服务的其他工具共享。 | `UserPromptSubmit` → `additionalContext` |
 | **心跳** | 在任务中途结束的轮次（"Let me check the tests."）会被继续，每条提示词最多 3 次。由 Palgu 判断（`POST /anthropic/heartbeat`）；未登录时，同样的分类器在本地运行。`mom heartbeat off` 可关闭它。 | `Stop` → `decision: "block"` |
+| **在 Palgu 中继续** | `mom palgu codex` 在 Palgu 中继续你最近的 Codex 会话，带上完整上下文（`palgu --continue-codex=<id>`）：在终端中直接启动 Palgu，否则复制该命令；`--open` 会在新的 macOS 终端标签页中启动。Palgu 读取对话记录并隐去凭据；`mom` 只保存会话 id 和文件夹。 | 任意 hook（会话 id） |
 | **索引** | 在开启记忆的文件夹中，会话开始时在后台运行 `palgu memory index .`，最多每 10 分钟一次。 | `SessionStart` |
 
 每个 hook 都是 fail-open 的：如果 `mom` 出错或 Palgu 响应慢，Codex 会像没有 hook 一样继续工作。记忆搜索最多等待 3 秒，心跳最多等待 8 秒。

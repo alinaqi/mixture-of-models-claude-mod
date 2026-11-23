@@ -36,6 +36,7 @@ Claude のサブスクリプションは、それが必要なターンのため�
 | `/palgu login` | サインアップまたはサインインし、このコンピューターを接続する |
 | `/palgu status` | 誰がサインインしているか、組織とそのプラン、今期の Palgu 予算のうちどれだけ使ったか |
 | `/palgu upgrade` | プランと請求(有料プランは Web で購入します。キーは新しいプランを自動的に反映します) |
+| `/palgu continue [--open]` | このセッションを完全なコンテキストのまま Palgu で続けます: `cd <folder> && palgu --continue-claude=<session id>` をコピーします。`--open` は新しい macOS ターミナルのタブで起動します。Palgu はトランスクリプトを自分で読み、認証情報を伏せます |
 
 仕組み: Palgu のデバイスサインイン(`srooterctl` が使うのと同じもの)が、このコンピューター専用の API キーを発行します。キーは Palgu の **Devices** ページで確認・失効できます。mod はそれを `claude plugin configure --values-stdin` で Claude Code のセキュアストレージに保存するため、コマンドラインや設定ファイルに現れることはありません。すでにキーをお持ちの場合や、別のゲートウェイを使う場合は [セットアップ](#セットアップ) を参照してください。
 
@@ -102,7 +103,7 @@ mod はプロンプトごとに次のことを行います:
 
 **どの Palgu モデルが動くか。** 2026-10-29 に、mod がターンを実行するのと同じ方法(ピン留めした `claude -p --bare` の子プロセスで、ツール呼び出しを伴う短い調査タスクを実行)でテストしました: `glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed`、`mercury-3` は 19 〜 46 秒で成功しました。`minimax-m2.5` は拒否されたコマンドを再試行し続け、ターン数を使い切りました。Kimi の以前の失敗は Moonshot の過負荷(`429 engine_overloaded`)によるものでした: Claude Code が各リクエストを 10 回再試行していたため、ターンが失敗するまでに約 2 〜 3 分かかっていました。現在、子プロセスの再試行は最大 2 回(`router.child.maxRetries`、デフォルト 2)なので、混雑しているプロバイダーからは数秒でフォールバックします。research と review はデフォルトで DeepSeek に残り、Kimi はピンで使います。子プロセスは Palgu に常に `x-srooter-pin: <model>` を送ります: これがないと Palgu は意図(intent)に基づいてルーティングし、別のモデルで回答することがあります(ピンなしでは、すべてのモデルが Gemini として提供されました)。
 
-**子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 Palgu 自身のフォールバックチェーンが別のモデルで応答した場合、その行は `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)` となり、ターンはそのモデルとして集計・価格計算されます。
+**子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 Palgu 自身のフォールバックチェーンが別のモデルで応答した場合、その行は `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)` となり、ターンはそのモデルとして集計・価格計算されます。 mod が破棄した子の回答(諦めた、意図を述べただけ、あなたに操作を求めた など: 下記「子がしてはいけないこと」)も同じように順に試されます。`HANDBACK` とあなたに操作を求める回答は除きます。
 
 ### ルーティング戦略: 複雑さ、コスト、速度、品質、または独自のルールでルーティングする
 
@@ -200,12 +201,16 @@ stdin には同じブリーフが渡され、`child.timeoutMs`、検査、失敗
 | 回答 | 例 |
 | :- | :- |
 | `HANDBACK` で始まる | `HANDBACK` / `needs the PR list` |
+| 謝って諦める、または作業をあなたに戻す | "I'm sorry, but I don't have permission…"、"could you please review the repository? Once that's done, we can continue" |
+| 答える代わりに、あなたのことを他の誰かに話している | "The user can type \"continue\" or give the next instruction" |
 | ブロックされていると言う、またはあなたに行動を求める | "blocked by the permission system"(パーミッションシステムにブロックされた)、"you must approve it in the UI"(UI で承認する必要がある)、"run `gh pr create` yourself"(`gh pr create` を自分で実行して) |
 | ツール呼び出しなし(`num_turns` 1)で、行動やセッションの事実を主張する | "I added X"(X を追加した)、"PR #812 is open"(PR #812 はオープン)、"14 commits behind"(14 コミット遅れている)、"no build runs exist"(ビルドの実行は存在しない) |
 | ほとんどが意図の説明である | "I'll read the config. Then I will update the router."(設定を読みます。次にルーターを更新します。) |
 | すでに出した回答を繰り返す | アイドル通知のたびに再投稿される同じ判定 |
 
 破棄された回答はその種別の子プロセスの失敗として数えられ、ルート行に `child answer discarded (<reason>), main model answered` と表示されます。メインモデルに子プロセスのテキストを中継させることはありません: mod は検査済みの子プロセスの回答でターンに答えるか、ターンをメインモデルに任せるかのどちらかです。
+
+破棄された回答は、過負荷のときと同じく(上記)まず次の同等モデルで試され、ルート行には `child: glm-5.3 failed (gave up) → served by deepseek-pro` と表示されます。例外は 2 つです: `HANDBACK`(子がメインセッションを求めた)と、あなたに操作を求める回答(どのモデルも同じ制限に当たる)です。これらはメインモデルがすぐに引き受けます。
 
 すべてのルート行とバンドにはスコアと種別が表示されるので、判定がおかしく見えるときは、その背後の数値を確認できます。
 
@@ -592,6 +597,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 | `/palgu login` | ターミナルから Palgu にサインアップまたはサインイン: ブラウザーでコードを承認すると、mod が Palgu のキーを保存し、すぐにルーティングを開始します |
 | `/palgu status` | キーの持ち主と組織のプラン |
 | `/palgu upgrade` | Palgu のプランと請求のページ |
+| `/palgu continue [--open]` | このセッションを完全なコンテキストのまま Palgu で続けます: `cd <folder> && palgu --continue-claude=<session id>` をコピーします。`--open` は新しい macOS ターミナルのタブで起動します。Palgu はトランスクリプトを自分で読み、認証情報を伏せます |
 | `/palgu memory on`、`off`、`memory` | `palgu` CLI でこのプロジェクトをバックグラウンドで Palgu メモリにインデックスし(ソースをアップロードします。デフォルトはオフ)、Claude とルーティングされるすべてのモデルについて、すべてのプロンプトに想起させます。停止します。またはインデックス済みかどうかと鮮度を示します |
 | `/route update` | GitHub で新しいバージョンを確認し、あれば `claude plugin marketplace update` と `claude plugin update` を代わりに実行します。その後 `/reload-plugins` で読み込まれます |
 | `/route models` | Palgu が現在提供しているモデルと、ダウンしているモデル。どれも `/route <model>` でピン留めできます。バンドは mod が知っているファミリーごとに 1 つのボタンを保持します。Palgu がない場合(または応答しない場合)は組み込みの一覧が使われます |

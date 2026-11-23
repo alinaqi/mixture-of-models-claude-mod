@@ -28,7 +28,7 @@
 
 ## ما تقرؤه الإضافة
 
-`~/.claude/model-config.json` (إعدادات التوجيه، بلا بيانات اعتماد) ومتغيرات البيئة `HOME`، و `HOSTNAME` (لاسم جهاز Palgu)، و `MAGGY_ROUTER_CHILD` و `ANTHROPIC_CUSTOM_HEADERS` (فقط كي تبقى الترويسات المخصصة التي تضبطها بنفسك في طلبات العملية الفرعية إلى البوابة).
+`~/.claude/model-config.json` (إعدادات التوجيه، بلا بيانات اعتماد) ومتغيرات البيئة `HOME`، و `HOSTNAME` (لاسم جهاز Palgu)، و `MAGGY_ROUTER_CHILD` و `ANTHROPIC_CUSTOM_HEADERS` (فقط كي تبقى الترويسات المخصصة التي تضبطها بنفسك في طلبات العملية الفرعية إلى البوابة). وعند `/palgu continue` يقرأ معرّف الجلسة ومجلدها، لينسخ أمر `palgu --continue-claude=<id>` (ومع `--open`، ليشغّله في علامة تبويب Terminal على macOS عبر `osascript`)؛ ولا يرسل شيئًا بنفسه. ثم يقرأ Palgu سجل تلك الجلسة وفق سياسته الخاصة.
 
 ## الأطفال
 

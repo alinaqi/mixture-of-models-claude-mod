@@ -34,6 +34,7 @@ No dashboard, no copying keys. After [installing the mod](#install), in Claude C
 | `/palgu login` | Sign up or sign in, and connect this computer |
 | `/palgu status` | Who is signed in, the organisation and its plan, and what it spent of its Palgu budget this period |
 | `/palgu upgrade` | Plans and billing (paid plans are bought on the web; your key picks up the new plan by itself) |
+| `/palgu continue [--open]` | Continue this session in Palgu with its full context: copies `cd <folder> && palgu --continue-claude=<session id>`; `--open` starts it in a new macOS Terminal tab. Palgu reads the transcript itself and redacts credentials |
 
 How it works: Palgu's device sign-in (the same one `srooterctl` uses) mints an API key for this computer only. You can see and revoke it on Palgu's **Devices** page. The mod saves it in Claude Code's secure storage with `claude plugin configure --values-stdin`, so it never appears on a command line or in a settings file. Already have a key, or use another gateway? See [Setup](#setup).
 
@@ -100,7 +101,7 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **Which Palgu models work.** Tested on 2026-10-29 the way the mod runs a turn (a pinned `claude -p --bare` child doing a short research task with tool calls): `glm-5.3`, `deepseek-pro`, `gemini-3.8-flash`, `minimax-m3`, `gpt-6-sol`, `gpt-6-luna`, `gpt-6-astra`, `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed` and `mercury-3` pass in 19 to 46 s; `minimax-m2.5` kept retrying refused commands until it ran out of turns. Kimi's earlier failures were Moonshot being overloaded (`429 engine_overloaded`): Claude Code retried each request ten times, so a turn took about two to three minutes to fail. The child now retries at most twice (`router.child.maxRetries`, default 2), so a busy provider falls back in seconds. Research and review stay on DeepSeek by default; Kimi is a pin. The child always sends `x-srooter-pin: <model>` to Palgu: without it Palgu routes by intent and may answer with another model (it served every model unpinned as Gemini).
 
-**When a child fails.** The main model takes a routed turn only after every equivalent model has failed. On Palgu the child sends `x-palgu-fallback: auto`, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). If the child still fails with an overload (429, 5xx, a timeout, no answer), the mod runs the turn again on the next equivalent: models of the same class first (from Palgu's live list), then the other healthy ones, up to `router.child.fallbacks` (default 3). A prompt too long for the model moves only to a larger-window model (`router.child.longContext`); a bad request (400, 401, 403, 404, 422) is not retried on other models. The route line says what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`. When Palgu's own chain served another model, the line says `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`, and the turn counts and is priced as that model.
+**When a child fails.** The main model takes a routed turn only after every equivalent model has failed. On Palgu the child sends `x-palgu-fallback: auto`, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). If the child still fails with an overload (429, 5xx, a timeout, no answer), the mod runs the turn again on the next equivalent: models of the same class first (from Palgu's live list), then the other healthy ones, up to `router.child.fallbacks` (default 3). A prompt too long for the model moves only to a larger-window model (`router.child.longContext`); a bad request (400, 401, 403, 404, 422) is not retried on other models. The route line says what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`. When Palgu's own chain served another model, the line says `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`, and the turn counts and is priced as that model. A child answer the mod discards (it gave up, narrated, asked you to act and so on: What a child may not do, below) walks the same way, except a `HANDBACK` or a request that you act.
 
 ### Routing strategies: route by complexity, cost, speed, quality, or your own rules
 
@@ -198,12 +199,16 @@ Every brief opens with a preamble: the child has no access to the main session, 
 | Answer | Example |
 | :- | :- |
 | starts with `HANDBACK` | `HANDBACK` / `needs the PR list` |
+| apologizes and gives up, or hands the work back to you | "I'm sorry, but I don't have permission…", "could you please review the repository? Once that's done, we can continue" |
+| talks about you to someone else instead of answering | "The user can type \"continue\" or give the next instruction" |
 | says it is blocked or asks you to act | "blocked by the permission system", "you must approve it in the UI", "run `gh pr create` yourself" |
 | claims an action or session fact with no tool call (`num_turns` 1) | "I added X", "PR #812 is open", "14 commits behind", "no build runs exist" |
 | is mostly narration of intent | "I'll read the config. Then I will update the router." |
 | repeats an answer already given | the same verdict re-posted on every idle notification |
 
 A discarded answer counts as a child failure for that kind and shows as `child answer discarded (<reason>), main model answered` on the route line. The main model is never asked to relay a child's text: the mod answers the turn with a vetted child answer, or leaves the turn to the main model.
+
+A discarded answer is first tried on the next equivalent model, as an overload is (When a child fails, above), and the route line says `child: glm-5.3 failed (gave up) → served by deepseek-pro`. Two are not: `HANDBACK`, where the child asked for the main session, and a request that you act, which any model would meet alike; the main model takes those at once.
 
 Every route line and the band show the score and the kind, so when a decision looks wrong you can see the numbers behind it.
 
@@ -590,6 +595,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/palgu login` | Sign up or sign in to Palgu from the terminal: approve a code in the browser, and the mod saves its Palgu key and routes at once |
 | `/palgu status` | Who the key belongs to and the org's plan |
 | `/palgu upgrade` | The Palgu plans and billing page |
+| `/palgu continue [--open]` | Continue this session in Palgu with its full context: copies `cd <folder> && palgu --continue-claude=<session id>`; `--open` starts it in a new macOS Terminal tab. Palgu reads the transcript itself and redacts credentials |
 | `/palgu memory on`, `off`, `memory` | Index this project into Palgu memory in the background with the `palgu` CLI (uploads its source; off by default) and recall it into every prompt, for Claude and every routed model; stop; or say whether it is indexed and how fresh |
 | `/route update` | Check GitHub for a newer version and, if there is one, run `claude plugin marketplace update` and `claude plugin update` for you; then `/reload-plugins` loads it |
 | `/route models` | The models Palgu serves right now and which are down; any of them can be pinned with `/route <model>`. The band keeps one button per family the mod knows. Without Palgu (or when it does not answer) the built-in list is used |
