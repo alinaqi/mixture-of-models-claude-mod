@@ -1,5 +1,6 @@
 // Delegate output validation. A child answer is only relayed when it is a real answer:
-// not a handback, not a request that the user act, not a claim it never checked, not
+// not a handback, not a request that the user act, not giving up or handing the work back, not a
+// report about the user to someone else, not a claim it never checked, not
 // narration of intent, and not a repeat. Anything else goes back to the main model. Pure.
 
 const HANDBACK = /^\s*HANDBACK\b/
@@ -29,6 +30,16 @@ const CLAIM = anyOf([
   '\\d+ commits? (behind|ahead)',
   'no [\\w-]+ (runs?|prs?|builds?) exists?',
 ])
+// An apology that gives up ("I'm sorry, but I can't / don't have permission / encountered an
+// error"), or the work handed back to the user ("could you please review …", "once that's done").
+const SORRY = "(i'm sorry|i am sorry|i apologi[sz]e|unfortunately),? (but )?i"
+const GAVE_UP = anyOf([
+  SORRY + " (can't|cannot|couldn't|could not|don't have|do not have|am unable|was unable|am not able|wasn't able|encountered|ran into)",
+  'could you please (review|check|ensure|confirm|run|fix|commit|stash|resolve|provide)',
+  "once (that's|that is|this is|it's|it is) (done|resolved|fixed)",
+])
+// A delegate that reports to someone else ("the user can type …") instead of answering the user.
+const ABOUT_USER = anyOf(['the user (can|could|should|needs to|need to|may|might|will need to|wants to|has to)'])
 const INTENT = /^(I'll|I will|let me|I'm going to|I am going to|next,? I|then,? I|first,? I|now,? I'll)\b/i
 
 function sentences(text) {
@@ -45,6 +56,8 @@ function reasonFor(out, previous) {
   const text = out.answer
   if (HANDBACK.test(text)) return 'handback'
   if (ASKS_USER.test(text)) return 'asks the user to act'
+  if (GAVE_UP.test(text)) return 'gave up'
+  if (ABOUT_USER.test(text)) return 'talks about the user'
   if (out.turns === 1 && CLAIM.test(text)) return 'unverified claim'
   if (isNarration(text)) return 'narration'
   return previous.has(text) ? 'repeat of an earlier answer' : ''

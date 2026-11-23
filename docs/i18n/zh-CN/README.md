@@ -36,6 +36,7 @@
 | `/palgu login` | 注册或登录，并连接这台电脑 |
 | `/palgu status` | 当前登录的是谁、所属组织及其套餐，以及本周期已花费的 Palgu 预算 |
 | `/palgu upgrade` | 套餐和计费（付费套餐在网页上购买；你的密钥会自动获取新套餐） |
+| `/palgu continue [--open]` | 在 Palgu 中继续当前会话，带上完整上下文：复制 `cd <folder> && palgu --continue-claude=<session id>`；`--open` 会在新的 macOS 终端标签页中启动它。Palgu 自行读取对话记录并隐去凭据 |
 
 工作原理：Palgu 的设备登录（与 `srooterctl` 使用的相同）只为这台电脑生成一个 API 密钥。你可以在 Palgu 的 **Devices** 页面查看和撤销它。mod 通过 `claude plugin configure --values-stdin` 把它保存在 Claude Code 的安全存储中，因此它从不会出现在命令行或设置文件中。已经有密钥，或者使用其他网关？参见[设置](#设置)。
 
@@ -102,7 +103,7 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 **哪些 Palgu 模型可用。** 2026-10-29 按 mod 运行轮次的方式测试（一个固定模型的 `claude -p --bare` 子进程执行一个带工具调用的简短研究任务）：`glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed` 和 `mercury-3` 在 19 到 46 秒内通过；`minimax-m2.5` 不断重试被拒绝的命令，直到用完轮次。Kimi 之前的失败是因为 Moonshot 过载（`429 engine_overloaded`）：Claude Code 对每个请求重试十次，所以一个轮次要花两到三分钟才失败。现在子进程最多重试两次（`router.child.maxRetries`，默认 2），因此繁忙的提供方会在几秒内回退。research 和 review 默认留在 DeepSeek；Kimi 需要固定。子进程总是向 Palgu 发送 `x-srooter-pin: <model>`：没有它，Palgu 会按意图路由，可能用另一个模型作答（未固定时，它把每个模型都当作 Gemini 来服务）。
 
-**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 如果是 Palgu 自己的回退链改用了另一个模型，该行会显示 `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`，这一轮也按该模型计数和计价。
+**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 如果是 Palgu 自己的回退链改用了另一个模型，该行会显示 `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`，这一轮也按该模型计数和计价。 被 mod 丢弃的子进程回答（放弃、只叙述意图、要求你操作等，见下文“子进程不得做的事”）也按同样方式依次尝试，`HANDBACK` 和要求你操作的回答除外。
 
 ### 路由策略：按复杂度、成本、速度、质量或你自己的规则路由
 
@@ -200,12 +201,16 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 | 回答 | 示例 |
 | :- | :- |
 | 以 `HANDBACK` 开头 | `HANDBACK` / `needs the PR list` |
+| 道歉并放弃，或把工作推回给你 | "I'm sorry, but I don't have permission…"、"could you please review the repository? Once that's done, we can continue" |
+| 不回答你，而是在向别人谈论你 | "The user can type \"continue\" or give the next instruction" |
 | 声称被阻止，或要求你去操作 | "blocked by the permission system"、"you must approve it in the UI"、"run `gh pr create` yourself" |
 | 没有任何工具调用（`num_turns` 1）却声称执行了操作或给出会话事实 | "I added X"、"PR #812 is open"、"14 commits behind"、"no build runs exist" |
 | 大部分是在叙述意图 | "I'll read the config. Then I will update the router." |
 | 重复已经给出的回答 | 每次空闲通知都重新发布同样的裁决 |
 
 被丢弃的回答会计为该类型的一次子进程失败，并在路由行上显示为 `child answer discarded (<reason>), main model answered`。主模型从不被要求转述子进程的文本：mod 要么用经过审查的子进程回答完成该轮次，要么把该轮次交给主模型。
+
+被丢弃的回答会先在下一个等价模型上重试，与过载时相同（见上文），路由行会显示 `child: glm-5.3 failed (gave up) → served by deepseek-pro`。有两种情况例外：`HANDBACK`（子进程要求交给主会话）和要求你操作的回答（任何模型都会遇到同样的限制）；这两种情况由主模型立即接手。
 
 每条路由行和状态栏都会显示分数和类型，所以当某个决策看起来不对时，你可以看到背后的数字。
 
@@ -592,6 +597,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 | `/palgu login` | 在终端中注册或登录 Palgu：在浏览器中批准一个代码，mod 就会保存它的 Palgu 密钥并立即开始路由 |
 | `/palgu status` | 密钥属于谁以及组织的套餐 |
 | `/palgu upgrade` | Palgu 套餐和计费页面 |
+| `/palgu continue [--open]` | 在 Palgu 中继续当前会话，带上完整上下文：复制 `cd <folder> && palgu --continue-claude=<session id>`；`--open` 会在新的 macOS 终端标签页中启动它。Palgu 自行读取对话记录并隐去凭据 |
 | `/palgu memory on`、`off`、`memory` | 用 `palgu` CLI 在后台把此项目索引到 Palgu 记忆中（会上传源代码；默认关闭），并把它召回到每条提示词中，供 Claude 和每个被路由的模型使用；停止；或显示它是否已被索引以及索引有多新 |
 | `/route update` | 在 GitHub 上检查是否有更新的版本，如果有，替你运行 `claude plugin marketplace update` 和 `claude plugin update`；然后 `/reload-plugins` 会加载新版本 |
 | `/route models` | Palgu 当前提供的模型以及哪些不可用；其中任何一个都可以用 `/route <model>` 固定。状态栏为 mod 知道的每个家族保留一个按钮。没有 Palgu（或它没有响应）时使用内置列表 |

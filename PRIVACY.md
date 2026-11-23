@@ -24,7 +24,7 @@ In Claude Code's plugin store on your machine: a random install id used for Palg
 
 ## What the plugin reads
 
-`~/.claude/model-config.json` (routing settings, no credentials) and the environment variables `HOME`, `HOSTNAME` (for the Palgu device name), `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (only so that custom headers you set yourself are kept in the child's requests to the gateway).
+`~/.claude/model-config.json` (routing settings, no credentials) and the environment variables `HOME`, `HOSTNAME` (for the Palgu device name), `MAGGY_ROUTER_CHILD` and `ANTHROPIC_CUSTOM_HEADERS` (only so that custom headers you set yourself are kept in the child's requests to the gateway). On `/palgu continue` it reads the session's id and folder, to copy a `palgu --continue-claude=<id>` command (and with `--open`, to start it in a macOS Terminal tab through `osascript`); it sends nothing itself. Palgu then reads that session's transcript under its own policy.
 
 ## Children
 

@@ -6,6 +6,7 @@ import { onAnswer, onPrompt, onStart, onStop } from './lib/decide.js'
 import { step } from './lib/session.js'
 import { lastAnswer } from './lib/transcript.js'
 import { loadKey, makeIo, readTranscript, stateEnv } from './io.js'
+import { rememberSession } from './lib/handoff.js'
 
 const HANDLERS = { start: onStart, prompt: onPrompt, answer: onAnswer, stop: onStop }
 
@@ -28,6 +29,8 @@ export async function runHook(tool, event) {
       ev = { ...ev, answer: lastAnswer(text) }
     }
     const result = await step(HANDLERS[ev.kind], ev, stateEnv(makeIo(tool, loadKey())))
+    // After the step saved its state: the session `mom palgu <tool>` hands to Palgu (id and folder only).
+    rememberSession(tool, ev)
     const out = render(tool, ev.kind, result)
     if (out) process.stdout.write(out)
   } catch (err) {

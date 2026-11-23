@@ -38,6 +38,7 @@ codex -p palgu
 | **ルーティング** | `model = "auto"`: Palgu が各リクエストを分類し、自身のティア(trivial、small、medium、think)から提供します。`MOM_PIN=<model> codex -p palgu -m <model>`(同じモデルを 2 回指定)は、セッションを 1 つのモデルにピン留めします: Palgu は、`x-srooter-pin` がある場合にのみリクエストが指定したモデルにピン留めし、ピン付きの `auto` は拒否します(403)。 | `-p palgu` プロファイル、`auth = { command = "mom", args = ["token"] }` 付きの `[model_providers.palgu]` |
 | **Palgu メモリ** | プロジェクトフォルダーで `mom memory on` を実行するとインデックスが作成され(ソースが Palgu にアップロードされます)、4 語以上のすべてのプロンプトに、そこから最大 8 件のポインターが想起されます。デフォルトはオフです。同意はフォルダーごとで、`mom` が対応する他のツールと共有されます。 | `UserPromptSubmit` → `additionalContext` |
 | **ハートビート** | タスクの途中で終わったターン("Let me check the tests."(テストを確認します。))を、プロンプトごとに最大 3 回続行します。判断するのは Palgu です(`POST /anthropic/heartbeat`)。サインインしていない場合は、同じ分類器がローカルで動きます。`mom heartbeat off` でオフにします。 | `Stop` → `decision: "block"` |
+| **Palgu で続ける** | `mom palgu codex` は直近の Codex セッションを完全なコンテキストのまま Palgu で続けます(`palgu --continue-codex=<id>`): ターミナルではその場で Palgu を起動し、それ以外ではコマンドをコピーします。`--open` は新しい macOS ターミナルのタブで起動します。Palgu がトランスクリプトを読み、認証情報を伏せます。`mom` が保存するのはセッション id とフォルダだけです。 | 任意の hook(セッション id) |
 | **インデックス作成** | メモリがオンのフォルダーでは、セッション開始時に `palgu memory index .` がバックグラウンドで、最大 10 分に 1 回実行されます。 | `SessionStart` |
 
 どのフックも失敗時はオープン(fail open)です: `mom` がエラーになったり Palgu が遅かったりしても、Codex はフックがないかのように続行します。メモリ検索は最大 3 秒、ハートビートは最大 8 秒待ちます。

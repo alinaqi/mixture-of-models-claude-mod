@@ -11,7 +11,7 @@ export const PALGU_BILLING = PALGU_WEB + '/billing'
 export const PLUGIN_ID = 'mixture-of-models@mixture-of-models-claude-mod'
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
-export const HELP = '/palgu login: sign up or sign in to Palgu and use its models for routed turns · /palgu status: who is signed in, on which plan · /palgu upgrade: plans and billing · /palgu memory on|off: index this project into Palgu memory'
+export const HELP = '/palgu login: sign up or sign in to Palgu and use its models for routed turns · /palgu status: who is signed in, on which plan · /palgu upgrade: plans and billing · /palgu memory on|off: index this project into Palgu memory · /palgu continue [--open]: continue this session in Palgu, with its full context'
 
 // The key may go to Palgu only when the gateway is Palgu: an exact https origin match, so a
 // look-alike host or another provider's endpoint never receives it.

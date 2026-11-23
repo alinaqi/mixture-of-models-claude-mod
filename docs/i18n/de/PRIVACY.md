@@ -26,7 +26,7 @@ Im Plugin-Speicher von Claude Code auf Ihrem Rechner: eine zufällige Installati
 
 ## Was das Plugin liest
 
-`~/.claude/model-config.json` (Routing-Einstellungen, keine Zugangsdaten) und die Umgebungsvariablen `HOME`, `HOSTNAME` (für den Palgu-Gerätenamen), `MAGGY_ROUTER_CHILD` und `ANTHROPIC_CUSTOM_HEADERS` (nur damit Custom-Header, die Sie selbst setzen, in den Requests des Child an das Gateway erhalten bleiben).
+`~/.claude/model-config.json` (Routing-Einstellungen, keine Zugangsdaten) und die Umgebungsvariablen `HOME`, `HOSTNAME` (für den Palgu-Gerätenamen), `MAGGY_ROUTER_CHILD` und `ANTHROPIC_CUSTOM_HEADERS` (nur damit Custom-Header, die Sie selbst setzen, in den Requests des Child an das Gateway erhalten bleiben). Bei `/palgu continue` liest es die ID und den Ordner der Sitzung, um einen Befehl `palgu --continue-claude=<id>` zu kopieren (und mit `--open`, um ihn über `osascript` in einem macOS-Terminal-Tab zu starten); selbst sendet es nichts. Palgu liest danach das Transkript dieser Sitzung nach seinen eigenen Regeln.
 
 ## Kinder
 

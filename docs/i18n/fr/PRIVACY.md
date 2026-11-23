@@ -26,7 +26,7 @@ Dans le stockage de plugins de Claude Code, sur votre machine : un identifiant d
 
 ## Ce que le plugin lit
 
-`~/.claude/model-config.json` (paramètres de routage, aucun identifiant) et les variables d'environnement `HOME`, `HOSTNAME` (pour le nom d'appareil Palgu), `MAGGY_ROUTER_CHILD` et `ANTHROPIC_CUSTOM_HEADERS` (uniquement pour que les en-têtes personnalisés que vous définissez vous-même soient conservés dans les requêtes de l'enfant vers la passerelle).
+`~/.claude/model-config.json` (paramètres de routage, aucun identifiant) et les variables d'environnement `HOME`, `HOSTNAME` (pour le nom d'appareil Palgu), `MAGGY_ROUTER_CHILD` et `ANTHROPIC_CUSTOM_HEADERS` (uniquement pour que les en-têtes personnalisés que vous définissez vous-même soient conservés dans les requêtes de l'enfant vers la passerelle). Avec `/palgu continue`, il lit l'id et le dossier de la session, pour copier une commande `palgu --continue-claude=<id>` (et avec `--open`, pour la lancer dans un onglet du Terminal macOS via `osascript`) ; il n'envoie rien lui-même. Palgu lit ensuite la transcription de cette session selon sa propre politique.
 
 ## Mineurs
 

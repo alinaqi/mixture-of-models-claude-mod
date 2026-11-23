@@ -8,6 +8,7 @@ import { allowPatterns, buildBrief, childEnv, childFlags, childHeaders, childRea
 import { checkRoute, familiesText, isAutoRoute, routeValue, targetFor } from './lib/families.js'
 import { CODEX_INSTALL, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexFlags, codexReady, codexRelayText, codexResumeFlags, droppedArgs, missingCodex, parseCodexOutput, refusalNote, sandboxOf } from './lib/codex.js'
 import { vetAnswer } from './lib/vet.js'
+import { handoffCommand, handoffText, launchScript, parseContinue } from './lib/handoff.js'
 import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
@@ -224,17 +225,32 @@ async function claudeTurn($, brief) {
 // A Claude child that failed tries the equivalent models (fallback.js) before the main model takes
 // the turn: the same class first on an overload, a larger window for a prompt too long, none for a
 // bad request. The gateway walks its own chain first (x-palgu-fallback). All failed: the routed model again.
+// An answer vetAnswer rejects (gave up, asked the user to act, narration, …) is walked like an
+// overload: another model may well do the work. Not walked: a HANDBACK (the child asked for the main
+// session) and a request that the user act (a refused command, which any model would meet alike).
+const STAY = ['handback', 'asks the user to act']
+
+async function vettedTurn($, brief) {
+  const out = await claudeTurn($, brief)
+  const vet = out.ok ? vetAnswer(out, answered) : { ok: true }
+  return vet.ok ? out : { ...out, ok: false, rejected: vet.reason, reason: vet.reason }
+}
+
+function walkable(out) {
+  return !out.ok && (out.error || (out.rejected && !STAY.includes(out.rejected)))
+}
+
 async function walkChildren($, brief) {
   const first = { id: decision.id, model: decision.model }, tried = []
-  let out = await claudeTurn($, brief), queue = []
-  while (!out.ok && out.error) {
-    const f = failureOf(out)
+  let out = await vettedTurn($, brief), queue = []
+  while (walkable(out)) {
+    const f = out.rejected ? { kind: 'overload', why: out.rejected } : failureOf(out)
     tried.push({ model: decision.model, why: f.why })
     if (tried.length === 1) queue = nextModels(decision.id, f.kind, fallbackContext())
     const next = queue.shift()
     if (!next) break
     decision = { ...decision, id: next, model: next }
-    out = await claudeTurn($, brief)
+    out = await vettedTurn($, brief)
   }
   if (!out.ok) decision = { ...decision, ...first }
   return { out, tried, requested: out.ok ? gatewayServed(out) : '' }
@@ -491,8 +507,24 @@ async function memoryCommand($, word) {
   return memoryLine(await memoryNow($))
 }
 
-// /palgu: device-code sign-in polled in the background on the mod's clock, status, upgrade, memory.
+// /palgu continue: the command that hands this exact session to Palgu's own transcript reader
+// (`palgu --continue-claude=<id>`: goal, files, commands, open tasks, credentials redacted), copied.
+// Palgu needs a terminal of its own; with --open it starts in a new macOS Terminal tab, through a
+// fixed AppleScript whose only data is that command (handoff.js). The mod sends nothing itself.
+async function palguContinue($, opts) {
+  const command = handoffCommand('claude', await $.session.id(), await $.session.cwd())
+  if (command.error) return command.error
+  const copied = await $.ui.copy({ text: command }).then((r) => Boolean(r && r.isCopied)).catch(() => false)
+  if (!opts.open) return copied ? handoffText(command, false) : 'Run this in a terminal (Palgu needs one of its own):\n' + command
+  const opened = await $.process.run(['osascript', '-e', launchScript(command)], { timeoutMs: 10000 }).then((r) => r.exitCode === 0).catch(() => false)
+  if (opened) return handoffText(command, true)
+  return 'Could not open a Terminal tab (macOS only)' + (copied ? '; the command is on your clipboard' : '') + '. Run this in a terminal:\n' + command
+}
+
+// /palgu: device-code sign-in polled in the background on the mod's clock, status, upgrade, memory, continue.
 async function palguCommand($, args) {
+  const handoff = parseContinue(args)
+  if (handoff) return handoff.error || palguContinue($, handoff)
   const word = parsePalguArg(args)
   if (word === 'login') return palguLogin($, deviceName((await $.env.get('HOSTNAME')) || ''))
   if (word === 'status') return (await palguStatus($, key)) + (signedInToPalgu() ? ' · ' + memoryLine(await memoryNow($)) : '')
@@ -604,7 +636,7 @@ export function register(on, opts) {
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
     const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')
-    const palguOk = await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models: /palgu [login|status|upgrade]', argumentHint: '[login|status|upgrade]', immediate: true }).then(registered, refused)
+    const palguOk = await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models, or continue this session in Palgu: /palgu [login|status|upgrade|continue]', argumentHint: '[login|status|upgrade|continue [--open]]', immediate: true }).then(registered, refused)
     if (!palguOk) $.ui.log('/palgu is taken by another plugin')
     return next(e)
   })
@@ -636,7 +668,7 @@ export function register(on, opts) {
     const answer = await runChild($, lastPrompt)
     if (!answer) {
       const walked = fallbackNote(decision.child.tried || [], '')
-      $.ui.log(decision.child.rejected ? 'child on ' + decision.model + ' answer discarded (' + decision.child.rejected + '), main model takes this turn' : walked || 'child on ' + decision.model + ' failed, main model takes this turn')
+      $.ui.log(decision.child.rejected && (decision.child.tried || []).length < 2 ? 'child on ' + decision.model + ' answer discarded (' + decision.child.rejected + '), main model takes this turn' : walked || 'child on ' + decision.model + ' failed, main model takes this turn')
       return yield* next(e)
     }
     lastWasChild = true

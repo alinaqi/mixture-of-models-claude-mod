@@ -74,8 +74,8 @@ function cachePercent(usage) {
 // tried: the models that failed before the turn was served (fallback.js); servedBy: the one that answered.
 function outcomeNote(child) {
   const tried = child.tried || []
-  if (child.rejected) return ' · child answer discarded (' + child.rejected + '), main model answered'
   if (child.exitCode !== 0 && tried.length > 1) return ' · all equivalents failed: ' + tried.map((t) => t.model + ' (' + t.why + ')').join(', ') + '; main model answered'
+  if (child.rejected) return ' · child answer discarded (' + child.rejected + '), main model answered'
   if (child.exitCode !== 0) return ' · child failed' + (tried.length ? ' (' + tried[0].why + ')' : '') + ', main model answered'
   const note = fallbackNote(tried, child.servedBy, child.requested)
   const walked = note ? ' · ' + note : ''
