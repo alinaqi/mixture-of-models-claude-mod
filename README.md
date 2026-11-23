@@ -103,6 +103,8 @@ The prompt tells the classifier that length, the number of services named, or pa
 
 **When a child fails.** The main model takes a routed turn only after every equivalent model has failed. On Palgu the child sends `x-palgu-fallback: auto`, so on an overload the gateway first walks the pinned model's own fallback chain (its fallback list, then its class). If the child still fails with an overload (429, 5xx, a timeout, no answer), the mod runs the turn again on the next equivalent: models of the same class first (from Palgu's live list), then the other healthy ones, up to `router.child.fallbacks` (default 3). A prompt too long for the model moves only to a larger-window model (`router.child.longContext`); a bad request (400, 401, 403, 404, 422) is not retried on other models. The route line says what happened: `child: deepseek-pro failed (429) → served by glm-5.3`, or `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`. When Palgu's own chain served another model, the line says `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`, and the turn counts and is priced as that model. A child answer the mod discards (it gave up, narrated, asked you to act and so on: What a child may not do, below) walks the same way, except a `HANDBACK` or a request that you act.
 
+**Subagents.** A subagent runs inside Claude Code on your main session's own connection, so the mod can only choose which Claude model it uses, never a gateway model. Before a built-in `general-purpose` subagent starts, the mod scores its task like a prompt: a simple one runs on Haiku, coding on Sonnet, a critical one keeps the main session's model. Explore runs on Haiku. The mod only ever picks a cheaper model than the main session's, and leaves alone a subagent whose model was already chosen, a plugin's or your own agent (its definition may set a model), a fork, a teammate and a workflow agent. The transcript says `subagent general-purpose on haiku · simple 2/10`; `/route off` turns it off, and `router.subagents` sets it per agent type.
+
 ### Routing strategies: route by complexity, cost, speed, quality, or your own rules
 
 What the classifier scores, where the tiers split and which model each tier takes is a **routing strategy**, one markdown file with a rubric, like a skill. Four come built in:
@@ -226,6 +228,7 @@ Claude and the gateway are both visible, all the time:
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | same |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
 | `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
+| `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, then one line per model with its share and a bar, the models your subagents ran on, and the savings | same |
 
 ### How much it saves
 
@@ -399,6 +402,7 @@ Each `$.process.run` call has its program and fixed flags written as literal tex
 
 - `prompt.submit` — reads the prompt to decide its route (pre-rules, then the classifier score, then the thresholds). Passes it through unchanged: never drops, rewrites or adds to it. Fails open.
 - `turn.step` — for a routed turn, runs the child above instead of the main model and answers the turn with the child's text; every other turn, and every subagent, goes through unchanged. A failed or discarded child answer hands the turn back to the main model.
+- `agent.spawn` — before a built-in subagent starts, scores its task and picks a cheaper Claude model for it (Subagents, above); counts the model every subagent ran on.
 - `turn.complete` — appends the route line (route, score, cost, savings) to the turn's text and updates the counts, the decision log and the savings totals in the plugin store. Then the heartbeat: when the main session's answer stopped mid-task (it announced an action and ended, or, when you asked for changes, described edits it did not make), the mod submits one continue prompt of its own (`$.prompt.submit`, shown to the model as from this plugin), at most `router.heartbeatMax` (3) times per prompt of yours. Fails open: an error never blocks a stop.
 - Also: `session.start` (reads the settings, registers `/route` and `/palgu`), `turn.start` (clears the last child result), `ui.render` for `AbovePrompt` (the band), `AssistantMessage` (a provenance tag on child replies), `Pane` (the help and stats panes) and `Spinner` (`via <model> (child)…`), and `command.run` for `/route` and `/palgu`. The mod never handles `tool.call` or `tool.check`.
 
@@ -431,7 +435,7 @@ Full detail follows; a privacy policy is at [PRIVACY.md](PRIVACY.md).
 
 ### Hooks
 
-The hooks module `hooks/register.js` registers eleven hooks. What each one does with the events and calls it sees:
+The hooks module `hooks/register.js` registers twelve hooks. What each one does with the events and calls it sees:
 
 | Hook | What it does |
 | :- | :- |
@@ -439,6 +443,7 @@ The hooks module `hooks/register.js` registers eleven hooks. What each one does 
 | `prompt.submit` | Passes every prompt through unchanged. On the side it decides the route: pre-rules first, then a 1-10 blast score from the classifier (see Network), then the thresholds. Never drops, rewrites or adds to a prompt. Fails open: if scoring throws, the prompt still goes through. |
 | `turn.start` | Clears the previous turn's child result. |
 | `turn.step` | For a routed turn, instead of letting the main session call its model, runs the child process (Claude Code on the gateway or on your Claude login, or Codex) described under Programs and yields the child's text as the turn's answer with `stopReason: end_turn`. If the child's permission system refused a command, the hook asks you with `$.ui.ask` (the dialog Claude uses for questions), naming the exact commands; on "Allow and continue" it resumes the same child with those commands allowed, up to `relayRounds` times; on "Deny", or when nobody can answer, the child's own explanation is the answer. A Codex child is asked the same way about the commands it names as refused, once per turn; on "Allow and continue" the same Codex thread resumes with edits in the project allowed (see [Sandbox and approvals](#sandbox-and-approvals)). For every other turn, and for subagents, it calls `next(e)` unchanged. If the child fails or prints nothing it calls `next(e)`, so the main model answers. |
+| `agent.spawn` | Before the Agent tool starts a built-in subagent the rules name (`router.subagents`), scores its task (the first 2,000 characters, through the same classifier as prompts) and sets its model: Haiku for simple, Sonnet for coding, unchanged for critical, and never one dearer than the parent's. A model already chosen, a plugin's or your own agent, a fork, a teammate and a workflow agent are left alone. Counts the model each subagent ran on, for `/route usage`. |
 | `turn.complete` | Appends a line under the answer with the route, score, cost and where it ran, and what a routed turn saved; updates per-day counts and the savings totals in the plugin store. On Palgu it asks `/v1/pricing/quote` what the routed turn cost. |
 | `ui.render` for `AbovePrompt` | Draws the band: the current mode and last decision, plus buttons that change the `/route` pin. Keeps whatever other mods draw there. |
 | `ui.render` for `AssistantMessage` | Puts a dim provenance line above a reply the child produced. Other replies are passed through. |
@@ -568,6 +573,8 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 - `routes`: tier → model id the gateway serves, plus `routes.kinds`: kind → model for the non-critical tiers. `"claude"` means the main session.
 - `primary` (Maggy's followed model, set with `/model-config`): `glm`, `kimi` or `deepseek` makes the `coding` tier follow it unless `routes.coding` is set. `primary: claude` changes nothing: `critical` is already on Claude, and `coding` stays cheap unless you set `routes.coding` to `"claude"`.
 - `thresholds`: the blast-score cut-offs, `{ "simple": 3, "coding": 7 }` by default.
+- `subagents`: which built-in subagents the mod picks a Claude model for, by agent type: `auto` scores the task, `simple`, `coding` or `critical` fixes the tier, `off` (or a type not named) leaves it to Claude Code. Default `{ "general-purpose": "auto", "Explore": "simple" }`.
+- `subagentModels`: the Claude model per tier for those subagents, `{ "simple": "haiku", "coding": "sonnet" }` by default; critical keeps the parent's model, and a model no cheaper than the parent's is never set.
 - `classifier`: the Claude model used when Ollama is unreachable. Undated aliases only (`claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `provider`: the gateway provider when the plugin's `gateway_provider` option is unset or `auto`: `palgu`, `openrouter`, `litellm` or `anthropic-compatible`. Unset, it is detected from the gateway URL (see [Setup](#setup)). It picks the default `routes`, `families`, the band's buttons and the child's auth; anything you set in `routes` or `families` still wins.
 - `child.baseUrl`: fallback for the gateway URL when the plugin's `gateway_url` option is unset. The key has no fallback; it comes only from the `gateway_key` option.
@@ -607,6 +614,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/route simple\|coding\|critical` | Pin a tier |
 | `/route reset` | Clear the per-kind failure memory |
 | `/route stats` | Open the stats pane: models, kinds, scores, recent |
+| `/route usage` (`today`, `week`, `month`, `all`) | Which models answered your turns and ran your subagents, over the period (default: the last 7 days) |
 | `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model; a word that matches no model, such as `/route upgrade`, sets auto instead of pinning it) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Pin a family member (`claude/sonnet` runs on your Claude login) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Pin a family; each prompt is still scored and the tier picks the member |
@@ -650,7 +658,7 @@ mixture-of-models-claude-mod/
 ├── scripts/test-pure.mjs   # runs the pure tests under Node
 ├── hooks/
 │   ├── hooks.json          # points at register.js
-│   ├── register.js         # the 11 hook registrations; the only file that touches the mods API ($)
+│   ├── register.js         # the 12 hook registrations; the only file that touches the mods API ($)
 │   └── lib/                # pure, unit-tested
 │       ├── config.js       # defaults and the model-config.json overlay
 │       ├── providers.js    # Palgu, OpenRouter, LiteLLM, generic: detection, child auth, catalogues

@@ -35,6 +35,7 @@ function buttonLines(v) {
 const COMMANDS = [
   ['/route status', 'mode, gateway, today\'s counts, savings, model families'],
   ['/route stats', 'charts: models, task kinds, scores, recent turns'],
+  ['/route usage [today|week|month|all]', 'which models answered your turns and ran your subagents'],
   ['/route glm · /route kimi', 'pin a model (any prefix of a model id)'],
   ['/route claude/sonnet', 'pin a Claude model on your own login; kimi/auto picks a Kimi by score'],
   ['/route simple|coding|critical', 'pin a tier'],

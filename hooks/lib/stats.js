@@ -59,3 +59,48 @@ export function summarize(log, sessionModel) {
     child: childStats(log),
   }
 }
+
+const PERIODS = { '': [7, 'last 7 days'], today: [1, 'today'], week: [7, 'last 7 days'], month: [30, 'last 30 days'], all: [0, 'all time'] }
+
+// /route usage [today|week|month|all]: how many days back (0: every day kept), or null.
+export function usagePeriod(word) {
+  const p = PERIODS[String(word || '').trim().toLowerCase()]
+  return p ? { days: p[0], name: p[1] } : null
+}
+
+function since(today, days) {
+  const d = new Date(today + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() - (days - 1))
+  return d.toISOString().slice(0, 10)
+}
+
+// Per-day counts summed over the period, most used first.
+function totals(byDay, period, today) {
+  const from = period.days ? since(today, period.days) : ''
+  const sum = new Map()
+  for (const [day, counts] of Object.entries(byDay || {})) {
+    if (day < from || day > today) continue
+    for (const [model, n] of Object.entries(counts)) sum.set(model, (sum.get(model) || 0) + n)
+  }
+  return [...sum.entries()].sort((a, b) => b[1] - a[1])
+}
+
+function modelRows(rows, total) {
+  const width = Math.max(...rows.map(([m]) => m.length))
+  const digits = String(rows[0][1]).length
+  return rows.map(([m, n]) => '  ' + m.padEnd(width) + '  ' + String(n).padStart(digits) + '  ' + (Math.round((n / total) * 100) + '%').padStart(3) + '  ' + bar(n, rows[0][1], 10))
+}
+
+// The models that answered turns in the period (main session and routed children), with shares,
+// the share off Claude, and the models subagents ran on.
+export function usageText(stats, subagents, period, today) {
+  const rows = totals(stats, period, today)
+  const total = rows.reduce((s, [, n]) => s + n, 0)
+  if (!total) return 'Models used, ' + period.name + ': no turns yet'
+  const off = rows.filter(([m]) => !m.startsWith('claude')).reduce((s, [, n]) => s + n, 0)
+  const head = 'Models used, ' + period.name + ': ' + total + (total === 1 ? ' turn, ' : ' turns, ') + off + ' off Claude (' + Math.round((off / total) * 100) + '%)'
+  const subs = totals(subagents, period, today)
+  const subTotal = subs.reduce((s, [, n]) => s + n, 0)
+  const subLine = subTotal ? ['Subagents: ' + subTotal + subs.map(([m, n]) => ' · ' + m + ' ' + n).join('')] : []
+  return [head, ...modelRows(rows, total), ...subLine].join('\n')
+}

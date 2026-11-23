@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { appendLog, bar, bumpStats, statsLine, summarize } from '../hooks/lib/stats.js'
+import { appendLog, bar, bumpStats, statsLine, summarize, usagePeriod, usageText } from '../hooks/lib/stats.js'
 
 const SESSION = 'claude-opus-5'
 const LOG = [
@@ -58,4 +58,36 @@ test('summarize of an empty log is all zeros', async () => {
 test('a turn on a Claude subscription child is not counted as off Claude', async () => {
   const log = [{ ...LOG[0], model: 'claude-sonnet-5-5' }, LOG[1]]
   expect(summarize(log, SESSION).offClaude).toBe(1)
+})
+
+const DAYS = {
+  '2026-10-01': { 'glm-5.3': 9 },
+  '2026-11-18': { 'glm-5.3': 3, 'claude-opus-5': 1 },
+  '2026-11-23': { 'glm-5.3': 2, 'deepseek-pro': 1, 'claude-opus-5': 1 },
+}
+const SUBS = { '2026-11-20': { haiku: 3, sonnet: 1 }, '2026-11-23': { haiku: 1, 'claude-opus-5': 1 } }
+
+test('usagePeriod reads today, week, month and all, and refuses anything else', async () => {
+  expect(usagePeriod('')).toEqual({ days: 7, name: 'last 7 days' })
+  expect(usagePeriod('today')).toEqual({ days: 1, name: 'today' })
+  expect(usagePeriod('week')).toEqual({ days: 7, name: 'last 7 days' })
+  expect(usagePeriod('month')).toEqual({ days: 30, name: 'last 30 days' })
+  expect(usagePeriod('all')).toEqual({ days: 0, name: 'all time' })
+  expect(usagePeriod('yesterday')).toBe(null)
+})
+
+test('usageText lists the models used in the period, most used first, with shares, the off-Claude share and subagent models', async () => {
+  const text = usageText(DAYS, SUBS, { days: 7, name: 'last 7 days' }, '2026-11-23')
+  expect(text).toBe([
+    'Models used, last 7 days: 8 turns, 6 off Claude (75%)',
+    '  glm-5.3        5  63%  ██████████',
+    '  claude-opus-5  2  25%  ████░░░░░░',
+    '  deepseek-pro   1  13%  ██░░░░░░░░',
+    'Subagents: 6 · haiku 4 · sonnet 1 · claude-opus-5 1',
+  ].join('\n'))
+})
+
+test('usageText over all time counts every day kept; with nothing in the period it says so', async () => {
+  expect(usageText(DAYS, {}, { days: 0, name: 'all time' }, '2026-11-23').split('\n')[0]).toBe('Models used, all time: 17 turns, 15 off Claude (88%)')
+  expect(usageText(DAYS, {}, { days: 1, name: 'today' }, '2026-11-24')).toBe('Models used, today: no turns yet')
 })

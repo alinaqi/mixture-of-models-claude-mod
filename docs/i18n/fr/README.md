@@ -105,6 +105,8 @@ Le prompt indique au classifieur que la longueur, le nombre de services nommés 
 
 **Quand un enfant échoue.** Le modèle principal ne reprend un tour routé qu'après l'échec de tous les modèles équivalents. Sur Palgu, l'enfant envoie `x-palgu-fallback: auto`, si bien qu'en cas de surcharge la passerelle parcourt d'abord la propre chaîne de repli du modèle épinglé (sa liste de repli, puis sa classe). Si l'enfant échoue encore sur une surcharge (429, 5xx, délai dépassé, aucune réponse), le mod relance le tour sur le modèle équivalent suivant : d'abord les modèles de la même classe (d'après la liste en direct de Palgu), puis les autres modèles en bonne santé, jusqu'à `router.child.fallbacks` (3 par défaut). Un prompt trop long pour le modèle ne passe qu'à un modèle à plus grande fenêtre de contexte (`router.child.longContext`) ; une requête invalide (400, 401, 403, 404, 422) n'est pas retentée sur d'autres modèles. La ligne de route dit ce qui s'est passé : `child: deepseek-pro failed (429) → served by glm-5.3`, ou `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`. Quand la propre chaîne de Palgu a servi un autre modèle, la ligne indique `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`, et le tour est compté et tarifé comme ce modèle. Une réponse d'enfant que le mod écarte (il a abandonné, raconté ses intentions, vous a demandé d'agir, etc. : Ce qu'un enfant ne doit pas faire, ci-dessous) suit le même chemin, sauf un `HANDBACK` ou une demande que vous agissiez.
 
+**Sous-agents.** Un sous-agent tourne dans Claude Code sur la propre connexion de votre session principale : le mod ne peut donc choisir que le modèle Claude qu'il utilise, jamais un modèle de la passerelle. Avant qu'un sous-agent intégré `general-purpose` démarre, le mod note sa tâche comme un prompt : une tâche simple tourne sur Haiku, du code sur Sonnet, une tâche critique garde le modèle de la session principale. Explore tourne sur Haiku. Le mod ne choisit jamais qu'un modèle moins cher que celui de la session principale, et ne touche pas à un sous-agent dont le modèle est déjà choisi, à l'agent d'un plugin ou au vôtre (sa définition peut fixer un modèle), à un fork, à un coéquipier ni à un agent de workflow. La transcription indique `subagent general-purpose on haiku · simple 2/10` ; `/route off` le désactive, et `router.subagents` le règle par type d'agent.
+
 ### Stratégies de routage : router selon la complexité, le coût, la vitesse, la qualité ou vos propres règles
 
 Ce que le classifieur évalue, où se séparent les paliers et quel modèle prend chaque palier forment une **stratégie de routage**, un fichier markdown avec une grille, comme un skill. Quatre sont fournies :
@@ -228,6 +230,7 @@ Claude et la passerelle sont tous deux visibles, en permanence :
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | idem |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, puis une notification `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | idem |
 | `/route stats` | Un panneau, « Mixture of models », avec quatre onglets sur les raccourcis 1-4 : **models** (barres par modèle, part des tours, le titre « N of M turns off Claude » et, en vert, ce que le routage a économisé), **kinds** (chaque type et les modèles qui l'ont pris), **scores** (un histogramme de 1 à 10 coloré par palier, seuils marqués), **recent** (les dernières décisions avec score, type, modèle et durée de l'enfant). Échap le ferme. | idem |
+| `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, puis une ligne par modèle avec sa part et une barre, les modèles de vos sous-agents et l'économie | idem |
 
 ### Combien il fait économiser
 
@@ -401,6 +404,7 @@ Chaque appel `$.process.run` a son programme et ses options fixes écrits en tex
 
 - `prompt.submit` — lit le prompt pour décider de sa route (pré-règles, puis score du classifieur, puis seuils). Le laisse passer inchangé : ne le supprime, ne le réécrit et n'y ajoute jamais rien. En cas d'erreur, laisse passer (fail open).
 - `turn.step` — pour un tour routé, exécute l'enfant ci-dessus à la place du modèle principal et répond au tour avec le texte de l'enfant ; tout autre tour, et tout sous-agent, passe inchangé. Une réponse d'enfant en échec ou écartée rend le tour au modèle principal.
+- `agent.spawn` — avant qu'un sous-agent intégré démarre, note sa tâche et lui choisit un modèle Claude moins cher (Sous-agents, ci-dessus) ; compte le modèle de chaque sous-agent.
 - `turn.complete` — ajoute la ligne de route (route, score, coût, économies) au texte du tour et met à jour les compteurs, le journal des décisions et les totaux d'économies dans le stockage du plugin. Puis le heartbeat : quand la réponse de la session principale s'est arrêtée en pleine tâche (elle a annoncé une action puis s'est terminée, ou, quand vous aviez demandé des changements, a décrit des modifications qu'elle n'a pas faites), le mod soumet lui-même un prompt de continuation (`$.prompt.submit`, présenté au modèle comme venant de ce plugin), au plus `router.heartbeatMax` (3) fois par prompt de votre part. En cas d'erreur, laisse passer : une erreur ne bloque jamais un arrêt.
 - Aussi : `session.start` (lit les paramètres, enregistre `/route` et `/palgu`), `turn.start` (efface le dernier résultat d'enfant), `ui.render` pour `AbovePrompt` (le bandeau), `AssistantMessage` (une étiquette de provenance sur les réponses des enfants), `Pane` (les panneaux d'aide et de statistiques) et `Spinner` (`via <model> (child)…`), et `command.run` pour `/route` et `/palgu`. Le mod ne gère jamais `tool.call` ni `tool.check`.
 
@@ -433,7 +437,7 @@ Le détail complet suit ; une politique de confidentialité se trouve dans [PRIV
 
 ### Hooks
 
-Le module de hooks `hooks/register.js` enregistre onze hooks. Ce que chacun fait des événements et des appels qu'il voit :
+Le module de hooks `hooks/register.js` enregistre douze hooks. Ce que chacun fait des événements et des appels qu'il voit :
 
 | Hook | Ce qu'il fait |
 | :- | :- |
@@ -441,6 +445,7 @@ Le module de hooks `hooks/register.js` enregistre onze hooks. Ce que chacun fait
 | `prompt.submit` | Laisse passer chaque prompt inchangé. En parallèle, il décide de la route : d'abord les pré-règles, puis un score d'impact de 1 à 10 donné par le classifieur (voir Réseau), puis les seuils. Ne supprime, ne réécrit et n'ajoute jamais rien à un prompt. En cas d'erreur, laisse passer : si l'évaluation lève une exception, le prompt passe quand même. |
 | `turn.start` | Efface le résultat d'enfant du tour précédent. |
 | `turn.step` | Pour un tour routé, au lieu de laisser la session principale appeler son modèle, exécute le processus enfant (Claude Code sur la passerelle ou sur votre connexion Claude, ou Codex) décrit sous Programmes et renvoie le texte de l'enfant comme réponse du tour avec `stopReason: end_turn`. Si le système de permissions de l'enfant a refusé une commande, le hook vous pose la question avec `$.ui.ask` (la boîte de dialogue que Claude utilise pour les questions), en nommant les commandes exactes ; sur « Allow and continue », il reprend le même enfant avec ces commandes autorisées, jusqu'à `relayRounds` fois ; sur « Deny », ou quand personne ne peut répondre, l'explication de l'enfant lui-même est la réponse. Un enfant Codex est interrogé de la même manière sur les commandes qu'il nomme comme refusées, une fois par tour ; sur « Allow and continue », le même fil Codex reprend avec les modifications autorisées dans le projet (voir [Sandbox et approbations](#sandbox-et-approbations)). Pour tout autre tour, et pour les sous-agents, il appelle `next(e)` sans changement. Si l'enfant échoue ou n'affiche rien, il appelle `next(e)`, et le modèle principal répond. |
+| `agent.spawn` | Avant que l'outil Agent démarre un sous-agent intégré que les règles nomment (`router.subagents`), note sa tâche (les 2 000 premiers caractères, avec le même classifieur que les prompts) et fixe son modèle : Haiku pour simple, Sonnet pour le code, inchangé pour critique, et jamais un modèle plus cher que celui du parent. Un modèle déjà choisi, l'agent d'un plugin ou le vôtre, un fork, un coéquipier et un agent de workflow restent tels quels. Compte le modèle de chaque sous-agent, pour `/route usage`. |
 | `turn.complete` | Ajoute sous la réponse une ligne avec la route, le score, le coût et le lieu d'exécution, ainsi que ce qu'un tour routé a économisé ; met à jour les compteurs par jour et les totaux d'économies dans le stockage du plugin. Sur Palgu, il demande à `/v1/pricing/quote` ce qu'a coûté le tour routé. |
 | `ui.render` pour `AbovePrompt` | Dessine le bandeau : le mode actuel et la dernière décision, plus des boutons qui changent l'épingle `/route`. Conserve ce que d'autres mods y dessinent. |
 | `ui.render` pour `AssistantMessage` | Place une ligne de provenance atténuée au-dessus d'une réponse produite par l'enfant. Les autres réponses passent telles quelles. |
@@ -570,6 +575,8 @@ Une config qui place chaque palier sur un membre Claude, avec Fable pour les tou
 - `routes` : palier → identifiant de modèle servi par la passerelle, plus `routes.kinds` : type → modèle pour les paliers non critiques. `"claude"` désigne la session principale.
 - `primary` (le modèle suivi par Maggy, défini avec `/model-config`) : `glm`, `kimi` ou `deepseek` fait suivre ce modèle au palier `coding`, sauf si `routes.coding` est défini. `primary: claude` ne change rien : `critical` est déjà sur Claude, et `coding` reste bon marché sauf si vous mettez `routes.coding` à `"claude"`.
 - `thresholds` : les seuils du score d'impact, `{ "simple": 3, "coding": 7 }` par défaut.
+- `subagents` : pour quels sous-agents intégrés le mod choisit un modèle Claude, par type d'agent : `auto` note la tâche, `simple`, `coding` ou `critical` fixe le niveau, `off` (ou un type non nommé) laisse faire Claude Code. Par défaut `{ "general-purpose": "auto", "Explore": "simple" }`.
+- `subagentModels` : le modèle Claude par niveau pour ces sous-agents, `{ "simple": "haiku", "coding": "sonnet" }` par défaut ; critique garde le modèle du parent, et un modèle qui n'est pas moins cher que celui du parent n'est jamais fixé.
 - `classifier` : le modèle Claude utilisé quand Ollama est injoignable. Alias non datés uniquement (`claude-haiku-5-5`, `claude-sonnet-5`, `claude-opus-5`).
 - `provider` : le fournisseur de la passerelle quand l'option `gateway_provider` du plugin n'est pas définie ou vaut `auto` : `palgu`, `openrouter`, `litellm` ou `anthropic-compatible`. Non défini, il est détecté d'après l'URL de la passerelle (voir [Mise en place](#mise-en-place)). Il choisit les `routes` et `families` par défaut, les boutons du bandeau et l'authentification de l'enfant ; tout ce que vous définissez dans `routes` ou `families` l'emporte quand même.
 - `child.baseUrl` : valeur de repli pour l'URL de la passerelle quand l'option `gateway_url` du plugin n'est pas définie. La clé n'a pas de repli ; elle provient uniquement de l'option `gateway_key`.
@@ -609,6 +616,7 @@ Une config qui place chaque palier sur un membre Claude, avec Fable pour les tou
 | `/route simple\|coding\|critical` | Épingler un palier |
 | `/route reset` | Effacer la mémoire des échecs par type |
 | `/route stats` | Ouvrir le panneau de statistiques : models, kinds, scores, recent |
+| `/route usage` (`today`, `week`, `month`, `all`) | Quels modèles ont répondu à vos tours et fait tourner vos sous-agents sur la période (par défaut : les 7 derniers jours) |
 | `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Épingler un modèle (un préfixe se développe vers le modèle configuré, puis vers un modèle connu de la passerelle ; un mot qui ne correspond à aucun modèle, comme `/route upgrade`, passe en auto au lieu d'être épinglé) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Épingler un membre de famille (`claude/sonnet` s'exécute sur votre connexion Claude) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Épingler une famille ; chaque prompt est toujours évalué et le palier choisit le membre |
@@ -652,7 +660,7 @@ mixture-of-models-claude-mod/
 ├── scripts/test-pure.mjs   # exécute les tests purs sous Node
 ├── hooks/
 │   ├── hooks.json          # pointe vers register.js
-│   ├── register.js         # les 11 enregistrements de hooks ; le seul fichier qui touche l'API des mods ($)
+│   ├── register.js         # les 12 enregistrements de hooks ; le seul fichier qui touche l'API des mods ($)
 │   └── lib/                # pur, testé unitairement
 │       ├── config.js       # valeurs par défaut et surcouche model-config.json
 │       ├── providers.js    # Palgu, OpenRouter, LiteLLM, générique : détection, authentification de l'enfant, catalogues

@@ -37,7 +37,11 @@ export const DEFAULTS = {
   provider: 'anthropic-compatible',
   catalogue: GATEWAY_MODELS,
   routes: DEFAULT_ROUTES,
-  subagents: { Explore: 'simple' },
+  // Which built-in subagents the mod picks a Claude model for (subagents.js): `auto` scores the task,
+  // a tier fixes it, a type not named here (or `off`) is left to Claude Code.
+  subagents: { 'general-purpose': 'auto', Explore: 'simple' },
+  // The Claude model per tier; critical keeps the parent's. Only ever cheaper than the parent's.
+  subagentModels: { simple: 'haiku', coding: 'sonnet' },
   // Blast score 1-10 → tier: ≤ simple is simple, ≤ coding is coding, above is critical.
   thresholds: { simple: 3, coding: 7 },
   ollama: { model: 'qwen2.5-coder:3b' },
@@ -129,6 +133,7 @@ export function parseConfig(text, options) {
     catalogue: p.catalogue,
     routes: mergeRoutes(raw, p),
     subagents: { ...DEFAULTS.subagents, ...(router.subagents || {}) },
+    subagentModels: { ...DEFAULTS.subagentModels, ...(router.subagentModels || {}) },
     thresholds: { ...DEFAULTS.thresholds, ...(router.thresholds || {}) },
     ollama: { ...DEFAULTS.ollama, ...(router.ollama || {}) },
     classifier: router.classifier || DEFAULTS.classifier,

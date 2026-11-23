@@ -105,6 +105,8 @@ mod はプロンプトごとに次のことを行います:
 
 **子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 Palgu 自身のフォールバックチェーンが別のモデルで応答した場合、その行は `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)` となり、ターンはそのモデルとして集計・価格計算されます。 mod が破棄した子の回答(諦めた、意図を述べただけ、あなたに操作を求めた など: 下記「子がしてはいけないこと」)も同じように順に試されます。`HANDBACK` とあなたに操作を求める回答は除きます。
 
+**サブエージェント。** サブエージェントは Claude Code の中で、メインセッション自身の接続を使って動くため、mod が選べるのは使う Claude モデルだけで、ゲートウェイのモデルは選べません。組み込みの `general-purpose` サブエージェントが起動する前に、mod はそのタスクをプロンプトと同じように採点します: 単純なものは Haiku、コーディングは Sonnet、重要なものはメインセッションのモデルのままです。Explore は Haiku で動きます。mod はメインセッションより安いモデルしか選ばず、すでにモデルが選ばれたもの、プラグインやあなた自身のエージェント(定義でモデルを設定している場合がある)、fork、チームメイト、ワークフローのエージェントには手を出しません。トランスクリプトには `subagent general-purpose on haiku · simple 2/10` と表示されます。`/route off` でオフになり、`router.subagents` でエージェントの種類ごとに設定できます。
+
 ### ルーティング戦略: 複雑さ、コスト、速度、品質、または独自のルールでルーティングする
 
 分類器が何をスコア付けするか、ティアをどこで分けるか、各ティアがどのモデルを使うかが **ルーティング戦略** です。スキルと同じように、ルーブリックを書いた 1 つの markdown ファイルです。4 つが組み込まれています:
@@ -228,6 +230,7 @@ Claude とゲートウェイの両方が、常に見える状態です:
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | 同じ |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`、続いてトースト `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 同じ |
 | `/route stats` | 「Mixture of models」というペインで、ホットキー 1-4 の 4 つのタブがあります: **models**(モデルごとのバー、ターンの割合、見出しの "N of M turns off Claude"(M ターン中 N ターンが Claude 以外)、そして緑色でルーティングによる節約額)、**kinds**(各種別と、それをどのモデルが受け持ったか)、**scores**(ティアで色分けされた 1-10 のヒストグラムと区切りの表示)、**recent**(スコア、種別、モデル、子プロセスの時間を含む直近の判定)。Esc で閉じます。 | 同じ |
+| `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`、続いてモデルごとに 1 行(割合とバー)、サブエージェントが使ったモデル、節約額 | 同じ |
 
 ### どれだけ節約できるか
 
@@ -401,6 +404,7 @@ OpenRouter のスラッグには `/` が含まれるため、OpenRouter での�
 
 - `prompt.submit` — ルートを決めるためにプロンプトを読みます(事前ルール、次に分類器のスコア、次にしきい値)。プロンプトはそのまま通します: 破棄、書き換え、追加は一切しません。失敗時はオープン(fail open)です。
 - `turn.step` — ルーティングされたターンでは、メインモデルの代わりに上記の子プロセスを実行し、子プロセスのテキストでターンに回答します。それ以外のすべてのターンとすべてのサブエージェントは、そのまま通ります。子プロセスの回答が失敗または破棄された場合、ターンはメインモデルに戻されます。
+- `agent.spawn` — 組み込みサブエージェントが起動する前に、そのタスクを採点してより安い Claude モデルを選びます(上記「サブエージェント」)。各サブエージェントが使ったモデルを数えます。
 - `turn.complete` — ターンのテキストにルート行(ルート、スコア、コスト、節約額)を追加し、プラグインストア内のカウント、判定ログ、節約額の合計を更新します。続いてハートビート: メインセッションの回答がタスクの途中で止まった場合(行動を予告して終わった、または変更を頼んだのに行っていない編集を説明した場合)、mod は自ら continue のプロンプトを 1 つ送信します(`$.prompt.submit`。モデルにはこのプラグインからのものとして表示されます)。あなたのプロンプト 1 つにつき最大 `router.heartbeatMax`(3)回です。失敗時はオープン: エラーが停止を妨げることはありません。
 - その他: `session.start`(設定を読み、`/route` と `/palgu` を登録)、`turn.start`(前回の子プロセスの結果をクリア)、`AbovePrompt`(バンド)、`AssistantMessage`(子プロセスの返信の出所タグ)、`Pane`(ヘルプと統計のペイン)、`Spinner`(`via <model> (child)…`)に対する `ui.render`、`/route` と `/palgu` に対する `command.run`。mod が `tool.call` や `tool.check` を扱うことはありません。
 
@@ -433,7 +437,7 @@ OpenRouter のスラッグには `/` が含まれるため、OpenRouter での�
 
 ### フック
 
-フックモジュール `hooks/register.js` は 11 個のフックを登録します。それぞれが受け取るイベントと呼び出しで何をするか:
+フックモジュール `hooks/register.js` は 12 個のフックを登録します。それぞれが受け取るイベントと呼び出しで何をするか:
 
 | フック | 動作 |
 | :- | :- |
@@ -441,6 +445,7 @@ OpenRouter のスラッグには `/` が含まれるため、OpenRouter での�
 | `prompt.submit` | すべてのプロンプトをそのまま通します。並行してルートを決めます: まず事前ルール、次に分類器による 1-10 の影響範囲スコア(「ネットワーク」を参照)、次にしきい値。プロンプトの破棄、書き換え、追加は一切しません。失敗時はオープン: スコア付けが例外を投げても、プロンプトは通ります。 |
 | `turn.start` | 前のターンの子プロセスの結果をクリアします。 |
 | `turn.step` | ルーティングされたターンでは、メインセッションにモデルを呼ばせる代わりに、「プログラム」で説明した子プロセス(ゲートウェイ上またはあなたの Claude ログイン上の Claude Code、または Codex)を実行し、子プロセスのテキストを `stopReason: end_turn` でターンの回答として返します。子プロセスのパーミッションシステムがコマンドを拒否した場合、フックは `$.ui.ask`(Claude が質問に使うダイアログ)で、正確なコマンドを示してあなたに尋ねます。"Allow and continue" を選ぶと、そのコマンドを許可して同じ子プロセスを再開します(最大 `relayRounds` 回)。"Deny" を選んだ場合や誰も答えられない場合は、子プロセス自身の説明が回答になります。Codex の子プロセスについても、拒否されたとして挙げたコマンドについて同じように、1 ターンに 1 回尋ねます。"Allow and continue" を選ぶと、プロジェクト内の編集を許可して同じ Codex スレッドが再開されます([サンドボックスと承認](#サンドボックスと承認) を参照)。それ以外のすべてのターンとサブエージェントでは、`next(e)` をそのまま呼びます。子プロセスが失敗したか何も出力しなかった場合は `next(e)` を呼び、メインモデルが回答します。 |
+| `agent.spawn` | Agent ツールがルール(`router.subagents`)にある組み込みサブエージェントを起動する前に、そのタスクを採点し(先頭 2,000 文字、プロンプトと同じ分類器)、モデルを設定します: 単純なら Haiku、コーディングなら Sonnet、重要なら変更なし。親より高いモデルは決して選びません。すでに選ばれたモデル、プラグインやあなた自身のエージェント、fork、チームメイト、ワークフローのエージェントはそのままです。`/route usage` のために各サブエージェントが使ったモデルを数えます。 |
 | `turn.complete` | 回答の下に、ルート、スコア、コスト、実行場所、ルーティングされたターンの節約額を示す行を追加し、プラグインストア内の日ごとのカウントと節約額の合計を更新します。Palgu では、ルーティングされたターンのコストを `/v1/pricing/quote` に問い合わせます。 |
 | `AbovePrompt` に対する `ui.render` | バンドを描画します: 現在のモードと最後の判定、`/route` のピンを変更するボタン。他の mod がそこに描画するものはそのまま残します。 |
 | `AssistantMessage` に対する `ui.render` | 子プロセスが生成した返信の上に、薄い出所表示の行を付けます。それ以外の返信はそのまま通します。 |
@@ -570,6 +575,8 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 - `routes`: ティア → ゲートウェイが提供するモデル ID。加えて `routes.kinds`: critical 以外のティアでの種別 → モデル。`"claude"` はメインセッションを意味します。
 - `primary`(Maggy が追従するモデル。`/model-config` で設定): `glm`、`kimi`、`deepseek` にすると、`routes.coding` が設定されていない限り `coding` ティアがそれに追従します。`primary: claude` は何も変えません: `critical` はすでに Claude にあり、`routes.coding` を `"claude"` に設定しない限り `coding` は安いままです。
 - `thresholds`: 影響範囲スコアの区切り。デフォルトは `{ "simple": 3, "coding": 7 }`。
+- `subagents`: mod が Claude モデルを選ぶ組み込みサブエージェントを、エージェントの種類ごとに指定します: `auto` はタスクを採点、`simple`・`coding`・`critical` は層を固定、`off`(または未記載の種類)は Claude Code に任せます。既定は `{ "general-purpose": "auto", "Explore": "simple" }`。
+- `subagentModels`: それらのサブエージェントの層ごとの Claude モデル。既定は `{ "simple": "haiku", "coding": "sonnet" }`。重要なものは親のモデルのままで、親より安くないモデルは決して設定しません。
 - `classifier`: Ollama に到達できないときに使う Claude のモデル。日付なしのエイリアスのみ(`claude-haiku-5-5`、`claude-sonnet-5`、`claude-opus-5`)。
 - `provider`: プラグインの `gateway_provider` オプションが未設定または `auto` のときのゲートウェイのプロバイダー: `palgu`、`openrouter`、`litellm`、`anthropic-compatible`。未設定の場合はゲートウェイの URL から検出されます([セットアップ](#セットアップ) を参照)。デフォルトの `routes`、`families`、バンドのボタン、子プロセスの認証を決めます。`routes` や `families` で設定したものが常に優先されます。
 - `child.baseUrl`: プラグインの `gateway_url` オプションが未設定のときの、ゲートウェイ URL のフォールバック。キーにはフォールバックがなく、`gateway_key` オプションからのみ取得されます。
@@ -609,6 +616,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 | `/route simple\|coding\|critical` | ティアをピン留めする |
 | `/route reset` | 種別ごとの失敗の記憶をクリアする |
 | `/route stats` | 統計ペインを開く: models、kinds、scores、recent |
+| `/route usage` (`today`, `week`, `month`, `all`) | 期間内(既定: 直近 7 日)にターンに答えたモデルと、サブエージェントが使ったモデル |
 | `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | モデルをピン留めする(プレフィックスは、設定されたモデル、次に既知のゲートウェイのモデルに展開されます。`/route upgrade` のようにどのモデルにも一致しない語はピン留めされず、auto になります) |
 | `/route claude/sonnet`、`/route kimi/highspeed`、`/route codex/gpt-5.6-terra` | ファミリーのメンバーをピン留めする(`claude/sonnet` はあなたの Claude ログインで動きます) |
 | `/route claude/auto`、`/route kimi/auto`、`/route codex/auto` | ファミリーをピン留めする。各プロンプトは引き続きスコア付けされ、ティアがメンバーを選びます |
@@ -652,7 +660,7 @@ mixture-of-models-claude-mod/
 ├── scripts/test-pure.mjs   # 純粋なテストを Node で実行する
 ├── hooks/
 │   ├── hooks.json          # register.js を指す
-│   ├── register.js         # 11 個のフック登録。mods API ($) に触れる唯一のファイル
+│   ├── register.js         # 12 個のフック登録。mods API ($) に触れる唯一のファイル
 │   └── lib/                # 純粋で、ユニットテスト済み
 │       ├── config.js       # デフォルトと model-config.json の上書き
 │       ├── providers.js    # Palgu、OpenRouter、LiteLLM、汎用: 検出、子プロセスの認証、カタログ

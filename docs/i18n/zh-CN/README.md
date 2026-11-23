@@ -105,6 +105,8 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 **子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 如果是 Palgu 自己的回退链改用了另一个模型，该行会显示 `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`，这一轮也按该模型计数和计价。 被 mod 丢弃的子进程回答（放弃、只叙述意图、要求你操作等，见下文“子进程不得做的事”）也按同样方式依次尝试，`HANDBACK` 和要求你操作的回答除外。
 
+**子代理。** 子代理在 Claude Code 内部运行，使用主会话自己的连接，因此 mod 只能选择它使用哪个 Claude 模型，不能选择网关模型。在内置的 `general-purpose` 子代理启动前，mod 会像给提示打分一样给它的任务打分：简单任务在 Haiku 上运行，编码任务在 Sonnet 上运行，关键任务保持主会话的模型。Explore 在 Haiku 上运行。mod 只会选择比主会话更便宜的模型，并且不会改动以下子代理：已经选定模型的、插件或你自己定义的代理（其定义可能设置了模型）、fork、队友以及工作流代理。对话记录会显示 `subagent general-purpose on haiku · simple 2/10`；`/route off` 会关闭此功能，`router.subagents` 可按代理类型设置。
+
 ### 路由策略：按复杂度、成本、速度、质量或你自己的规则路由
 
 分类器打什么分、层级在哪里划分、每个层级使用哪个模型，这些合起来就是一个**路由策略**：一个带评分规则的 markdown 文件，类似 skill。内置四种：
@@ -228,6 +230,7 @@ Claude 和网关始终都是可见的：
 | `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | 相同 |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`，然后一条 toast：`Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 相同 |
 | `/route stats` | 一个名为 "Mixture of models" 的面板，有四个标签页，用热键 1-4 切换：**models**（每个模型的条形图、轮次占比、标题 "N of M turns off Claude"，以及以绿色显示的路由节省额）、**kinds**（每种类型以及处理它的模型）、**scores**（按层级着色的 1-10 直方图，标出分界线）、**recent**（最近的决策，含分数、类型、模型和子进程耗时）。按 Esc 关闭。 | 相同 |
+| `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`，然后每个模型一行，显示占比和条形图、子代理使用的模型以及节省的费用 | 相同 |
 
 ### 能节省多少
 
@@ -401,6 +404,7 @@ virtual key 只能访问它被允许的模型；401 或未知模型会导致子�
 
 - `prompt.submit` — 读取提示词以决定其路由（预路由规则，然后是分类器分数，然后是阈值）。原样放行提示词：从不丢弃、改写或添加内容。fail-open。
 - `turn.step` — 对于被路由的轮次，运行上述子进程代替主模型，并用子进程的文本回答该轮次；其他所有轮次和所有子 agent 都原样通过。子进程失败或回答被丢弃时，把该轮次交还给主模型。
+- `agent.spawn` — 在内置子代理启动前，为其任务打分并为它选择一个更便宜的 Claude 模型（见上文“子代理”）；统计每个子代理所用的模型。
 - `turn.complete` — 在轮次文本后追加路由行（路由、分数、成本、节省），并更新插件存储中的计数、决策日志和节省总额。然后是心跳：当主会话的回答停在任务中途时（它宣布了一个操作就结束了，或者在你要求修改时，描述了它实际没有做的编辑），mod 会提交一条它自己的继续提示词（`$.prompt.submit`，对模型显示为来自本插件），每条你的提示词最多 `router.heartbeatMax`（3）次。fail-open：出错从不会阻止停止。
 - 还有：`session.start`（读取设置，注册 `/route` 和 `/palgu`）、`turn.start`（清除上一次的子进程结果）、`ui.render` 用于 `AbovePrompt`（状态栏）、`AssistantMessage`（子进程回复上的来源标记）、`Pane`（帮助和统计面板）和 `Spinner`（`via <model> (child)…`），以及 `command.run` 用于 `/route` 和 `/palgu`。mod 从不处理 `tool.call` 或 `tool.check`。
 
@@ -433,7 +437,7 @@ virtual key 只能访问它被允许的模型；401 或未知模型会导致子�
 
 ### Hook
 
-hook 模块 `hooks/register.js` 注册了十一个 hook。每个 hook 对其看到的事件和调用做了什么：
+hook 模块 `hooks/register.js` 注册了十二个 hook。每个 hook 对其看到的事件和调用做了什么：
 
 | Hook | 作用 |
 | :- | :- |
@@ -441,6 +445,7 @@ hook 模块 `hooks/register.js` 注册了十一个 hook。每个 hook 对其看�
 | `prompt.submit` | 原样放行每条提示词。同时它会决定路由：先是预路由规则，然后是分类器给出的 1-10 影响范围分数（参见“网络”部分），然后是阈值。从不丢弃、改写或向提示词添加内容。fail-open：即使打分抛出异常，提示词仍会通过。 |
 | `turn.start` | 清除上一个轮次的子进程结果。 |
 | `turn.step` | 对于被路由的轮次，不让主会话调用其模型，而是运行“程序”部分所述的子进程（网关上或你 Claude 登录上的 Claude Code，或 Codex），并以 `stopReason: end_turn` 把子进程的文本作为该轮次的回答输出。如果子进程的权限系统拒绝了某条命令，该 hook 会用 `$.ui.ask`（Claude 用于提问的对话框）询问你，写明确切的命令；选择 "Allow and continue" 时，它会恢复同一个子进程并允许这些命令，最多 `relayRounds` 次；选择 "Deny" 或无人能回答时，子进程自己的说明就是回答。Codex 子进程会就它写明被拒绝的命令以同样的方式询问，每个轮次一次；选择 "Allow and continue" 时，同一个 Codex 线程会恢复，并允许在项目中编辑（参见[沙箱与审批](#沙箱与审批)）。对于其他所有轮次以及子 agent，它会原样调用 `next(e)`。如果子进程失败或没有输出，它会调用 `next(e)`，由主模型作答。 |
+| `agent.spawn` | 在 Agent 工具启动规则（`router.subagents`）所列的内置子代理之前，为其任务打分（前 2,000 个字符，使用与提示相同的分类器）并设置其模型：简单任务用 Haiku，编码任务用 Sonnet，关键任务不变，且绝不选择比父级更贵的模型。已选定的模型、插件或你自己的代理、fork、队友和工作流代理保持不变。统计每个子代理所用的模型，供 `/route usage` 使用。 |
 | `turn.complete` | 在回答下方追加一行，写明路由、分数、成本和运行位置，以及被路由轮次节省了多少；更新插件存储中的每日计数和节省总额。在 Palgu 上，它会向 `/v1/pricing/quote` 询问被路由轮次的花费。 |
 | `ui.render` 用于 `AbovePrompt` | 绘制状态栏：当前模式和最近一次决策，以及更改 `/route` 固定的按钮。保留其他 mod 在那里绘制的内容。 |
 | `ui.render` 用于 `AssistantMessage` | 在子进程生成的回复上方放置一行暗色的来源标记。其他回复原样通过。 |
@@ -570,6 +575,8 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 - `routes`：层级 → 网关提供的模型 id，以及 `routes.kinds`：非关键层级的类型 → 模型。`"claude"` 表示主会话。
 - `primary`（Maggy 所跟随的模型，用 `/model-config` 设置）：`glm`、`kimi` 或 `deepseek` 会让 `coding` 层级跟随它，除非设置了 `routes.coding`。`primary: claude` 不改变任何东西：`critical` 本来就在 Claude 上，而 `coding` 保持便宜，除非你把 `routes.coding` 设为 `"claude"`。
 - `thresholds`：影响范围分数的分界线，默认为 `{ "simple": 3, "coding": 7 }`。
+- `subagents`：mod 按代理类型为哪些内置子代理选择 Claude 模型：`auto` 为任务打分，`simple`、`coding` 或 `critical` 固定层级，`off`（或未列出的类型）交给 Claude Code。默认 `{ "general-purpose": "auto", "Explore": "simple" }`。
+- `subagentModels`：这些子代理每个层级使用的 Claude 模型，默认 `{ "simple": "haiku", "coding": "sonnet" }`；关键任务保持父级的模型，绝不会设置不比父级便宜的模型。
 - `classifier`：Ollama 无法访问时使用的 Claude 模型。只使用不带日期的别名（`claude-haiku-5-5`、`claude-sonnet-5`、`claude-opus-5`）。
 - `provider`：当插件的 `gateway_provider` 选项未设置或为 `auto` 时的网关提供方：`palgu`、`openrouter`、`litellm` 或 `anthropic-compatible`。未设置时，从网关 URL 识别（参见[设置](#设置)）。它决定默认的 `routes`、`families`、状态栏的按钮和子进程的认证方式；你在 `routes` 或 `families` 中设置的任何内容仍然优先。
 - `child.baseUrl`：插件的 `gateway_url` 选项未设置时网关 URL 的后备值。密钥没有后备值；它只来自 `gateway_key` 选项。
@@ -609,6 +616,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 | `/route simple\|coding\|critical` | 固定一个层级 |
 | `/route reset` | 清除按类型的失败记忆 |
 | `/route stats` | 打开统计面板：models、kinds、scores、recent |
+| `/route usage` (`today`, `week`, `month`, `all`) | 在该时间段内（默认：最近 7 天）回答你的回合以及运行你的子代理的模型 |
 | `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | 固定一个模型（前缀会先展开为已配置的模型，再展开为已知的网关模型；不匹配任何模型的词（如 `/route upgrade`）不会被固定，而是设为 auto） |
 | `/route claude/sonnet`、`/route kimi/highspeed`、`/route codex/gpt-5.6-terra` | 固定一个家族成员（`claude/sonnet` 在你的 Claude 登录上运行） |
 | `/route claude/auto`、`/route kimi/auto`、`/route codex/auto` | 固定一个家族；每条提示词仍会被打分，由层级挑选成员 |
@@ -652,7 +660,7 @@ mixture-of-models-claude-mod/
 ├── scripts/test-pure.mjs   # 在 Node 下运行纯测试
 ├── hooks/
 │   ├── hooks.json          # 指向 register.js
-│   ├── register.js         # 11 个 hook 注册；唯一接触 mods API（$）的文件
+│   ├── register.js         # 12 个 hook 注册；唯一接触 mods API（$）的文件
 │   └── lib/                # 纯函数，有单元测试
 │       ├── config.js       # 默认值和 model-config.json 覆盖层
 │       ├── providers.js    # Palgu、OpenRouter、LiteLLM、通用网关：识别、子进程认证、模型目录

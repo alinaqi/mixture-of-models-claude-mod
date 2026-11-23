@@ -9,7 +9,8 @@ import { checkRoute, familiesText, isAutoRoute, routeValue, targetFor } from './
 import { CODEX_INSTALL, codexAsk, codexBaseUrl, codexBrief, codexEnv, codexFlags, codexReady, codexRelayText, codexResumeFlags, droppedArgs, missingCodex, parseCodexOutput, refusalNote, sandboxOf } from './lib/codex.js'
 import { vetAnswer } from './lib/vet.js'
 import { handoffCommand, handoffText, launchScript, parseContinue } from './lib/handoff.js'
-import { appendLog, bumpStats, statsLine, summarize } from './lib/stats.js'
+import { appendLog, bumpStats, statsLine, summarize, usagePeriod, usageText } from './lib/stats.js'
+import { subagentModel, subagentRule } from './lib/subagents.js'
 import { paneTree } from './lib/stats-pane.js'
 import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 import { HELP, PALGU_GATEWAY, budgetText, configureValues, deviceBody, deviceName, isPalgu, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText } from './lib/palgu.js'
@@ -300,6 +301,31 @@ async function runChild($, prompt) {
   decision = { ...decision, child: { ms: Date.now() - started, exitCode: vet.ok ? 0 : 1, rejected: vet.reason, usage: out.usage || null, ...(out.note || {}), ...walk } }
   if (!vet.ok) await $.store.set('failures', bumpFailures(await $.store.get('failures'), decision.kind))
   return vet.ok ? out.answer : ''
+}
+
+// agent.spawn: the Claude model a built-in subagent runs on (subagents.js). Its task is scored like a
+// prompt (the first 2000 characters, through the same local or Claude classifier); nothing else leaves.
+async function subagentPick($, e) {
+  if (disabled || pin.mode === 'off') return { model: '' }
+  const rule = subagentRule(e, cfg.subagents)
+  if (!rule) return { model: '' }
+  const verdict = rule === 'auto' ? await classify($, String(e.prompt || '').slice(0, 2000)) : null
+  const label = verdict ? labelFor(verdict.score, cfg.thresholds) : rule
+  return { model: subagentModel(label, e.parentModel, cfg.subagentModels), label, score: verdict ? verdict.score : 0 }
+}
+
+async function countSubagent($, model) {
+  const day = new Date().toISOString().slice(0, 10)
+  await $.store.set('subagent-stats', bumpStats((await $.store.get('subagent-stats')) || {}, day, model))
+}
+
+// /route usage [today|week|month|all]: the models that answered turns, and the ones subagents ran on.
+async function usageCommand($, word) {
+  const period = usagePeriod(word)
+  if (!period) return 'Usage: /route usage [today|week|month|all]'
+  const day = new Date().toISOString().slice(0, 10)
+  const text = usageText((await $.store.get('stats')) || {}, (await $.store.get('subagent-stats')) || {}, period, day)
+  return text + '\n' + savingsLine(await $.store.get('savings'), sessionModel)
 }
 
 // Help changes nothing: it opens the pane that says what is possible. Stats opens the chart pane.
@@ -634,7 +660,7 @@ export function register(on, opts) {
     update = {}
     checkForUpdate($).catch(() => undefined)
     // A failed registration resolves to false (no closure over $), and the log call stays plain.
-    const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or open the stats pane: /route [status|stats|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
+    const routeOk = await $.command.register({ name: 'route', description: 'Show or pin the model route, or see which models you used: /route [status|stats|usage|models|auto|off|reset|simple|coding|critical|<model>|<family>/<member>|<family>/auto|codex]', argumentHint: '[status|stats|usage|models|auto|off|reset|label|model|family/member]', immediate: true }).then(registered, refused)
     if (!routeOk) $.ui.log('/route is taken by another plugin')
     const palguOk = await $.command.register({ name: 'palgu', description: 'Sign up or sign in to Palgu and route to its models, or continue this session in Palgu: /palgu [login|status|upgrade|continue]', argumentHint: '[login|status|upgrade|continue [--open]]', immediate: true }).then(registered, refused)
     if (!palguOk) $.ui.log('/palgu is taken by another plugin')
@@ -719,6 +745,14 @@ export function register(on, opts) {
     return next({ ...e, props: { ...e.props, suffix: ' · via ' + decision.model + ' (child)…' } })
   })
 
+  on('agent.spawn', async ($, e, next) => {
+    const pick = await subagentPick($, e)
+    const result = await next(pick.model ? { ...e, model: pick.model } : e)
+    if (pick.model) $.ui.log('subagent ' + e.subagentType + ' on ' + pick.model + ' · ' + pick.label + (pick.score ? ' ' + pick.score + '/10' : ''))
+    if (result && result.model) await countSubagent($, result.model)
+    return result
+  })
+
   on('command.run', { command: 'palgu' }, async ($, e) => ({ text: await palguCommand($, e.args) }))
 
   on('command.run', { command: 'route' }, async ($, e) => {
@@ -729,6 +763,7 @@ export function register(on, opts) {
     if (parsed.mode === 'help') return { ...(await openPane($, 'mom-help') && {}) }
     if (parsed.mode === 'update') return { text: await routeUpdate($, VERSION) }
     if (parsed.mode === 'models') return { text: await modelsCommand($) }
+    if (parsed.mode === 'usage') return { text: await usageCommand($, parsed.period) }
     if (parsed.mode === 'strategies' || parsed.mode === 'strategy') return { text: await strategyCommand($, parsed) }
     return { text: await pinFrom($, e.args) }
   })
