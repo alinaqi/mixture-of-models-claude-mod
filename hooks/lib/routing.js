@@ -1,6 +1,6 @@
 // Route resolution, the /route argument grammar, and the summary line. Pure.
 import { GATEWAY_MODELS, LABELS } from './config.js'
-import { routeValue } from './families.js'
+import { routeValue, splitRoute } from './families.js'
 import { fallbackNote } from './fallback.js'
 
 // The tier says whether Claude is mandatory; below that, the kind picks the cheaper model.
@@ -51,7 +51,10 @@ export function parseRouteArg(arg, routes, catalogue) {
   if (word.includes('/')) return { mode: 'model', model: word }
   if (['auto', 'off', 'reset', 'stats', 'help', 'update', 'models'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
-  return { mode: 'model', model: modelByPrefix(word, routes, catalogue) || word }
+  // A word no route or catalogue id starts with (`/route upgrade`) would pin a model that does not
+  // exist and fail every turn: it means auto instead.
+  const model = modelByPrefix(word, routes, catalogue) || (splitRoute(word).family && word)
+  return model ? { mode: 'model', model } : { mode: 'auto', unknown: word }
 }
 
 function fmtTokens(n) {

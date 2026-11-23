@@ -603,7 +603,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 | `/route simple\|coding\|critical` | ティアをピン留めする |
 | `/route reset` | 種別ごとの失敗の記憶をクリアする |
 | `/route stats` | 統計ペインを開く: models、kinds、scores、recent |
-| `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | モデルをピン留めする(プレフィックスは、設定されたモデル、次に既知のゲートウェイのモデルに展開されます) |
+| `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | モデルをピン留めする(プレフィックスは、設定されたモデル、次に既知のゲートウェイのモデルに展開されます。`/route upgrade` のようにどのモデルにも一致しない語はピン留めされず、auto になります) |
 | `/route claude/sonnet`、`/route kimi/highspeed`、`/route codex/gpt-5.6-terra` | ファミリーのメンバーをピン留めする(`claude/sonnet` はあなたの Claude ログインで動きます) |
 | `/route claude/auto`、`/route kimi/auto`、`/route codex/auto` | ファミリーをピン留めする。各プロンプトは引き続きスコア付けされ、ティアがメンバーを選びます |
 | `/route codex` | Codex をデフォルトのモデルでピン留めする |

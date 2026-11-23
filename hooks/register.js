@@ -314,10 +314,11 @@ async function pinFrom($, arg) {
   if (parsed.mode === 'help') return openPane($, 'mom-help').then(() => '')
   const bad = parsed.mode === 'model' ? checkRoute(parsed.model, cfg.families) : ''
   if (bad) return bad
-  pin = parsed
+  pin = parsed.unknown ? { mode: 'auto' } : parsed
   await $.store.set('pin', pin)
   applyPin()
   $.ui.invalidate('ui.render')
+  if (parsed.unknown) return 'no model, tier or command named ' + parsed.unknown + '; routing set to auto (/route models lists the models)'
   return 'routing set to ' + pin.mode + (pin.model ? ' ' + pin.model : pin.label ? ' ' + pin.label : '')
 }
 
