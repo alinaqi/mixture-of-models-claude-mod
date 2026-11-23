@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.2] - 2026-11-24
+
+### Added
+- `/route stats reset` starts the model counts, the decision log (stats pane), the savings totals and the subagent counts again from now, so counts taken before the attribution fix in 0.36.1 can be dropped. The route, pin, failure memory and settings stay.
+
 ## [0.36.1] - 2026-11-23
 
 ### Fixed

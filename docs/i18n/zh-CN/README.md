@@ -231,6 +231,7 @@ Claude 和网关始终都是可见的：
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`，然后一条 toast：`Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 相同 |
 | `/route stats` | 一个名为 "Mixture of models" 的面板，有四个标签页，用热键 m、k、s、r 切换（先点击面板；在空的提示框中单独按数字会按下提示栏上方的按钮）：**models**（每个模型的条形图、轮次占比、标题 "N of M turns off Claude"，以及以绿色显示的路由节省额）、**kinds**（每种类型以及处理它的模型）、**scores**（按层级着色的 1-10 直方图，标出分界线）、**recent**（最近的决策，含分数、类型、模型和子进程耗时）。按 Esc 关闭。 | 相同 |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`，然后每个模型一行，显示占比和条形图、子代理使用的模型以及节省的费用 | 相同 |
+| `/route stats reset` | `stats reset: model counts, decision log, savings and subagent counts start again from now` | 相同 |
 
 ### 能节省多少
 
@@ -617,6 +618,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
 | `/route reset` | 清除按类型的失败记忆 |
 | `/route stats` | 打开统计面板：models、kinds、scores、recent |
 | `/route usage` (`today`, `week`, `month`, `all`) | 在该时间段内（默认：最近 7 天）回答你的回合以及运行你的子代理的模型 |
+| `/route stats reset` | 从现在起重新开始统计模型计数、决策日志、节省金额和子代理计数；你的路由、固定和设置保持不变 |
 | `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | 固定一个模型（前缀会先展开为已配置的模型，再展开为已知的网关模型；不匹配任何模型的词（如 `/route upgrade`）不会被固定，而是设为 auto） |
 | `/route claude/sonnet`、`/route kimi/highspeed`、`/route codex/gpt-5.6-terra` | 固定一个家族成员（`claude/sonnet` 在你的 Claude 登录上运行） |
 | `/route claude/auto`、`/route kimi/auto`、`/route codex/auto` | 固定一个家族；每条提示词仍会被打分，由层级挑选成员 |

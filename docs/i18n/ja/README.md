@@ -231,6 +231,7 @@ Claude とゲートウェイの両方が、常に見える状態です:
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`、続いてトースト `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 同じ |
 | `/route stats` | 「Mixture of models」というペインで、ホットキー m・k・s・r の(先にペインをクリックします。空のプロンプトで数字だけを押すとバンドのボタンが押されます) 4 つのタブがあります: **models**(モデルごとのバー、ターンの割合、見出しの "N of M turns off Claude"(M ターン中 N ターンが Claude 以外)、そして緑色でルーティングによる節約額)、**kinds**(各種別と、それをどのモデルが受け持ったか)、**scores**(ティアで色分けされた 1-10 のヒストグラムと区切りの表示)、**recent**(スコア、種別、モデル、子プロセスの時間を含む直近の判定)。Esc で閉じます。 | 同じ |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`、続いてモデルごとに 1 行(割合とバー)、サブエージェントが使ったモデル、節約額 | 同じ |
+| `/route stats reset` | `stats reset: model counts, decision log, savings and subagent counts start again from now` | 同じ |
 
 ### どれだけ節約できるか
 
@@ -617,6 +618,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
 | `/route reset` | 種別ごとの失敗の記憶をクリアする |
 | `/route stats` | 統計ペインを開く: models、kinds、scores、recent |
 | `/route usage` (`today`, `week`, `month`, `all`) | 期間内(既定: 直近 7 日)にターンに答えたモデルと、サブエージェントが使ったモデル |
+| `/route stats reset` | モデルの回数、判断ログ、節約額、サブエージェントの回数を今から数え直します。ルート、ピン留め、設定はそのままです |
 | `/route glm`、`/route kimi`、`/route kimi-k3.1-pro`、`/route minimax`、`/route gpt`、`/route claude` | モデルをピン留めする(プレフィックスは、設定されたモデル、次に既知のゲートウェイのモデルに展開されます。`/route upgrade` のようにどのモデルにも一致しない語はピン留めされず、auto になります) |
 | `/route claude/sonnet`、`/route kimi/highspeed`、`/route codex/gpt-5.6-terra` | ファミリーのメンバーをピン留めする(`claude/sonnet` はあなたの Claude ログインで動きます) |
 | `/route claude/auto`、`/route kimi/auto`、`/route codex/auto` | ファミリーをピン留めする。各プロンプトは引き続きスコア付けされ、ティアがメンバーを選びます |

@@ -55,6 +55,12 @@ test('parseRouteArg: a word that names no model, label or command means auto, an
   expect(parseRouteArg('my', DEFAULT_ROUTES, ['my-model'])).toEqual({ mode: 'model', model: 'my-model' })
 })
 
+test('parseRouteArg reads stats reset, and stats alone still opens the pane', async () => {
+  expect(parseRouteArg('stats reset', DEFAULT_ROUTES)).toEqual({ mode: 'stats-reset' })
+  expect(parseRouteArg('Stats  Reset', DEFAULT_ROUTES)).toEqual({ mode: 'stats-reset' })
+  expect(parseRouteArg('stats', DEFAULT_ROUTES)).toEqual({ mode: 'stats' })
+})
+
 test('parseRouteArg reads usage and its period', async () => {
   expect(parseRouteArg('usage', DEFAULT_ROUTES)).toEqual({ mode: 'usage', period: '' })
   expect(parseRouteArg('Usage Month', DEFAULT_ROUTES)).toEqual({ mode: 'usage', period: 'month' })

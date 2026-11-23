@@ -231,6 +231,7 @@ Claude et la passerelle sont tous deux visibles, en permanence :
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, puis une notification `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | idem |
 | `/route stats` | Un panneau, « Mixture of models », avec quatre onglets sur les raccourcis m, k, s et r (cliquez d'abord le panneau ; un chiffre seul dans un prompt vide presse les boutons de la barre) : **models** (barres par modèle, part des tours, le titre « N of M turns off Claude » et, en vert, ce que le routage a économisé), **kinds** (chaque type et les modèles qui l'ont pris), **scores** (un histogramme de 1 à 10 coloré par palier, seuils marqués), **recent** (les dernières décisions avec score, type, modèle et durée de l'enfant). Échap le ferme. | idem |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, puis une ligne par modèle avec sa part et une barre, les modèles de vos sous-agents et l'économie | idem |
+| `/route stats reset` | `stats reset: model counts, decision log, savings and subagent counts start again from now` | idem |
 
 ### Combien il fait économiser
 
@@ -617,6 +618,7 @@ Une config qui place chaque palier sur un membre Claude, avec Fable pour les tou
 | `/route reset` | Effacer la mémoire des échecs par type |
 | `/route stats` | Ouvrir le panneau de statistiques : models, kinds, scores, recent |
 | `/route usage` (`today`, `week`, `month`, `all`) | Quels modèles ont répondu à vos tours et fait tourner vos sous-agents sur la période (par défaut : les 7 derniers jours) |
+| `/route stats reset` | Recommencer dès maintenant les compteurs de modèles, le journal des décisions, les économies et les compteurs de sous-agents ; votre route, votre épinglage et vos réglages restent |
 | `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Épingler un modèle (un préfixe se développe vers le modèle configuré, puis vers un modèle connu de la passerelle ; un mot qui ne correspond à aucun modèle, comme `/route upgrade`, passe en auto au lieu d'être épinglé) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Épingler un membre de famille (`claude/sonnet` s'exécute sur votre connexion Claude) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Épingler une famille ; chaque prompt est toujours évalué et le palier choisit le membre |

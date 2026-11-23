@@ -49,6 +49,7 @@ export function parseRouteArg(arg, routes, catalogue) {
   if (head === 'strategies' || (head === 'strategy' && !rest.length)) return { mode: 'strategies' }
   if (head === 'strategy') return { mode: 'strategy', name: rest.join(' ') }
   if (head === 'usage') return { mode: 'usage', period: rest.join(' ') }
+  if (head === 'stats' && rest.length === 1 && rest[0] === 'reset') return { mode: 'stats-reset' }
   if (word.includes('/')) return { mode: 'model', model: word }
   if (['auto', 'off', 'reset', 'stats', 'help', 'update', 'models'].includes(word)) return { mode: word }
   if (LABELS.includes(word)) return { mode: 'label', label: word }
