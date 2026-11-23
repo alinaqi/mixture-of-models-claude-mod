@@ -237,6 +237,7 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`، ثم إشعار منبثق `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | نفسه |
 | `/route stats` | لوحة، "Mixture of models"، بأربعة تبويبات على مفاتيح الاختصار m وk وs وr (انقر اللوحة أولًا؛ الرقم وحده في موجّه فارغ يضغط أزرار الشريط): **models** (أشرطة لكل نموذج، وحصته من الأدوار، والعنوان "N of M turns off Claude" و، باللون الأخضر، ما وفّره التوجيه)، و **kinds** (كل نوع وأي النماذج تولّته)، و **scores** (مدرّج تكراري من 1 إلى 10 ملوّن حسب المستوى، مع تعليم نقاط القطع)، و **recent** (آخر القرارات مع الدرجة والنوع والنموذج ووقت العملية الفرعية). ‏Esc يغلقها. | نفسه |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`، ثم سطر لكل نموذج بحصته وشريط، والنماذج التي عمل عليها وكلاؤك الفرعيون، والتوفير | نفسه |
+| `/route stats reset` | `stats reset: model counts, decision log, savings and subagent counts start again from now` | نفسه |
 
 ### كم يوفر
 
@@ -623,6 +624,7 @@ x-srooter-project: <the session folder's name>
 | `/route reset` | امسح ذاكرة الإخفاقات لكل نوع |
 | `/route stats` | افتح لوحة الإحصاءات: models و kinds و scores و recent |
 | `/route usage` (`today`, `week`, `month`, `all`) | النماذج التي أجابت عن أدوارك وشغّلت وكلاءك الفرعيين خلال المدة (الافتراضي: آخر 7 أيام) |
+| `/route stats reset` | ابدأ عدّ النماذج وسجل القرارات والتوفير وعدّ الوكلاء الفرعيين من جديد من الآن؛ ويبقى مسارك وتثبيتك وإعداداتك كما هي |
 | `/route glm`، `/route kimi`، `/route kimi-k3.1-pro`، `/route minimax`، `/route gpt`، `/route claude` | ثبّت نموذجًا (البادئة تتوسع إلى النموذج المضبوط، ثم إلى نموذج بوابة معروف؛ والكلمة التي لا تطابق أي نموذج، مثل `/route upgrade`، تضبط الوضع auto بدل تثبيتها) |
 | `/route claude/sonnet`، `/route kimi/highspeed`، `/route codex/gpt-5.6-terra` | ثبّت عضو عائلة (‏`claude/sonnet` يعمل عبر تسجيل دخولك إلى Claude) |
 | `/route claude/auto`، `/route kimi/auto`، `/route codex/auto` | ثبّت عائلة؛ تظل كل مطالبة تُقيَّم ويختار المستوى العضو |

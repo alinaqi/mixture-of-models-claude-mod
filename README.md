@@ -229,6 +229,7 @@ Claude and the gateway are both visible, all the time:
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
 | `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys m, k, s and r (click the pane first; a bare digit in an empty prompt presses the band's buttons): **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, then one line per model with its share and a bar, the models your subagents ran on, and the savings | same |
+| `/route stats reset` | `stats reset: model counts, decision log, savings and subagent counts start again from now` | same |
 
 ### How much it saves
 
@@ -615,6 +616,7 @@ A config that puts every tier on a Claude member, with Fable for the hardest tur
 | `/route reset` | Clear the per-kind failure memory |
 | `/route stats` | Open the stats pane: models, kinds, scores, recent |
 | `/route usage` (`today`, `week`, `month`, `all`) | Which models answered your turns and ran your subagents, over the period (default: the last 7 days) |
+| `/route stats reset` | Start the model counts, decision log, savings and subagent counts again from now; your route, pin and settings stay |
 | `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Pin a model (a prefix expands to the configured model, then to a known gateway model; a word that matches no model, such as `/route upgrade`, sets auto instead of pinning it) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Pin a family member (`claude/sonnet` runs on your Claude login) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Pin a family; each prompt is still scored and the tier picks the member |

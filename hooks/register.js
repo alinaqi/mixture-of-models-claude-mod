@@ -15,7 +15,7 @@ import { paneTree } from './lib/stats-pane.js'
 import { bandButtons, bandTree, reportText, tagText, tagTree } from './lib/ui.js'
 import { HELP, PALGU_GATEWAY, budgetText, configureValues, deviceBody, deviceName, isPalgu, newInstallId, parseBody, parsePalguArg, signedInText, startFailedText, startText, statusText, tokenBody, tokenStep, upgradeText } from './lib/palgu.js'
 import { gatewayName } from './lib/providers.js'
-import { addTurn, claudeCost, quoteBody, quotedCost, savingsLine, tableCost, turnNote } from './lib/savings.js'
+import { addTurn, claudeCost, emptyTotals, quoteBody, quotedCost, savingsLine, tableCost, turnNote } from './lib/savings.js'
 import { helpTree } from './lib/help-pane.js'
 import { BUILTIN, STRATEGY_DIR, applyStrategy, parseStrategy, strategiesText, strategyFiles, strategyPrompt } from './lib/strategies.js'
 import { liveCatalogue, liveModels, modelsText } from './lib/catalogue.js'
@@ -317,6 +317,16 @@ async function subagentPick($, e) {
 async function countSubagent($, model) {
   const day = new Date().toISOString().slice(0, 10)
   await $.store.set('subagent-stats', bumpStats((await $.store.get('subagent-stats')) || {}, day, model))
+}
+
+// /route stats reset: the counts start again; the route, pin, failure memory and settings stay.
+async function resetStats($) {
+  await $.store.set('stats', {})
+  await $.store.set('log', [])
+  await $.store.set('savings', emptyTotals())
+  await $.store.set('subagent-stats', {})
+  $.ui.invalidate('ui.render')
+  return 'stats reset: model counts, decision log, savings and subagent counts start again from now'
 }
 
 // /route usage [today|week|month|all]: the models that answered turns, and the ones subagents ran on.
@@ -766,6 +776,7 @@ export function register(on, opts) {
     if (parsed.mode === 'update') return { text: await routeUpdate($, VERSION) }
     if (parsed.mode === 'models') return { text: await modelsCommand($) }
     if (parsed.mode === 'usage') return { text: await usageCommand($, parsed.period) }
+    if (parsed.mode === 'stats-reset') return { text: await resetStats($) }
     if (parsed.mode === 'strategies' || parsed.mode === 'strategy') return { text: await strategyCommand($, parsed) }
     return { text: await pinFrom($, e.args) }
   })

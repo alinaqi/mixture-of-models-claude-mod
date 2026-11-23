@@ -231,6 +231,7 @@ Claude und das Gateway sind beide jederzeit sichtbar:
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, dann ein Toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | dasselbe |
 | `/route stats` | Ein Bereich, "Mixture of models", mit vier Tabs auf den Tasten m, k, s und r (zuerst in den Bereich klicken; eine Ziffer allein in einem leeren Prompt drückt die Buttons der Leiste): **models** (Balken pro Modell, Anteil der Turns, die Kopfzeile "N of M turns off Claude" und in Grün, was das Routing gespart hat), **kinds** (jede Art und welche Modelle sie übernommen haben), **scores** (ein Histogramm 1-10, nach Stufe eingefärbt, Grenzen markiert), **recent** (die letzten Entscheidungen mit Bewertung, Art, Modell und Child-Zeit). Esc schließt ihn. | dasselbe |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, dann eine Zeile je Modell mit Anteil und Balken, die Modelle Ihrer Subagenten und die Ersparnis | dasselbe |
+| `/route stats reset` | `stats reset: model counts, decision log, savings and subagent counts start again from now` | dasselbe |
 
 ### Wie viel es spart
 
@@ -617,6 +618,7 @@ Eine Konfiguration, die jede Stufe auf ein Claude-Mitglied legt, mit Fable für 
 | `/route reset` | Das Fehlergedächtnis pro Art löschen |
 | `/route stats` | Den Statistik-Bereich öffnen: models, kinds, scores, recent |
 | `/route usage` (`today`, `week`, `month`, `all`) | Welche Modelle im Zeitraum (Standard: die letzten 7 Tage) Ihre Turns beantwortet und Ihre Subagenten ausgeführt haben |
+| `/route stats reset` | Modellzählungen, Entscheidungslog, Ersparnis und Subagenten-Zählungen ab jetzt neu beginnen; Route, Pin und Einstellungen bleiben |
 | `/route glm`, `/route kimi`, `/route kimi-k3.1-pro`, `/route minimax`, `/route gpt`, `/route claude` | Ein Modell pinnen (ein Präfix wird zum konfigurierten Modell erweitert, dann zu einem bekannten Gateway-Modell; ein Wort, das zu keinem Modell passt, etwa `/route upgrade`, stellt auf auto, statt es zu pinnen) |
 | `/route claude/sonnet`, `/route kimi/highspeed`, `/route codex/gpt-5.6-terra` | Ein Familienmitglied pinnen (`claude/sonnet` läuft mit Ihrem Claude-Login) |
 | `/route claude/auto`, `/route kimi/auto`, `/route codex/auto` | Eine Familie pinnen; jeder Prompt wird weiterhin bewertet, und die Stufe wählt das Mitglied |
