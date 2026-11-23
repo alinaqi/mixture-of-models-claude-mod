@@ -227,9 +227,9 @@ Claude et la passerelle sont tous deux visibles, en permanence :
 | Boîte de dialogue de question | Les propres questions de Claude | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` avec Allow and continue / Deny |
 | Réponse dans la transcription | inchangée (ou étiquetée `⇢ claude-opus-5 · main session` avec `ui.tags: "all"`) | une ligne atténuée `⇢ glm-5.3 · child on gateway` au-dessus de la réponse, conservée dans l'historique (`· child on your Claude subscription` pour un membre Claude, `· Codex child` pour Codex) |
 | Ligne sous la réponse | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
-| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | idem |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices` | idem |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, puis une notification `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | idem |
-| `/route stats` | Un panneau, « Mixture of models », avec quatre onglets sur les raccourcis 1-4 : **models** (barres par modèle, part des tours, le titre « N of M turns off Claude » et, en vert, ce que le routage a économisé), **kinds** (chaque type et les modèles qui l'ont pris), **scores** (un histogramme de 1 à 10 coloré par palier, seuils marqués), **recent** (les dernières décisions avec score, type, modèle et durée de l'enfant). Échap le ferme. | idem |
+| `/route stats` | Un panneau, « Mixture of models », avec quatre onglets sur les raccourcis m, k, s et r (cliquez d'abord le panneau ; un chiffre seul dans un prompt vide presse les boutons de la barre) : **models** (barres par modèle, part des tours, le titre « N of M turns off Claude » et, en vert, ce que le routage a économisé), **kinds** (chaque type et les modèles qui l'ont pris), **scores** (un histogramme de 1 à 10 coloré par palier, seuils marqués), **recent** (les dernières décisions avec score, type, modèle et durée de l'enfant). Échap le ferme. | idem |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, puis une ligne par modèle avec sa part et une barre, les modèles de vos sous-agents et l'économie | idem |
 
 ### Combien il fait économiser
@@ -237,7 +237,7 @@ Claude et la passerelle sont tous deux visibles, en permanence :
 Chaque tour routé est chiffré deux fois : au tarif du modèle Claude de votre session (ce que les mêmes tokens y auraient coûté) et à ce qu'il a réellement coûté. Sur Palgu, le coût réel vient du propre `/v1/pricing/quote` de Palgu, la formule selon laquelle il facture ; sur une autre passerelle, de `router.prices` ; un enfant `claude/<member>` est chiffré au tarif Claude de ce membre. Les tours qui restent dans la session principale comptent aussi dans le total tout-Claude, donc le pourcentage est la part de toute votre facture Claude que le routage a retirée, pas seulement celle des tours routés.
 
 - Sous chaque réponse routée : `· saved ~$0.39`.
-- `/route status` : `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`, un total cumulé sur toutes les sessions.
+- `/route status` : `saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices`, un total cumulé sur toutes les sessions.
 - `/route stats` : le même total, en vert, dans l'onglet models.
 
 Dans notre propre usage, des agents de code tournant jour et nuit épuisaient la limite hebdomadaire d'un abonnement Claude Max 20x en environ trois jours avec Claude seul ; avec Mixture of Models, le même abonnement a tenu les sept jours complets. Voir [GUIDELINES.md](GUIDELINES.md#économies-approximatives--abonnement-seul-ou-mixture-of-models).

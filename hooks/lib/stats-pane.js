@@ -50,8 +50,9 @@ function recentTab(el, v) {
 
 const BODIES = { models: modelsTab, kinds: kindsTab, scores: scoresTab, recent: recentTab }
 
+// Tab hotkeys are letters: a bare digit in an empty prompt answers the band's buttons (2 pins a model).
 export function paneTree(el, v, onTab) {
-  const tabs = TABS.map((t, i) => el.Button({ key: 'tab-' + t, label: t, hotkey: String(i + 1), plain: true, dimColor: v.tab !== t, onPress: () => onTab(t) }))
+  const tabs = TABS.map((t) => el.Button({ key: 'tab-' + t, label: t, hotkey: t[0], plain: true, dimColor: v.tab !== t, onPress: () => onTab(t) }))
   const body = v.summary.total ? BODIES[v.tab](el, v) : [el.Text({ dimColor: true, children: ['No turns recorded yet. Send a prompt and come back.'] })]
   return el.Box({ flexDirection: 'column', children: [el.Box({ flexDirection: 'row', columnGap: 3, children: tabs }), el.Text({ children: [' '] }), ...body] })
 }

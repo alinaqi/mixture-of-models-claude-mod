@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.1] - 2026-11-23
+
+### Fixed
+- A turn whose child failed (or whose answer was discarded) and that the main model then answered is now counted under the main session's model, not the routed one, in the per-day counts (`/route usage`, the route line's "today") and the decision log (the stats pane). Before, every such turn counted as "off Claude", so the off-Claude share and the gateway rows were overstated; counts already stored keep the old attribution. The log keeps the routed model as `routed`.
+- The savings line no longer hides a real saving as `(0%)`. Main-session turns carry the whole session's context and can dwarf the routed ones, so it now gives both shares: `saved ~$2.76 on 34 routed turns (82% of their Claude price) · 0.2% of all spend ($1,643.12) vs all claude-opus-5-5, at API prices`. Under 1% the share has one decimal.
+- The stats pane's tabs use the hotkeys `m`, `k`, `s` and `r`. Their old digits 1-4 clashed with the band above the prompt, where a bare digit in an empty prompt presses a band button: pressing 2 for "kinds" pinned glm instead.
+
 ## [0.36.0] - 2026-11-23
 
 ### Added

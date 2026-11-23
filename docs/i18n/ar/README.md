@@ -233,9 +233,9 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 | حوار السؤال | أسئلة Claude نفسه | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` مع Allow and continue / Deny |
 | الرد في سجل المحادثة | دون تغيير (أو موسوم `⇢ claude-opus-5 · main session` مع `ui.tags: "all"`) | سطر باهت `⇢ glm-5.3 · child on gateway` فوق الرد، يبقى في سجل التمرير (`· child on your Claude subscription` لعضو من Claude، و `· Codex child` لـ Codex) |
 | السطر تحت الإجابة | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
-| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | نفسه |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices` | نفسه |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`، ثم إشعار منبثق `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | نفسه |
-| `/route stats` | لوحة، "Mixture of models"، بأربعة تبويبات على مفاتيح الاختصار 1-4: **models** (أشرطة لكل نموذج، وحصته من الأدوار، والعنوان "N of M turns off Claude" و، باللون الأخضر، ما وفّره التوجيه)، و **kinds** (كل نوع وأي النماذج تولّته)، و **scores** (مدرّج تكراري من 1 إلى 10 ملوّن حسب المستوى، مع تعليم نقاط القطع)، و **recent** (آخر القرارات مع الدرجة والنوع والنموذج ووقت العملية الفرعية). ‏Esc يغلقها. | نفسه |
+| `/route stats` | لوحة، "Mixture of models"، بأربعة تبويبات على مفاتيح الاختصار m وk وs وr (انقر اللوحة أولًا؛ الرقم وحده في موجّه فارغ يضغط أزرار الشريط): **models** (أشرطة لكل نموذج، وحصته من الأدوار، والعنوان "N of M turns off Claude" و، باللون الأخضر، ما وفّره التوجيه)، و **kinds** (كل نوع وأي النماذج تولّته)، و **scores** (مدرّج تكراري من 1 إلى 10 ملوّن حسب المستوى، مع تعليم نقاط القطع)، و **recent** (آخر القرارات مع الدرجة والنوع والنموذج ووقت العملية الفرعية). ‏Esc يغلقها. | نفسه |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`، ثم سطر لكل نموذج بحصته وشريط، والنماذج التي عمل عليها وكلاؤك الفرعيون، والتوفير | نفسه |
 
 ### كم يوفر
@@ -243,7 +243,7 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 كل دور موجَّه يُسعَّر مرتين: بسعر نموذج Claude في جلستك (ما كانت التوكنات نفسها ستكلفه هناك) وبما كلّفه فعلًا. على Palgu، تأتي التكلفة الفعلية من `/v1/pricing/quote` الخاص بـ Palgu، وهي الصيغة التي يفوتر بها؛ وعلى بوابة أخرى، من `router.prices`؛ والعملية الفرعية `claude/<member>` تُسعَّر بسعر Claude لذلك العضو. الأدوار التي تبقى في الجلسة الرئيسية تُحتسب أيضًا ضمن إجمالي Claude الكامل، لذا فالنسبة المئوية هي الحصة من فاتورة Claude كاملة التي أزالها التوجيه، لا من الأدوار الموجَّهة فقط.
 
 - تحت كل إجابة موجَّهة: `· saved ~$0.39`.
-- ‏`/route status`: ‏`saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`، مجموع جارٍ عبر الجلسات.
+- ‏`/route status`: ‏`saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices`، مجموع جارٍ عبر الجلسات.
 - ‏`/route stats`: المجموع نفسه، باللون الأخضر، في تبويب models.
 
 في استخدامنا الخاص، استنفد وكلاء برمجة يعملون على مدار الساعة الحد الأسبوعي لاشتراك Claude Max 20x في نحو ثلاثة أيام على Claude وحده؛ ومع Mixture of Models صمد الاشتراك نفسه الأيام السبعة كاملة. راجع [GUIDELINES.md](GUIDELINES.md#التوفير-التقريبي-الاشتراك-وحده-مقابل-mixture-of-models).

@@ -58,8 +58,15 @@ test('addTurn: a priced routed turn saves the difference, an unpriced one claims
 test('savingsLine says how much was saved against running everything on Claude', async () => {
   expect(savingsLine(emptyTotals(), 'claude-opus-5-5')).toBe('saved: nothing priced yet')
   const t = { routed: 3, priced: 2, unpriced: 1, baseline: 1.2, actual: 0.2, main: 0.8 }
-  // all-Claude 2.00, spent 1.00: saved 1.00, half
-  expect(savingsLine(t, 'claude-opus-5-5')).toBe('saved ~$1.00 (50%) vs all claude-opus-5-5, at API prices · 1 routed turn unpriced')
+  // The routed turns would cost 1.20 on Claude and cost 0.20: 83% saved on them. All-Claude 2.00: 50% of all spend.
+  expect(savingsLine(t, 'claude-opus-5-5')).toBe('saved ~$1.00 on 2 routed turns (83% of their Claude price) · 50% of all spend ($2.00) vs all claude-opus-5-5, at API prices · 1 routed turn unpriced')
+})
+
+test('savingsLine keeps a real saving visible when the main session dominates the spend', async () => {
+  // The numbers behind a "saved ~$2.76 (0%)" line: 34 priced routed turns against $1,639.77 of main-session turns.
+  const t = { routed: 37, priced: 34, unpriced: 3, baseline: 3.351238, actual: 0.594398, main: 1639.766326 }
+  expect(savingsLine(t, 'claude-opus-5-5')).toBe('saved ~$2.76 on 34 routed turns (82% of their Claude price) · 0.2% of all spend ($1,643.12) vs all claude-opus-5-5, at API prices · 3 routed turns unpriced')
+  expect(savingsLine({ ...t, priced: 1, unpriced: 0 }, 'claude-opus-5-5')).toContain('on 1 routed turn (')
 })
 
 test('turnNote is the per-turn saving on the route line', async () => {

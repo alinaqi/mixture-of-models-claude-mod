@@ -225,9 +225,9 @@ Claude and the gateway are both visible, all the time:
 | Question dialog | Claude's own questions | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)` with Allow and continue / Deny |
 | Reply in the transcript | unchanged (or tagged `⇢ claude-opus-5 · main session` with `ui.tags: "all"`) | a dim `⇢ glm-5.3 · child on gateway` line above the reply, kept in scrollback (`· child on your Claude subscription` for a Claude member, `· Codex child` for Codex) |
 | Line under the answer | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
-| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | same |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices` | same |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`, then a toast `Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | same |
-| `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys 1-4: **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
+| `/route stats` | A pane, "Mixture of models", with four tabs on hotkeys m, k, s and r (click the pane first; a bare digit in an empty prompt presses the band's buttons): **models** (bars per model, share of turns, the headline "N of M turns off Claude" and, in green, what routing saved), **kinds** (each kind and which models took it), **scores** (a 1-10 histogram coloured by tier, cut-offs marked), **recent** (the last decisions with score, kind, model and child time). Esc closes it. | same |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`, then one line per model with its share and a bar, the models your subagents ran on, and the savings | same |
 
 ### How much it saves
@@ -235,7 +235,7 @@ Claude and the gateway are both visible, all the time:
 Every routed turn is priced twice: at your session's Claude model (what the same tokens would have cost there) and at what it actually cost. On Palgu, the actual cost comes from Palgu's own `/v1/pricing/quote`, the formula it bills by; on another gateway, from `router.prices`; a `claude/<member>` child is priced at that member's Claude rate. Turns that stay in the main session count toward the all-Claude total too, so the percentage is the share of your whole Claude bill that routing took away, not just of the routed turns.
 
 - Under each routed answer: `· saved ~$0.39`.
-- `/route status`: `saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`, a running total across sessions.
+- `/route status`: `saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices`, a running total across sessions.
 - `/route stats`: the same total, in green, on the models tab.
 
 In our own use, coding agents running around the clock used up a Claude Max 20x subscription's weekly limit in about three days on Claude alone; with Mixture of Models the same subscription lasted the full seven days. See [GUIDELINES.md](GUIDELINES.md#rough-savings-subscription-only-vs-mixture-of-models).

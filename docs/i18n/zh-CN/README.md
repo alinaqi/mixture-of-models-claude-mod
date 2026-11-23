@@ -227,9 +227,9 @@ Claude 和网关始终都是可见的：
 | 提问对话框 | Claude 自己的问题 | `Child on glm-5.3 wants to run: Bash(git pull --ff-only)`，带 Allow and continue / Deny |
 | 对话记录中的回复 | 不变（在 `ui.tags: "all"` 下标记为 `⇢ claude-opus-5 · main session`） | 回复上方一行暗色的 `⇢ glm-5.3 · child on gateway`，保留在滚动记录中（Claude 成员为 `· child on your Claude subscription`，Codex 为 `· Codex child`） |
 | 回答下方的一行 | `route: claude-opus-5 · main session · critical 9/10 via claude-haiku-5-5 · 23.1k in / 0.9k out · cache 91% · today: 8 turns, 5 off Claude (63%)` | `route: glm-5.3 · coding 6/10 via ollama · child 42s · saved ~$0.39 · today: …` |
-| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices` | 相同 |
+| `/route` | `mixture-of-models live · mode auto · current route: … · today: … · saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices` | 相同 |
 | `/palgu login` | `Open https://www.palgu.ai/connect?code=WDJB-MJHT and approve code WDJB-MJHT …`，然后一条 toast：`Signed in to Palgu as you@acme.com (Acme, plan starter). Routed turns now run on Palgu.` | 相同 |
-| `/route stats` | 一个名为 "Mixture of models" 的面板，有四个标签页，用热键 1-4 切换：**models**（每个模型的条形图、轮次占比、标题 "N of M turns off Claude"，以及以绿色显示的路由节省额）、**kinds**（每种类型以及处理它的模型）、**scores**（按层级着色的 1-10 直方图，标出分界线）、**recent**（最近的决策，含分数、类型、模型和子进程耗时）。按 Esc 关闭。 | 相同 |
+| `/route stats` | 一个名为 "Mixture of models" 的面板，有四个标签页，用热键 m、k、s、r 切换（先点击面板；在空的提示框中单独按数字会按下提示栏上方的按钮）：**models**（每个模型的条形图、轮次占比、标题 "N of M turns off Claude"，以及以绿色显示的路由节省额）、**kinds**（每种类型以及处理它的模型）、**scores**（按层级着色的 1-10 直方图，标出分界线）、**recent**（最近的决策，含分数、类型、模型和子进程耗时）。按 Esc 关闭。 | 相同 |
 | `/route usage` (`today`, `week`, `month`, `all`) | `Models used, last 7 days: 42 turns, 30 off Claude (71%)`，然后每个模型一行，显示占比和条形图、子代理使用的模型以及节省的费用 | 相同 |
 
 ### 能节省多少
@@ -237,7 +237,7 @@ Claude 和网关始终都是可见的：
 每个被路由的轮次都会被计价两次：按你会话的 Claude 模型计价（同样的 token 在那里要花多少钱），以及按实际花费计价。在 Palgu 上，实际花费来自 Palgu 自己的 `/v1/pricing/quote`，也就是它的计费公式；在其他网关上，来自 `router.prices`；`claude/<member>` 子进程按该成员的 Claude 费率计价。留在主会话中的轮次也计入全 Claude 总额，所以百分比是路由从你整个 Claude 账单中省下的比例，而不仅仅是被路由轮次的比例。
 
 - 每个被路由的回答下方：`· saved ~$0.39`。
-- `/route status`：`saved ~$12.40 (61%) vs all claude-opus-5-5, at API prices`，跨会话累计。
+- `/route status`：`saved ~$12.40 on 48 routed turns (82% of their Claude price) · 61% of all spend ($20.33) vs all claude-opus-5-5, at API prices`，跨会话累计。
 - `/route stats`：同样的总额，以绿色显示在 models 标签页上。
 
 在我们自己的使用中，全天候运行的 coding agent 仅用 Claude 时，大约三天就用完了 Claude Max 20x 订阅的每周限额；使用 Mixture of Models 后，同一订阅可以撑满整整七天。参见 [GUIDELINES.md](GUIDELINES.md#粗略节省仅订阅-vs-mixture-of-models)。

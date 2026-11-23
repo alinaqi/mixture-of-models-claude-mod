@@ -29,7 +29,8 @@ test('the models tab has a tab row, the headline and one bar per model', async (
   const tree = paneTree(el, { ...view, tab: 'models' }, (t) => pressed.push(t))
   const tabs = tree.children[0].children
   expect(tabs.map((b) => b.label)).toEqual(['models', 'kinds', 'scores', 'recent'])
-  expect(tabs.map((b) => b.hotkey)).toEqual(['1', '2', '3', '4'])
+  // Letters, not digits: a bare digit in an empty prompt answers the band's buttons (2 pins glm).
+  expect(tabs.map((b) => b.hotkey)).toEqual(['m', 'k', 's', 'r'])
   expect(tabs.map((b) => b.dimColor)).toEqual([false, true, true, true])
   tabs[2].onPress()
   expect(pressed).toEqual(['scores'])
