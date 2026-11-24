@@ -7,8 +7,8 @@ const SESSION = 'claude-opus-5'
 test('resolveModel: the tier decides whether Claude is mandatory, the kind picks the cheaper model', async () => {
   expect(resolveModel({ label: 'simple', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
   expect(resolveModel({ label: 'coding', kind: 'code' }, DEFAULT_ROUTES, SESSION)).toBe('glm-5.3')
-  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-pro')
-  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-pro')
+  expect(resolveModel({ label: 'coding', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-v4-pro')
+  expect(resolveModel({ label: 'simple', kind: 'review' }, DEFAULT_ROUTES, SESSION)).toBe('deepseek-v4-pro')
   expect(resolveModel({ label: 'simple', kind: 'multimodal' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
   expect(resolveModel({ label: 'critical', kind: 'research' }, DEFAULT_ROUTES, SESSION)).toBe(SESSION)
 })
@@ -109,15 +109,15 @@ test('summaryLine reports a child run instead of API usage', async () => {
 
 test('summaryLine names the models a failed child walked through, and what served it', async () => {
   const d = { label: 'coding', model: 'glm-5.3', source: 'ollama' }
-  const served = { ...d, child: { ms: 12_000, exitCode: 0, tried: [{ model: 'deepseek-pro', why: '429' }], servedBy: 'glm-5.3' } }
-  expect(summaryLine(served, null)).toBe('route: glm-5.3 · coding via ollama · child: deepseek-pro failed (429) → served by glm-5.3 · child 12s')
-  const none = { ...d, model: 'deepseek-pro', child: { ms: 9_000, exitCode: 1, tried: [{ model: 'deepseek-pro', why: '429' }, { model: 'glm-5.3', why: '529' }] } }
-  expect(summaryLine(none, null)).toBe('route: deepseek-pro · coding via ollama · all equivalents failed: deepseek-pro (429), glm-5.3 (529); main model answered')
+  const served = { ...d, child: { ms: 12_000, exitCode: 0, tried: [{ model: 'deepseek-v4-pro', why: '429' }], servedBy: 'glm-5.3' } }
+  expect(summaryLine(served, null)).toBe('route: glm-5.3 · coding via ollama · child: deepseek-v4-pro failed (429) → served by glm-5.3 · child 12s')
+  const none = { ...d, model: 'deepseek-v4-pro', child: { ms: 9_000, exitCode: 1, tried: [{ model: 'deepseek-v4-pro', why: '429' }, { model: 'glm-5.3', why: '529' }] } }
+  expect(summaryLine(none, null)).toBe('route: deepseek-v4-pro · coding via ollama · all equivalents failed: deepseek-v4-pro (429), glm-5.3 (529); main model answered')
 })
 
 test('summaryLine names a fallback the gateway made itself', async () => {
-  const d = { label: 'coding', model: 'deepseek-pro', source: 'ollama', child: { ms: 7_000, exitCode: 0, requested: 'kimi-k3.1-pro', servedBy: 'deepseek-pro' } }
-  expect(summaryLine(d, null)).toBe('route: deepseek-pro · coding via ollama · child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback) · child 7s')
+  const d = { label: 'coding', model: 'deepseek-v4-pro', source: 'ollama', child: { ms: 7_000, exitCode: 0, requested: 'kimi-k3.1-pro', servedBy: 'deepseek-v4-pro' } }
+  expect(summaryLine(d, null)).toBe('route: deepseek-v4-pro · coding via ollama · child: kimi-k3.1-pro → served by deepseek-v4-pro (gateway fallback) · child 7s')
 })
 
 test('bumpFailures counts a failure against its kind, defaulting to code', async () => {
@@ -146,7 +146,7 @@ test('parseRouteArg expands a prefix to a gateway model that no route names', as
   expect(parseRouteArg('minimax', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'minimax-m3' })
   expect(parseRouteArg('gpt', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gpt-6-sol' })
   expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
-  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-pro' })
+  expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-v4-pro' })
   expect(parseRouteArg('gemini', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gemini-3.8-flash' })
   // a configured route still wins over the catalogue
   const routes = { ...DEFAULT_ROUTES, simple: 'mercury-2' }

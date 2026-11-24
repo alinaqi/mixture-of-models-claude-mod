@@ -8,10 +8,11 @@ export const PROVIDERS = ['palgu', 'openrouter', 'litellm', 'anthropic-compatibl
 // Palgu's pin names (its policy allowlist), each run on 2026-10-29 as a pinned `claude -p --bare`
 // research turn. Kimi's earlier failures were Moonshot answering 429 engine_overloaded, which the
 // child retried for ~2-3 minutes (child.maxRetries now bounds that). mercury-3 is pin-only.
-export const PALGU_MODELS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
+export const PALGU_MODELS = ['glm-5.3', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
 
-// Older ids Palgu refuses as a pin, to the name it takes; a saved pin or route keeps working.
-const PALGU_NAMES = { 'deepseek-v4-pro': 'deepseek-pro' }
+// Older ids, to the name Palgu's model list uses now (it serves deepseek-v4-pro under that name since
+// 2026-11), so a saved pin or route is counted and priced as what actually runs.
+const PALGU_NAMES = { 'deepseek-pro': 'deepseek-v4-pro' }
 
 export function gatewayName(provider, id) {
   return provider === 'palgu' ? PALGU_NAMES[id] || id : id
@@ -41,7 +42,7 @@ function familiesOf(models) {
     out[family].members[id.slice(family.length + 1)] = id
   }
   out.kimi = { members: { pro: 'kimi-k3.1-pro', highspeed: 'kimi-k3.1-pro-highspeed' }, auto: { simple: 'highspeed', coding: 'pro', critical: 'pro' } }
-  if (out.deepseek) out.deepseek = { members: { 'v4-pro': 'deepseek-pro' }, auto: {} }
+  if (out.deepseek) out.deepseek = { members: { 'v4-pro': 'deepseek-v4-pro' }, auto: {} }
   if (out.gpt) out.gpt = { members: { sol: 'gpt-6-sol', luna: 'gpt-6-luna', astra: 'gpt-6-astra' }, auto: GPT_AUTO }
   return out
 }
@@ -56,8 +57,8 @@ function routesOf(cheap, long) {
 const PALGU_LIKE = {
   catalogue: PALGU_MODELS,
   families: familiesOf(PALGU_MODELS),
-  routes: routesOf('glm-5.3', 'deepseek-pro'),
-  primary: { glm: 'glm-5.3', kimi: 'kimi-k3.1-pro', deepseek: 'deepseek-pro' },
+  routes: routesOf('glm-5.3', 'deepseek-v4-pro'),
+  primary: { glm: 'glm-5.3', kimi: 'kimi-k3.1-pro', deepseek: 'deepseek-v4-pro' },
 }
 
 const OPENROUTER = {

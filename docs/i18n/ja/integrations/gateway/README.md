@@ -14,7 +14,7 @@
 
 | `model` | `x-srooter-pin` ヘッダー | 結果 |
 | :- | :- | :- |
-| `auto` | なし | Palgu がルーティング(1 語の回答には `deepseek-pro` が使われた) |
+| `auto` | なし | Palgu がルーティング(1 語の回答には `deepseek-v4-pro` が使われた) |
 | 任意のモデル、例: `glm-5.3` | なし | それでも Palgu がルーティング: model フィールドはピンではない |
 | モデル、例: `kimi-k3.1-pro` | あり(同じモデル ID を送る) | そのモデルにピン留め |
 | `auto` | あり | 拒否、403 `pin 'auto' not allowed by policy` |

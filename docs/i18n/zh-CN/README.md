@@ -97,13 +97,13 @@ claude plugin install mixture-of-models@mixture-of-models-claude-mod
 
 提示词会告诉分类器：长度、提到的服务数量或粘贴的 API 密钥本身都不会提高分数，而这正是以前把普通集成工作推到主会话上的原因。它还说明，深度推理（带证明的算法、并发、性能调优、密码学）无论影响范围如何都至少得 7 分，这样困难但安全的工作会留在 Claude 上。用 `router.thresholds` 移动分界线；例如 `{ "simple": 3, "coding": 8 }` 会让除 9-10 分以外的所有工作都不使用 Claude。
 
-**类型决定模型。** 在 `critical` 以下，`routes.kinds` 把任务类型映射到模型：默认情况下，`research` 和 `review` 交给 DeepSeek V4 Pro（Palgu 上为 `deepseek-pro`，1M token 上下文），`multimodal` 留在 Claude，其余都使用层级对应的模型（GLM）。在 0.20.0 之前它们交给 Kimi，而 Palgu 目前不响应 Kimi（约两分钟后返回空响应）。在网关允许的情况下，可以在矩阵中加入 `"docs": "gpt-6-sol"` 或 `"data": "..."`。
+**类型决定模型。** 在 `critical` 以下，`routes.kinds` 把任务类型映射到模型：默认情况下，`research` 和 `review` 交给 DeepSeek V4 Pro（Palgu 上为 `deepseek-v4-pro`，1M token 上下文），`multimodal` 留在 Claude，其余都使用层级对应的模型（GLM）。在 0.20.0 之前它们交给 Kimi，而 Palgu 目前不响应 Kimi（约两分钟后返回空响应）。在网关允许的情况下，可以在矩阵中加入 `"docs": "gpt-6-sol"` 或 `"data": "..."`。
 
 **你可以指定的模型。** 你的网关提供的任何模型 id 都可以用于 `routes`、`routes.kinds` 或固定。mod 知道这些 Palgu 网关模型，因此即使没有路由提到它们，`/route <prefix>` 也会展开为它们：`glm-5.3`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed`、`deepseek-v4-pro`、`gemini-3.8-flash`、`minimax-m3`、`minimax-m2.5`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra` 和 `mercury-3`。提示词上方的状态栏为每个家族提供一个按钮。`kimi-k3.1-pro` 取代了 `kimi-k3`；旧的 `/route kimi-k3` 固定会展开为它。Gemini、MiniMax 和 GPT-6 是可选项，不是默认值：`/route minimax`、`/route gpt`（GPT-6 Sol）或 `/route gpt/auto`（简单轮次用 Luna，编码用 Sol，关键工作用 Astra）可以固定它们。Inception 的 Mercury 3 也只能通过固定使用：`/route mercury`（Palgu 上为 `mercury-3`，OpenRouter 上为 `mercury/3`）。
 
-**哪些 Palgu 模型可用。** 2026-10-29 按 mod 运行轮次的方式测试（一个固定模型的 `claude -p --bare` 子进程执行一个带工具调用的简短研究任务）：`glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed` 和 `mercury-3` 在 19 到 46 秒内通过；`minimax-m2.5` 不断重试被拒绝的命令，直到用完轮次。Kimi 之前的失败是因为 Moonshot 过载（`429 engine_overloaded`）：Claude Code 对每个请求重试十次，所以一个轮次要花两到三分钟才失败。现在子进程最多重试两次（`router.child.maxRetries`，默认 2），因此繁忙的提供方会在几秒内回退。research 和 review 默认留在 DeepSeek；Kimi 需要固定。子进程总是向 Palgu 发送 `x-srooter-pin: <model>`：没有它，Palgu 会按意图路由，可能用另一个模型作答（未固定时，它把每个模型都当作 Gemini 来服务）。
+**哪些 Palgu 模型可用。** 2026-10-29 按 mod 运行轮次的方式测试（一个固定模型的 `claude -p --bare` 子进程执行一个带工具调用的简短研究任务）：`glm-5.3`、`deepseek-v4-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed` 和 `mercury-3` 在 19 到 46 秒内通过；`minimax-m2.5` 不断重试被拒绝的命令，直到用完轮次。Kimi 之前的失败是因为 Moonshot 过载（`429 engine_overloaded`）：Claude Code 对每个请求重试十次，所以一个轮次要花两到三分钟才失败。现在子进程最多重试两次（`router.child.maxRetries`，默认 2），因此繁忙的提供方会在几秒内回退。research 和 review 默认留在 DeepSeek；Kimi 需要固定。子进程总是向 Palgu 发送 `x-srooter-pin: <model>`：没有它，Palgu 会按意图路由，可能用另一个模型作答（未固定时，它把每个模型都当作 Gemini 来服务）。
 
-**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 如果是 Palgu 自己的回退链改用了另一个模型，该行会显示 `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)`，这一轮也按该模型计数和计价。 被 mod 丢弃的子进程回答（放弃、只叙述意图、要求你操作等，见下文“子进程不得做的事”）也按同样方式依次尝试，`HANDBACK` 和要求你操作的回答除外。
+**子进程失败时。** 只有在每个同类模型都失败之后，主模型才会接手被路由的轮次。在 Palgu 上，子进程发送 `x-palgu-fallback: auto`，因此遇到过载时，网关会先沿着固定模型自己的回退链（先是它的回退列表，再是同一类别）尝试。如果子进程仍因过载失败（429、5xx、超时或没有回答），mod 会在下一个同类模型上重跑这一轮：先是同一类别的模型（来自 Palgu 的实时列表），再是其他健康的模型，最多 `router.child.fallbacks` 个（默认 3）。对模型来说过长的提示只会转到上下文窗口更大的模型（`router.child.longContext`）；错误请求（400、401、403、404、422）不会在其他模型上重试。路由行会说明发生了什么：`child: deepseek-v4-pro failed (429) → served by glm-5.3`，或 `all equivalents failed: deepseek-v4-pro (429), glm-5.3 (529), …; main model answered`。 如果是 Palgu 自己的回退链改用了另一个模型，该行会显示 `child: kimi-k3.1-pro → served by deepseek-v4-pro (gateway fallback)`，这一轮也按该模型计数和计价。 被 mod 丢弃的子进程回答（放弃、只叙述意图、要求你操作等，见下文“子进程不得做的事”）也按同样方式依次尝试，`HANDBACK` 和要求你操作的回答除外。
 
 **子代理。** 子代理在 Claude Code 内部运行，使用主会话自己的连接，因此 mod 只能选择它使用哪个 Claude 模型，不能选择网关模型。在内置的 `general-purpose` 子代理启动前，mod 会像给提示打分一样给它的任务打分：简单任务在 Haiku 上运行，编码任务在 Sonnet 上运行，关键任务保持主会话的模型。Explore 在 Haiku 上运行。mod 只会选择比主会话更便宜的模型，并且不会改动以下子代理：已经选定模型的、插件或你自己定义的代理（其定义可能设置了模型）、fork、队友以及工作流代理。对话记录会显示 `subagent general-purpose on haiku · simple 2/10`；`/route off` 会关闭此功能，`router.subagents` 可按代理类型设置。
 
@@ -212,7 +212,7 @@ codex exec --json -C <session cwd> [-m <model>] [Palgu provider flags] --sandbox
 
 被丢弃的回答会计为该类型的一次子进程失败，并在路由行上显示为 `child answer discarded (<reason>), main model answered`。主模型从不被要求转述子进程的文本：mod 要么用经过审查的子进程回答完成该轮次，要么把该轮次交给主模型。
 
-被丢弃的回答会先在下一个等价模型上重试，与过载时相同（见上文），路由行会显示 `child: glm-5.3 failed (gave up) → served by deepseek-pro`。有两种情况例外：`HANDBACK`（子进程要求交给主会话）和要求你操作的回答（任何模型都会遇到同样的限制）；这两种情况由主模型立即接手。
+被丢弃的回答会先在下一个等价模型上重试，与过载时相同（见上文），路由行会显示 `child: glm-5.3 failed (gave up) → served by deepseek-v4-pro`。有两种情况例外：`HANDBACK`（子进程要求交给主会话）和要求你操作的回答（任何模型都会遇到同样的限制）；这两种情况由主模型立即接手。
 
 每条路由行和状态栏都会显示分数和类型，所以当某个决策看起来不对时，你可以看到背后的数字。
 
@@ -317,7 +317,7 @@ Palgu 记忆的同意（`mom memory on`）按项目文件夹记录，并由所�
 
 | 提供方 | 子进程认证 | 默认模型 id | `x-srooter-*` 请求头 |
 | :- | :- | :- | :- |
-| `palgu` | `ANTHROPIC_API_KEY`（`x-api-key`） | Palgu 的：`glm-5.3`、`deepseek-pro`、… | 是 |
+| `palgu` | `ANTHROPIC_API_KEY`（`x-api-key`） | Palgu 的：`glm-5.3`、`deepseek-v4-pro`、… | 是 |
 | `openrouter` | `ANTHROPIC_AUTH_TOKEN`（`Authorization: Bearer`） | 家族背后的 OpenRouter slug：`glm/5.3` → `z-ai/glm-5.3`、… | 否 |
 | `litellm` | `ANTHROPIC_AUTH_TOKEN`（`Authorization: Bearer`） | Palgu 的名称；以你代理的 `model_name` 为准 | 否 |
 | `anthropic-compatible` | `ANTHROPIC_API_KEY`（`x-api-key`） | Palgu 的 | 是 |
@@ -535,7 +535,7 @@ mod 读取 Maggy 的唯一配置来源 `~/.claude/model-config.json`，并添加
   "router": {
     "provider":   "auto",
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
-                    "kinds": { "research": "deepseek-pro", "review": "deepseek-pro", "multimodal": "claude" } },
+                    "kinds": { "research": "deepseek-v4-pro", "review": "deepseek-v4-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-5-5",

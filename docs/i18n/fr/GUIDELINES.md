@@ -140,7 +140,7 @@ Comment faire, et comment revenir en arrière :
 | Un prompt trivial est resté sur Claude | Il mentionnait des PR, la CI, l'état ou la sécurité, ou c'était une courte relance | Normal ; reformulez-le en tâche autonome si vous voulez qu'il soit routé |
 | Une réponse routée est fausse ou vague | La tâche nécessitait un contexte de session que l'enfant n'avait pas | Dites « use claude » pour ce tour ; si tout un type échoue souvent, modifiez `routes.kinds` |
 | `child answer discarded (…), main model answered` | L'enfant a demandé une approbation, a prétendu avoir fait un travail qu'il n'a pas fait, ou a rendu la main | Rien à faire : le modèle principal a répondu à sa place |
-| `child: deepseek-pro failed (429) → served by glm-5.3` | Le modèle routé était surchargé, le mod a donc exécuté le tour sur un modèle équivalent | Rien à faire |
+| `child: deepseek-v4-pro failed (429) → served by glm-5.3` | Le modèle routé était surchargé, le mod a donc exécuté le tour sur un modèle équivalent | Rien à faire |
 | `all equivalents failed: …; main model answered` | Tous les modèles équivalents ont échoué, ou la passerelle est en panne | Consultez `/route models` ; si cela se répète, vérifiez la passerelle |
 | La mémoire ne rappelle rien | La mémoire est désactivée dans ce dossier, le prompt fait moins de quatre mots, ou l'indexation n'est pas terminée | `mom memory status` ; placez les noms clés en tête du prompt |
 | L'agent continue alors que vous vouliez qu'il s'arrête | Le heartbeat a vu une fin en pleine tâche | Dites ce que vous voulez, ou `mom heartbeat off` |

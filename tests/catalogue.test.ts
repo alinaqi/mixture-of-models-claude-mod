@@ -38,6 +38,14 @@ test('liveCatalogue: curated models Palgu serves first, then the new ones; the b
   expect(liveCatalogue(curated, live)).toEqual({ catalogue: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol', 'grok-4.7'], band: ['glm-5.3', 'deepseek-pro', 'gpt-6-sol'] })
 })
 
+test('liveCatalogue keeps a band button for a family Palgu serves under another name, as the name it serves', async () => {
+  // Palgu renamed deepseek-pro to deepseek-v4-pro, and glm-5.3 is down while glm-5.3-flash is up: both
+  // families keep their button, as a model Palgu serves now. A family with nothing served drops out.
+  const curated = ['glm-5.3', 'deepseek-pro', 'mercury-3', 'gpt-6-sol']
+  const live = { served: ['gpt-6-sol', 'deepseek-flash', 'deepseek-v4-pro', 'glm-5.3-flash'], down: ['glm-5.3'] }
+  expect(liveCatalogue(curated, live).band).toEqual(['glm-5.3-flash', 'deepseek-v4-pro', 'gpt-6-sol'])
+})
+
 test('liveCatalogue without a live list is the curated list', async () => {
   expect(liveCatalogue(['glm-5.3'], null)).toEqual({ catalogue: ['glm-5.3'], band: ['glm-5.3'] })
 })

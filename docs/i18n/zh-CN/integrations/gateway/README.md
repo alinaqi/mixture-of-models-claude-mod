@@ -14,7 +14,7 @@
 
 | `model` | `x-srooter-pin` 请求头 | 结果 |
 | :- | :- | :- |
-| `auto` | 无 | Palgu 进行路由（对一个单词的回答使用了 `deepseek-pro`） |
+| `auto` | 无 | Palgu 进行路由（对一个单词的回答使用了 `deepseek-v4-pro`） |
 | 任意模型，例如 `glm-5.3` | 无 | Palgu 仍会路由：model 字段不是固定 |
 | 某个模型，例如 `kimi-k3.1-pro` | 有（我们发送相同的模型 id） | 使用该模型，已固定 |
 | `auto` | 有 | 被拒绝，403 `pin 'auto' not allowed by policy` |

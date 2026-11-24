@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.3] - 2026-11-24
+
+### Fixed
+- DeepSeek is in the band in every session again. Palgu's model list now names it `deepseek-v4-pro` (it serves requests under that name), while the mod's built-in list said `deepseek-pro`; the band keeps only models Palgu lists, so DeepSeek appeared in a session that had not read Palgu's list yet and vanished in one that had. The mod now uses `deepseek-v4-pro`, and an old `deepseek-pro` route or pin runs under that name (Palgu accepts both and serves `deepseek-v4-pro`).
+- The band keeps a family's button when Palgu serves the family under another name, or while its usual model is down: the button then stands for the served model most like it (`glm-5.3` down → `glm-5.3-flash`). A family with nothing served still drops out.
+
 ## [0.36.2] - 2026-11-24
 
 ### Added
