@@ -14,7 +14,7 @@ Vérifié sur `https://api.palgu.ai/v1/chat/completions` le 2026-11-16 :
 
 | `model` | En-tête `x-srooter-pin` | Résultat |
 | :- | :- | :- |
-| `auto` | aucun | Palgu route (a servi `deepseek-pro` pour une réponse d'un mot) |
+| `auto` | aucun | Palgu route (a servi `deepseek-v4-pro` pour une réponse d'un mot) |
 | n'importe quel modèle, p. ex. `glm-5.3` | aucun | Palgu route quand même : le champ model n'est pas une épingle |
 | un modèle, p. ex. `kimi-k3.1-pro` | présent (nous envoyons le même identifiant de modèle) | ce modèle, épinglé |
 | `auto` | présent | refusé, 403 `pin 'auto' not allowed by policy` |

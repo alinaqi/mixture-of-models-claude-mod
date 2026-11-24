@@ -1,6 +1,6 @@
 {
   "name": "mixture-of-models-claude-mod",
-  "version": "0.36.2",
+  "version": "0.36.3",
   "private": true,
   "type": "module",
   "description": "Mixture of Models: route cheap work to cheaper models, recall Palgu memory and continue stalled turns, in Claude Code (a mod) and in Codex, Cursor, OpenCode and other coding agents (the mom CLI)",

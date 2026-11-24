@@ -38,7 +38,7 @@ What it writes (abridged):
         "apiKey": "{env:PALGU_API_KEY}",
         "headers": { "x-srooter-client": "mixture-of-models-opencode/0.28.0" }
       },
-      "models": { "auto": { "name": "Palgu router (auto)" }, "deepseek-pro": {}, "gemini-3.8-flash": {} }
+      "models": { "auto": { "name": "Palgu router (auto)" }, "deepseek-v4-pro": {}, "gemini-3.8-flash": {} }
     }
   },
   "plugin": ["/usr/local/lib/node_modules/mixture-of-models-claude-mod/integrations/opencode/plugin.js"]

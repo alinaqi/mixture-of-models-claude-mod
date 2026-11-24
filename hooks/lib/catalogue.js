@@ -36,9 +36,26 @@ export function liveModels(res) {
 
 // `catalogue`: what `/route <prefix>` matches, the curated models Palgu serves in their order, then
 // the new ones. `band`: the curated ones only, so new families do not crowd the band's buttons.
+const familyOf = (id) => id.split('-')[0]
+
+function shared(a, b) {
+  let pre = 0, post = 0
+  while (pre < Math.min(a.length, b.length) && a[pre] === b[pre]) pre += 1
+  while (post < Math.min(a.length, b.length) - pre && a[a.length - 1 - post] === b[b.length - 1 - post]) post += 1
+  return pre + post
+}
+
+// A curated id Palgu serves as is; else the served model of its family most like it (Palgu renamed
+// deepseek-pro to deepseek-v4-pro; glm-5.3 down, glm-5.3-flash up); else none.
+function servedAs(id, served) {
+  if (served.includes(id)) return id
+  const kin = served.filter((s) => familyOf(s) === familyOf(id))
+  return kin.reduce((best, s) => (!best || shared(id, s) > shared(id, best) ? s : best), '')
+}
+
 export function liveCatalogue(curated, live) {
   if (!live) return { catalogue: curated, band: curated }
-  const band = curated.filter((id) => live.served.includes(id))
+  const band = [...new Set(curated.map((id) => servedAs(id, live.served)).filter(Boolean))]
   return { catalogue: [...band, ...live.served.filter((id) => !band.includes(id))], band }
 }
 

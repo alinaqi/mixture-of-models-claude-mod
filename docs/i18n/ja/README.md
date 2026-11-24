@@ -97,13 +97,13 @@ mod はプロンプトごとに次のことを行います:
 
 プロンプトは分類器に、長さ、名前の挙がったサービスの数、貼り付けられた API キーはそれ自体ではスコアを上げないと伝えます。以前はこれらが原因で、普通のインテグレーション作業がメインセッションに押し上げられていました。また、深い推論(証明を伴うアルゴリズム、並行処理、パフォーマンスチューニング、暗号)は影響範囲にかかわらず 7 以上になるとも伝えるため、難しいが安全な作業は Claude に残ります。区切りは `router.thresholds` で動かせます。たとえば `{ "simple": 3, "coding": 8 }` にすると、9-10 以外はすべて Claude から外れます。
 
-**種別がモデルを選びます。** `critical` 未満では、`routes.kinds` がタスクの種別をモデルに対応付けます: デフォルトでは `research` と `review` は DeepSeek V4 Pro(Palgu 上の `deepseek-pro`、1M トークンのコンテキスト)に送られ、`multimodal` は Claude に残り、それ以外はすべてティアのモデル(GLM)が受け持ちます。0.20.0 までは Kimi に送られていましたが、現在 Palgu は Kimi に応答しません(約 2 分後に空の応答が返ります)。ゲートウェイが許す範囲で、`"docs": "gpt-6-sol"` や `"data": "..."` をマトリクスに追加してください。
+**種別がモデルを選びます。** `critical` 未満では、`routes.kinds` がタスクの種別をモデルに対応付けます: デフォルトでは `research` と `review` は DeepSeek V4 Pro(Palgu 上の `deepseek-v4-pro`、1M トークンのコンテキスト)に送られ、`multimodal` は Claude に残り、それ以外はすべてティアのモデル(GLM)が受け持ちます。0.20.0 までは Kimi に送られていましたが、現在 Palgu は Kimi に応答しません(約 2 分後に空の応答が返ります)。ゲートウェイが許す範囲で、`"docs": "gpt-6-sol"` や `"data": "..."` をマトリクスに追加してください。
 
 **指定できるモデル。** ゲートウェイが提供するモデル ID なら何でも、`routes`、`routes.kinds`、ピンで使えます。mod は次の Palgu ゲートウェイのモデルを知っているので、どのルートにも名前がなくても `/route <prefix>` がこれらに展開されます: `glm-5.3`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed`、`deepseek-v4-pro`、`gemini-3.8-flash`、`minimax-m3`、`minimax-m2.5`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`mercury-3`。プロンプトの上のバンドには、これらのファミリーごとにボタンがあります。`kimi-k3.1-pro` は `kimi-k3` を置き換えるもので、古い `/route kimi-k3` のピンはこれに展開されます。Gemini、MiniMax、GPT-6 は選択肢であってデフォルトではありません: `/route minimax`、`/route gpt`(GPT-6 Sol)、`/route gpt/auto`(simple のターンには Luna、coding には Sol、critical には Astra)でピン留めします。Inception の Mercury 3 もピン専用です: `/route mercury`(Palgu では `mercury-3`、OpenRouter では `mercury/3`)。
 
-**どの Palgu モデルが動くか。** 2026-10-29 に、mod がターンを実行するのと同じ方法(ピン留めした `claude -p --bare` の子プロセスで、ツール呼び出しを伴う短い調査タスクを実行)でテストしました: `glm-5.3`、`deepseek-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed`、`mercury-3` は 19 〜 46 秒で成功しました。`minimax-m2.5` は拒否されたコマンドを再試行し続け、ターン数を使い切りました。Kimi の以前の失敗は Moonshot の過負荷(`429 engine_overloaded`)によるものでした: Claude Code が各リクエストを 10 回再試行していたため、ターンが失敗するまでに約 2 〜 3 分かかっていました。現在、子プロセスの再試行は最大 2 回(`router.child.maxRetries`、デフォルト 2)なので、混雑しているプロバイダーからは数秒でフォールバックします。research と review はデフォルトで DeepSeek に残り、Kimi はピンで使います。子プロセスは Palgu に常に `x-srooter-pin: <model>` を送ります: これがないと Palgu は意図(intent)に基づいてルーティングし、別のモデルで回答することがあります(ピンなしでは、すべてのモデルが Gemini として提供されました)。
+**どの Palgu モデルが動くか。** 2026-10-29 に、mod がターンを実行するのと同じ方法(ピン留めした `claude -p --bare` の子プロセスで、ツール呼び出しを伴う短い調査タスクを実行)でテストしました: `glm-5.3`、`deepseek-v4-pro`、`gemini-3.8-flash`、`minimax-m3`、`gpt-6-sol`、`gpt-6-luna`、`gpt-6-astra`、`kimi-k3.1-pro`、`kimi-k3.1-pro-highspeed`、`mercury-3` は 19 〜 46 秒で成功しました。`minimax-m2.5` は拒否されたコマンドを再試行し続け、ターン数を使い切りました。Kimi の以前の失敗は Moonshot の過負荷(`429 engine_overloaded`)によるものでした: Claude Code が各リクエストを 10 回再試行していたため、ターンが失敗するまでに約 2 〜 3 分かかっていました。現在、子プロセスの再試行は最大 2 回(`router.child.maxRetries`、デフォルト 2)なので、混雑しているプロバイダーからは数秒でフォールバックします。research と review はデフォルトで DeepSeek に残り、Kimi はピンで使います。子プロセスは Palgu に常に `x-srooter-pin: <model>` を送ります: これがないと Palgu は意図(intent)に基づいてルーティングし、別のモデルで回答することがあります(ピンなしでは、すべてのモデルが Gemini として提供されました)。
 
-**子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-pro (429), glm-5.3 (529), …; main model answered`。 Palgu 自身のフォールバックチェーンが別のモデルで応答した場合、その行は `child: kimi-k3.1-pro → served by deepseek-pro (gateway fallback)` となり、ターンはそのモデルとして集計・価格計算されます。 mod が破棄した子の回答(諦めた、意図を述べただけ、あなたに操作を求めた など: 下記「子がしてはいけないこと」)も同じように順に試されます。`HANDBACK` とあなたに操作を求める回答は除きます。
+**子プロセスが失敗したとき。** ルーティングされたターンをメインモデルが引き受けるのは、同等のモデルがすべて失敗した後だけです。Palgu では子プロセスが `x-palgu-fallback: auto` を送るので、過負荷のときゲートウェイはまずピン留めしたモデル自身のフォールバックチェーン(そのフォールバックリスト、次に同じクラス)をたどります。それでも子プロセスが過負荷(429、5xx、タイムアウト、回答なし)で失敗した場合、mod は次の同等モデルでターンを再実行します: まず同じクラスのモデル(Palgu のライブリストから)、次にその他の正常なモデルを、最大 `router.child.fallbacks` 個(デフォルト 3)まで。モデルにとって長すぎるプロンプトは、より大きなコンテキストウィンドウのモデル(`router.child.longContext`)にだけ移ります。不正なリクエスト(400、401、403、404、422)は他のモデルで再試行しません。ルート行が何が起きたかを示します: `child: deepseek-v4-pro failed (429) → served by glm-5.3`、または `all equivalents failed: deepseek-v4-pro (429), glm-5.3 (529), …; main model answered`。 Palgu 自身のフォールバックチェーンが別のモデルで応答した場合、その行は `child: kimi-k3.1-pro → served by deepseek-v4-pro (gateway fallback)` となり、ターンはそのモデルとして集計・価格計算されます。 mod が破棄した子の回答(諦めた、意図を述べただけ、あなたに操作を求めた など: 下記「子がしてはいけないこと」)も同じように順に試されます。`HANDBACK` とあなたに操作を求める回答は除きます。
 
 **サブエージェント。** サブエージェントは Claude Code の中で、メインセッション自身の接続を使って動くため、mod が選べるのは使う Claude モデルだけで、ゲートウェイのモデルは選べません。組み込みの `general-purpose` サブエージェントが起動する前に、mod はそのタスクをプロンプトと同じように採点します: 単純なものは Haiku、コーディングは Sonnet、重要なものはメインセッションのモデルのままです。Explore は Haiku で動きます。mod はメインセッションより安いモデルしか選ばず、すでにモデルが選ばれたもの、プラグインやあなた自身のエージェント(定義でモデルを設定している場合がある)、fork、チームメイト、ワークフローのエージェントには手を出しません。トランスクリプトには `subagent general-purpose on haiku · simple 2/10` と表示されます。`/route off` でオフになり、`router.subagents` でエージェントの種類ごとに設定できます。
 
@@ -212,7 +212,7 @@ stdin には同じブリーフが渡され、`child.timeoutMs`、検査、失敗
 
 破棄された回答はその種別の子プロセスの失敗として数えられ、ルート行に `child answer discarded (<reason>), main model answered` と表示されます。メインモデルに子プロセスのテキストを中継させることはありません: mod は検査済みの子プロセスの回答でターンに答えるか、ターンをメインモデルに任せるかのどちらかです。
 
-破棄された回答は、過負荷のときと同じく(上記)まず次の同等モデルで試され、ルート行には `child: glm-5.3 failed (gave up) → served by deepseek-pro` と表示されます。例外は 2 つです: `HANDBACK`(子がメインセッションを求めた)と、あなたに操作を求める回答(どのモデルも同じ制限に当たる)です。これらはメインモデルがすぐに引き受けます。
+破棄された回答は、過負荷のときと同じく(上記)まず次の同等モデルで試され、ルート行には `child: glm-5.3 failed (gave up) → served by deepseek-v4-pro` と表示されます。例外は 2 つです: `HANDBACK`(子がメインセッションを求めた)と、あなたに操作を求める回答(どのモデルも同じ制限に当たる)です。これらはメインモデルがすぐに引き受けます。
 
 すべてのルート行とバンドにはスコアと種別が表示されるので、判定がおかしく見えるときは、その背後の数値を確認できます。
 
@@ -317,7 +317,7 @@ Palgu メモリへの同意(`mom memory on`)はプロジェクトフォルダー
 
 | プロバイダー | 子プロセスの認証 | デフォルトのモデル ID | `x-srooter-*` ヘッダー |
 | :- | :- | :- | :- |
-| `palgu` | `ANTHROPIC_API_KEY`(`x-api-key`) | Palgu のもの: `glm-5.3`、`deepseek-pro`、… | あり |
+| `palgu` | `ANTHROPIC_API_KEY`(`x-api-key`) | Palgu のもの: `glm-5.3`、`deepseek-v4-pro`、… | あり |
 | `openrouter` | `ANTHROPIC_AUTH_TOKEN`(`Authorization: Bearer`) | ファミリーの背後にある OpenRouter のスラッグ: `glm/5.3` → `z-ai/glm-5.3`、… | なし |
 | `litellm` | `ANTHROPIC_AUTH_TOKEN`(`Authorization: Bearer`) | Palgu の名前。実際にはプロキシの `model_name` が決めます | なし |
 | `anthropic-compatible` | `ANTHROPIC_API_KEY`(`x-api-key`) | Palgu のもの | あり |
@@ -535,7 +535,7 @@ mod は Maggy の唯一の信頼できる情報源である `~/.claude/model-con
   "router": {
     "provider":   "auto",
     "routes":     { "simple": "glm-5.3", "coding": "glm-5.3", "critical": "claude",
-                    "kinds": { "research": "deepseek-pro", "review": "deepseek-pro", "multimodal": "claude" } },
+                    "kinds": { "research": "deepseek-v4-pro", "review": "deepseek-v4-pro", "multimodal": "claude" } },
     "thresholds": { "simple": 3, "coding": 7 },
     "ollama":     { "model": "qwen2.5-coder:3b" },
     "classifier": "claude-haiku-5-5",

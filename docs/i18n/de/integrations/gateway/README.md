@@ -14,7 +14,7 @@ Geprüft gegen `https://api.palgu.ai/v1/chat/completions` am 2026-11-16:
 
 | `model` | Header `x-srooter-pin` | Ergebnis |
 | :- | :- | :- |
-| `auto` | keiner | Palgu routet (bediente eine Ein-Wort-Antwort mit `deepseek-pro`) |
+| `auto` | keiner | Palgu routet (bediente eine Ein-Wort-Antwort mit `deepseek-v4-pro`) |
 | ein beliebiges Modell, z. B. `glm-5.3` | keiner | Palgu routet trotzdem: Das Feld model ist kein Pin |
 | ein Modell, z. B. `kimi-k3.1-pro` | vorhanden (wir senden dieselbe Modell-ID) | dieses Modell, gepinnt |
 | `auto` | vorhanden | abgelehnt, 403 `pin 'auto' not allowed by policy` |

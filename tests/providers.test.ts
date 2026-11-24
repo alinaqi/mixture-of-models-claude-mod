@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { PROVIDERS, gatewayName, providerDefaults, providerOf } from '../hooks/lib/providers.js'
 
-const PALGU_IDS = ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
+const PALGU_IDS = ['glm-5.3', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
 
 test('the providers are palgu, openrouter, litellm and any other anthropic-compatible gateway', async () => {
   expect(PROVIDERS).toEqual(['palgu', 'openrouter', 'litellm', 'anthropic-compatible'])
@@ -49,7 +49,7 @@ test('Palgu, LiteLLM and generic gateways keep the Palgu catalogue and routes', 
     const p = providerDefaults(name)
     expect(p.catalogue).toEqual(PALGU_IDS)
     expect(p.routes.simple).toBe('glm-5.3')
-    expect(p.routes.kinds.research).toBe('deepseek-pro')
+    expect(p.routes.kinds.research).toBe('deepseek-v4-pro')
     expect(p.families.kimi.members).toEqual({ pro: 'kimi-k3.1-pro', highspeed: 'kimi-k3.1-pro-highspeed' })
   }
 })
@@ -78,13 +78,15 @@ test('OpenRouter serves MiniMax and GPT-6 under their own slugs, GPT-6 picking L
   expect(p.families.gpt.auto).toEqual({ simple: 'luna', coding: 'sol', critical: 'astra' })
 })
 
-test('gatewayName gives Palgu its pin names, so an old deepseek-v4-pro route or pin still runs', async () => {
-  expect(gatewayName('palgu', 'deepseek-v4-pro')).toBe('deepseek-pro')
+test('gatewayName gives Palgu the name its model list uses, so an old deepseek-v4-pro route or pin runs as deepseek-v4-pro', async () => {
+  // Palgu's /v1/models/health lists deepseek-v4-pro and serves under that name (2026-11-24).
+  expect(gatewayName('palgu', 'deepseek-v4-pro')).toBe('deepseek-v4-pro')
+  expect(gatewayName('palgu', 'deepseek-v4-pro')).toBe('deepseek-v4-pro')
   expect(gatewayName('palgu', 'glm-5.3')).toBe('glm-5.3')
   expect(gatewayName('openrouter', 'deepseek/deepseek-v4-pro')).toBe('deepseek/deepseek-v4-pro')
 })
 
 test('on Palgu research and review go to DeepSeek, not Kimi, which Palgu does not answer today', async () => {
-  expect(providerDefaults('palgu').routes.kinds).toEqual({ research: 'deepseek-pro', review: 'deepseek-pro', multimodal: 'claude' })
-  expect(providerDefaults('palgu').families.deepseek.members).toEqual({ 'v4-pro': 'deepseek-pro' })
+  expect(providerDefaults('palgu').routes.kinds).toEqual({ research: 'deepseek-v4-pro', review: 'deepseek-v4-pro', multimodal: 'claude' })
+  expect(providerDefaults('palgu').families.deepseek.members).toEqual({ 'v4-pro': 'deepseek-v4-pro' })
 })

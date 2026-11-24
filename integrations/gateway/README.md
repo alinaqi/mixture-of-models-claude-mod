@@ -12,7 +12,7 @@ Checked against `https://api.palgu.ai/v1/chat/completions` on 2026-11-16:
 
 | `model` | `x-srooter-pin` header | Result |
 | :- | :- | :- |
-| `auto` | none | Palgu routes (served `deepseek-pro` for a one-word answer) |
+| `auto` | none | Palgu routes (served `deepseek-v4-pro` for a one-word answer) |
 | any model, e.g. `glm-5.3` | none | Palgu still routes: the model field is not a pin |
 | a model, e.g. `kimi-k3.1-pro` | present (we send the same model id) | that model, pinned |
 | `auto` | present | refused, 403 `pin 'auto' not allowed by policy` |

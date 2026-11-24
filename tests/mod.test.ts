@@ -146,11 +146,11 @@ test('an overloaded child moves to the next equivalent model before the main mod
   expect(result.answer).toBe('second answer')
   expect(runs.length).toBe(2)
   expect(runs[0].argv).toContain('glm-5.3')
-  expect(runs[1].argv).toContain('deepseek-pro')
-  expect(runs[1].init.env.ANTHROPIC_CUSTOM_HEADERS).toContain('x-srooter-pin: deepseek-pro')
+  expect(runs[1].argv).toContain('deepseek-v4-pro')
+  expect(runs[1].init.env.ANTHROPIC_CUSTOM_HEADERS).toContain('x-srooter-pin: deepseek-v4-pro')
   expect(runs[1].init.env.ANTHROPIC_CUSTOM_HEADERS).toContain('x-palgu-fallback: auto')
-  expect(done.text).toContain('route: deepseek-pro')
-  expect(done.text).toContain('child: glm-5.3 failed (429) → served by deepseek-pro')
+  expect(done.text).toContain('route: deepseek-v4-pro')
+  expect(done.text).toContain('child: glm-5.3 failed (429) → served by deepseek-v4-pro')
 })
 
 test('a child that gives up instead of answering is discarded and the next equivalent model takes the turn', GW, async ($, on) => {
@@ -166,9 +166,9 @@ test('a child that gives up instead of answering is discarded and the next equiv
 
   expect(seen).toEqual([])
   expect(result.answer).toBe('second answer')
-  expect(runs.map((r) => r.argv[r.argv.indexOf('--model') + 1])).toEqual(['glm-5.3', 'deepseek-pro'])
-  expect(done.text).toContain('route: deepseek-pro')
-  expect(done.text).toContain('child: glm-5.3 failed (gave up) → served by deepseek-pro')
+  expect(runs.map((r) => r.argv[r.argv.indexOf('--model') + 1])).toEqual(['glm-5.3', 'deepseek-v4-pro'])
+  expect(done.text).toContain('route: deepseek-v4-pro')
+  expect(done.text).toContain('child: glm-5.3 failed (gave up) → served by deepseek-v4-pro')
 })
 
 test('when every equivalent gives up, the main model takes the turn and the route line lists them', GW, async ($, on) => {
@@ -184,7 +184,7 @@ test('when every equivalent gives up, the main model takes the turn and the rout
 
   expect(seen).toEqual(['claude-opus-5'])
   expect(runs.length).toBe(4)
-  expect(logs.join('\n')).toContain('all equivalents failed: glm-5.3 (gave up), deepseek-pro (gave up), gemini-3.8-flash (gave up), minimax-m3 (gave up); main model takes this turn')
+  expect(logs.join('\n')).toContain('all equivalents failed: glm-5.3 (gave up), deepseek-v4-pro (gave up), gemini-3.8-flash (gave up), minimax-m3 (gave up); main model takes this turn')
   expect(done.text).toContain('all equivalents failed: glm-5.3 (gave up)')
 })
 
@@ -216,8 +216,8 @@ test('the main model takes the turn only after every equivalent failed, and the 
 
   expect(seen).toEqual(['claude-opus-5'])
   // The routed model and three equivalents (router.child.fallbacks, 3 by default).
-  expect(runs.map((r) => r.argv[r.argv.indexOf('--model') + 1])).toEqual(['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3'])
-  expect(logs.join('\n')).toContain('all equivalents failed: glm-5.3 (529), deepseek-pro (529), gemini-3.8-flash (529), minimax-m3 (529); main model takes this turn')
+  expect(runs.map((r) => r.argv[r.argv.indexOf('--model') + 1])).toEqual(['glm-5.3', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3'])
+  expect(logs.join('\n')).toContain('all equivalents failed: glm-5.3 (529), deepseek-v4-pro (529), gemini-3.8-flash (529), minimax-m3 (529); main model takes this turn')
   expect(done.text).toContain('route: glm-5.3')
   expect(done.text).toContain('all equivalents failed')
 })
@@ -249,7 +249,7 @@ test('a bad request is not walked across models: the main model takes it at once
 
 test('a context that does not fit moves to the largest healthy window Palgu reports, not along the class', GW, async ($, on) => {
   const store = stubSession(on)
-  store.set('palgu-models', { at: '', served: ['glm-5.3', 'deepseek-pro', 'gemini-3.8-flash', 'minimax-m3'], down: [], classes: {}, windows: { 'glm-5.3': 200000, 'deepseek-pro': 128000, 'gemini-3.8-flash': 1048576, 'minimax-m3': 188000 } })
+  store.set('palgu-models', { at: '', served: ['glm-5.3', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3'], down: [], classes: {}, windows: { 'glm-5.3': 200000, 'deepseek-v4-pro': 128000, 'gemini-3.8-flash': 1048576, 'minimax-m3': 188000 } })
   const runs: any[] = []
   on('process.run', ($, e) => { runs.push(e); return { value: runs.length === 1 ? { exitCode: 0, stdout: childError(400, 'API Error: 400 prompt is too long: 210000 tokens > 200000 maximum'), stderr: '' } : { exitCode: 0, stdout: childJson('long answer'), stderr: '' } } })
   recordSteps(on, [])
@@ -274,15 +274,15 @@ test('with no window known and no router.child.longContext, a context error goes
 
 test('a fallback Palgu made itself shows on the route line, and the turn counts for the model that served it', GW, async ($, on) => {
   const store = stubSession(on)
-  const events = [{ type: 'assistant', message: { model: 'deepseek-pro', content: [{ type: 'text', text: 'served answer' }] } }]
+  const events = [{ type: 'assistant', message: { model: 'deepseek-v4-pro', content: [{ type: 'text', text: 'served answer' }] } }]
   on('process.run', () => ({ value: { exitCode: 0, stdout: events.map((x) => JSON.stringify(x)).join('\n') + '\n' + childJson('served answer'), stderr: '' } }))
   recordSteps(on, [])
 
   await routedTurn($, 'grep the repo for TODO comments and list the files')
   const done = await $.turn.complete({ turnId: 't1', answer: 'served answer', durationMs: 10, isAborted: false, usage: null })
-  expect(done.text).toContain('route: deepseek-pro')
-  expect(done.text).toContain('child: glm-5.3 → served by deepseek-pro (gateway fallback)')
-  expect(JSON.stringify(store.get('stats'))).toContain('deepseek-pro')
+  expect(done.text).toContain('route: deepseek-v4-pro')
+  expect(done.text).toContain('child: glm-5.3 → served by deepseek-v4-pro (gateway fallback)')
+  expect(JSON.stringify(store.get('stats'))).toContain('deepseek-v4-pro')
 })
 
 test('router.child.fallbacks 0 turns the mod-side walk off', GW, async ($, on) => {
@@ -447,7 +447,7 @@ test('the kind picks the model: research at a coding score goes to DeepSeek', GW
   recordSteps(on, [])
 
   await routedTurn($, 'research how other teams do blue-green deploys on render and compare three approaches')
-  expect(runs[0].argv).toContain('deepseek-pro')
+  expect(runs[0].argv).toContain('deepseek-v4-pro')
 })
 
 test('a borderline score is sampled twice and the higher one wins', GW, async ($, on) => {
@@ -1221,7 +1221,7 @@ test('/route strategy cost asks the classifier about risk and sends a coding-sco
   await $.prompt.submit({ text: 'add pagination to the users endpoint and its tests' })
   await $.turn.start({ turnId: 't1' })
   await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
-  expect(runs[0].argv).toContain('deepseek-pro')
+  expect(runs[0].argv).toContain('deepseek-v4-pro')
   const status = await $.command.run({ command: 'route', args: 'status' })
   expect(status.text).toContain('strategy cost')
 })
@@ -1330,16 +1330,16 @@ test('/route gpt/auto runs a simple turn on GPT-6 Luna through the gateway child
   expect(runs[0].argv).toContain('gpt-6-luna')
 })
 
-test('on Palgu the child pins the routed model, and a saved deepseek-v4-pro pin runs under Palgu\'s name', GW, async ($, on) => {
+test('on Palgu the child pins the routed model, and a saved deepseek-pro pin runs under the name Palgu lists now', GW, async ($, on) => {
   const runs: any[] = []
   const store = stubSession(on)
-  store.set('pin', { mode: 'model', model: 'deepseek-v4-pro' })
+  store.set('pin', { mode: 'model', model: 'deepseek-pro' })
   on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
   recordSteps(on, [])
   await routedTurn($, 'grep the repo for TODO comments and list the files')
-  expect(runs[0].argv).toContain('deepseek-pro')
-  expect(runs[0].argv).not.toContain('deepseek-v4-pro')
-  expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: deepseek-pro')
+  expect(runs[0].argv).toContain('deepseek-v4-pro')
+  expect(runs[0].argv).not.toContain('deepseek-pro')
+  expect(runs[0].init.env.ANTHROPIC_CUSTOM_HEADERS.split('\n')).toContain('x-srooter-pin: deepseek-v4-pro')
 })
 
 test('/route with a word that names no model routes on auto and says so, never pinning it', GW, async ($, on) => {
