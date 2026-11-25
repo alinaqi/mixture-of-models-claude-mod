@@ -76,6 +76,16 @@ async function readStrategies($, dir) {
 }
 
 // The only local files read: ~/.claude/model-config.json and the strategy files. Neither is sent anywhere.
+// model-config.json again before each prompt: an edit applies at once, without a restart. One small
+// local read; nothing changes unless the text did.
+async function refreshConfig($) {
+  const text = await $.fs.read(home + '/.claude/model-config.json').catch(() => configText)
+  if (text === configText) return
+  configText = text
+  applyConfig()
+  $.ui.invalidate('ui.render')
+}
+
 async function loadConfig($, homeDir) {
   configText = await $.fs.read(homeDir + '/.claude/model-config.json').catch(() => '')
   strategies = await readStrategies($, homeDir + STRATEGY_DIR)
@@ -679,6 +689,7 @@ export function register(on, opts) {
 
   on('prompt.submit', async ($, e, next) => {
     if (disabled) return next(e)
+    await refreshConfig($)
     // The heartbeat's own continue stays on the main session, the one that stopped mid-task.
     if (e.origin && e.origin.kind === 'plugin' && e.origin.name === PLUGIN_NAME) {
       setDecision('main', 'heartbeat')

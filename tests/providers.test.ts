@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { PROVIDERS, gatewayName, providerDefaults, providerOf } from '../hooks/lib/providers.js'
 
-const PALGU_IDS = ['glm-5.3', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
+const PALGU_IDS = ['glm-5.3', 'deepseek-v4-pro', 'gemini-3.8-flash', 'minimax-m3', 'minimax-m2.5', 'gpt-6.2-sol', 'gpt-6-luna', 'gpt-6.2-astra', 'kimi-k3.1-pro', 'kimi-k3.1-pro-highspeed', 'mercury-3']
 
 test('the providers are palgu, openrouter, litellm and any other anthropic-compatible gateway', async () => {
   expect(PROVIDERS).toEqual(['palgu', 'openrouter', 'litellm', 'anthropic-compatible'])
@@ -76,6 +76,15 @@ test('OpenRouter serves MiniMax and GPT-6 under their own slugs, GPT-6 picking L
   expect(p.families.minimax.members).toEqual({ m3: 'minimax/minimax-m3', 'm3.1-flash': 'minimax/minimax-m3.1-flash' })
   expect(p.families.gpt.members).toEqual({ sol: 'openai/gpt-6-sol', luna: 'openai/gpt-6-luna', astra: 'openai/gpt-6-astra' })
   expect(p.families.gpt.auto).toEqual({ simple: 'luna', coding: 'sol', critical: 'astra' })
+})
+
+test('the Palgu GPT family uses the ids Palgu serves now; the retired GPT-6 names run as their 6.2 models', async () => {
+  // Palgu, 2026-11-25 (gateway PR #2909): gpt-6-sol and gpt-6-astra are retired to their 6.2 models;
+  // gpt-6-luna is still the small fast GPT, with no 6.2 Luna.
+  expect(providerDefaults('palgu').families.gpt.members).toEqual({ sol: 'gpt-6.2-sol', luna: 'gpt-6-luna', astra: 'gpt-6.2-astra' })
+  expect(gatewayName('palgu', 'gpt-6-sol')).toBe('gpt-6.2-sol')
+  expect(gatewayName('palgu', 'gpt-6-astra')).toBe('gpt-6.2-astra')
+  expect(gatewayName('palgu', 'gpt-6-luna')).toBe('gpt-6-luna')
 })
 
 test('gatewayName gives Palgu the name its model list uses, so an old deepseek-v4-pro route or pin runs as deepseek-v4-pro', async () => {

@@ -1368,7 +1368,7 @@ test('on Palgu /route mercury pins Mercury 3, and the child gives up after two r
 
 const HEALTH_URL = 'https://api.palgu.ai/v1/models/health'
 const HEALTH = JSON.stringify({ run_at: '2026-11-07T06:00:13+00:00', models: [
-  { model: 'glm-5.3', class: 'frontier', healthy: true }, { model: 'gpt-6-sol', class: 'frontier', healthy: true },
+  { model: 'glm-5.3', class: 'frontier', healthy: true }, { model: 'gpt-6.2-sol', class: 'frontier', healthy: true },
   { model: 'grok-4.7', class: 'frontier', healthy: true }, { model: 'kimi-k3.1-pro', class: 'frontier', healthy: false },
   { model: 'claude-opus', class: 'premium', healthy: true }
 ] })
@@ -1388,7 +1388,7 @@ test('/route models reads what Palgu serves now with the mod\'s key, and a new m
   expect(out.text).not.toContain('claude-opus')
   const health = calls.find((c) => c.url === HEALTH_URL)
   expect(health.init.headers['x-api-key']).toBe('test-key')
-  expect((store.get('palgu-models') as any).served).toEqual(['glm-5.3', 'gpt-6-sol', 'grok-4.7'])
+  expect((store.get('palgu-models') as any).served).toEqual(['glm-5.3', 'gpt-6.2-sol', 'grok-4.7'])
   expect((await $.command.run({ command: 'route', args: 'grok' })).text).toBe('routing set to model grok-4.7')
 })
 
@@ -1405,7 +1405,7 @@ test('a Palgu answer that cannot be read keeps the built-in list', GW, async ($,
   stubSession(on, { fetch: () => ({ ok: false, status: 503, headers: {}, text: '' }) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect((await $.command.run({ command: 'route', args: 'models' })).text).toMatch(/built-in list/)
-  expect((await $.command.run({ command: 'route', args: 'gpt' })).text).toBe('routing set to model gpt-6-sol')
+  expect((await $.command.run({ command: 'route', args: 'gpt' })).text).toBe('routing set to model gpt-6.2-sol')
 })
 
 test('when Palgu stops answering, /route models shows the last list read, marked as such', GW, async ($, on) => {
@@ -1748,4 +1748,19 @@ test('/route stats reset clears the counts, the log, the savings and the subagen
   expect(store.get('subagent-stats')).toEqual({})
   expect(store.get('pin')).toEqual({ mode: 'model', model: 'glm-5.3' })
   expect((await $.command.run({ command: 'route', args: 'usage' })).text.split('\n')[0]).toBe('Models used, last 7 days: no turns yet')
+})
+
+test('an edit to model-config.json applies at the next prompt, without a restart', GW, async ($, on) => {
+  const opts: any = { config: JSON.stringify({ router: { routes: { simple: 'glm-5.3', coding: 'glm-5.3', critical: 'claude' } } }), scores: ['5 code'] }
+  stubSession(on, opts)
+  const runs: any[] = []
+  on('process.run', ($, e) => { runs.push(e); return { value: { exitCode: 0, stdout: childJson('child answer'), stderr: '' } } })
+  recordSteps(on, [])
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  opts.config = JSON.stringify({ router: { routes: { simple: 'glm-5.3', coding: 'gpt/sol', critical: 'claude' } } })
+  // No second session.start: the same session, its config edited.
+  await $.prompt.submit({ text: 'add a retry wrapper to the http client and a test for it' })
+  await $.turn.start({ turnId: 't1' })
+  await drain($.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5', messageCount: 1 }))
+  expect(runs[0].argv[runs[0].argv.indexOf('--model') + 1]).toBe('gpt-6.2-sol')
 })
