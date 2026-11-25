@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.36.4] - 2026-11-25
+
+### Fixed
+- An edit to `~/.claude/model-config.json` now applies at the next prompt. The mod read it only at session start, and `/reload-plugins` does not start the session again, so a route you added (say coding → `gpt/sol`) did nothing, and its band button did not appear, until Claude Code restarted.
+- The GPT family on Palgu uses the ids Palgu serves now: `gpt-6.2-sol`, `gpt-6.2-astra`, and `gpt-6-luna` (still the small, fast GPT). `gpt-6-sol` and `gpt-6-astra` are retired names Palgu maps to the 6.2 models (gateway PR #2909), and an old route or pin naming them runs, and is counted, as the 6.2 model.
+
 ## [0.36.3] - 2026-11-24
 
 ### Fixed

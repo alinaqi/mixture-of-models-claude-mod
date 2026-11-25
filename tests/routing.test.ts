@@ -144,7 +144,7 @@ test('parseRouteArg reads help', async () => {
 
 test('parseRouteArg expands a prefix to a gateway model that no route names', async () => {
   expect(parseRouteArg('minimax', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'minimax-m3' })
-  expect(parseRouteArg('gpt', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gpt-6-sol' })
+  expect(parseRouteArg('gpt', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gpt-6.2-sol' })
   expect(parseRouteArg('kimi-k3.1-pro-h', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'kimi-k3.1-pro-highspeed' })
   expect(parseRouteArg('deepseek', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'deepseek-v4-pro' })
   expect(parseRouteArg('gemini', DEFAULT_ROUTES)).toEqual({ mode: 'model', model: 'gemini-3.8-flash' })
